@@ -6,7 +6,7 @@ import traceback
 
 from bot import ff, p11
 from bot.notify import telegram
-from bot.web import STATE
+from bot.web import STATE, load_json, save_json
 
 acts = json.loads((STATE / "actions.json").read_text(encoding="utf-8"))
 acts.sort(key=lambda a: a["at"])
@@ -29,3 +29,6 @@ for a in acts:
         traceback.print_exc()
         telegram(f"❌ Error a {a['do']} {a['comp'] or ''}: {type(e).__name__}: {str(e)[:300]}")
     done.add(key)
+    d = load_json("done.json", [])
+    d.append(a["key"])
+    save_json("done.json", d[-300:])

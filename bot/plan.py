@@ -39,17 +39,25 @@ def ff_deadline(comp, ffd):
     return None
 
 
-def plan(now=None):
+def plan(now=None, done=None):
+    """Retorna les accions pendents. Una acció és pendent si la seva hora ja ha arribat (o arriba
+    en els propers 30 min), el joc encara no ha tancat i no s'ha fet abans (done)."""
     now = now or dt.datetime.now(UTC)
+    done = set(done or [])
     local = now.astimezone(MADRID)
-    morning = local.hour == 9 and local.minute < 30
     ffd = load_json("deadlines_ff.json")
     acts, info = [], []
 
-    def soon(t):
-        return t is not None and now <= t < now + WINDOW
+    def due(key, t, deadline):
+        if key in done or deadline <= now:
+            return False
+        return t < now + WINDOW
 
-    ff_today = False
+    def add(key, t, do, comp):
+        acts.append({"key": key, "at": max(t, now).isoformat(), "do": do, "comp": comp})
+
+    morning_t = local.replace(hour=9, minute=0, second=0, microsecond=0).astimezone(UTC)
+    ff_today = None
     for comp in P11 + ["europa-league"]:
         D = None
         if comp in P11:
@@ -60,26 +68,29 @@ def plan(now=None):
         K = ff_deadline(comp, ffd) or (D + dt.timedelta(hours=2) if D else None)
         if D and D > now:
             info.append(f"{comp}: Predicted11 tanca {D.astimezone(MADRID):%a %d %H:%M}")
-            if morning and D.astimezone(MADRID).date() == local.date():
-                acts.append({"at": now.isoformat(), "do": "p11", "comp": comp})
-            if soon(D - LEAD):
-                acts.append({"at": (D - LEAD).isoformat(), "do": "p11", "comp": comp})
+            if D.astimezone(MADRID).date() == local.date():
+                k = f"p11-mati:{comp}:{D.isoformat()}"
+                if due(k, morning_t, D):
+                    add(k, morning_t, "p11", comp)
+            k = f"p11-final:{comp}:{D.isoformat()}"
+            if due(k, D - LEAD, D):
+                add(k, D - LEAD, "p11", comp)
         if K and K > now:
             info.append(f"{comp}: FutbolFantasy tanca {K.astimezone(MADRID):%a %d %H:%M}")
             if K.astimezone(MADRID).date() == local.date():
-                ff_today = True
-            if soon(K - LEAD):
-                acts.append({"at": (K - LEAD).isoformat(), "do": "fffinal", "comp": comp})
-    if morning and (ff_today or not ffd):
-        acts.append({"at": now.isoformat(), "do": "ff", "comp": None})
-    # Un cop per setmana (dilluns al matí) es refresquen els tancaments de FutbolFantasy.
-    if morning and local.weekday() == 0 and not any(a["do"] == "ff" for a in acts):
-        acts.append({"at": now.isoformat(), "do": "ff", "comp": None})
+                ff_today = K if not ff_today else min(ff_today, K)
+            k = f"ff-final:{comp}:{K.isoformat()}"
+            if due(k, K - LEAD, K):
+                add(k, K - LEAD, "fffinal", comp)
+    k = f"ff-mati:{local.date()}"
+    if (ff_today or not ffd) and due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
+        add(k, morning_t, "ff", None)
     return acts, info
 
 
 if __name__ == "__main__":
-    acts, info = plan()
+    done = load_json("done.json", [])
+    acts, info = plan(done=done)
     (STATE / "actions.json").write_text(json.dumps(acts), encoding="utf-8")
     print("\n".join(info))
     print("Accions:", acts)
@@ -88,3 +99,4 @@ if __name__ == "__main__":
             f.write(f"has={'true' if acts else 'false'}\n")
     if acts:
         print("::notice title=plan::" + " | ".join(f"{a['do']} {a['comp'] or ''} {a['at'][11:16]}Z" for a in acts))
+
