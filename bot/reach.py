@@ -31,7 +31,7 @@ def main():
                 blocked = any(w in (title + body).lower() for w in
                               ["just a moment", "access denied", "attention required", "captcha", "forbidden"])
                 status = r.status if r else "?"
-                lines.append(f"{'❌' if blocked or (isinstance(status,int) and status>=400) else '✅'} {name}: {status} · {title[:60]}")
+                lines.append(f"{'❌' if blocked or (isinstance(status,int) and status>=400) else '✅'} {name}: {status} · {title[:60]} · {body[:120]}")
                 pg.screenshot(path=f"out/{name}.png")
             except Exception as e:
                 lines.append(f"❌ {name}: {type(e).__name__} {str(e)[:120]}")
@@ -39,6 +39,9 @@ def main():
         b.close()
     msg = "🔎 Prova d'accés des de GitHub:\n" + "\n".join(lines)
     print(msg)
+    for l in lines:
+        print("::notice title=reach::" + l)
+        body = ""
     telegram(msg)
 
 
