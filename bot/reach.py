@@ -8,7 +8,8 @@ SITES = {
     "FutbolFantasy": "https://www.futbolfantasy.com/fantasy",
     "SorareInside": "https://sorareinside.com/lineups",
     "Sorare": "https://sorare.com/football",
-    "Mister": "https://mister.mundodeportivo.com",
+    "Mister Fantasy": "https://mister.mundodeportivo.com",
+    "SorareScore": "https://www.sorarescore.com",
 }
 
 
