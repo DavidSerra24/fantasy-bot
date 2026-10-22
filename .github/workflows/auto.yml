@@ -24,7 +24,9 @@ jobs:
           cache: pip
       - uses: actions/cache/restore@v4
         with:
-          path: state
+          path: |
+            state
+            !state/session_*.json
           key: state-${{ github.run_id }}
           restore-keys: state-
       - run: pip install requests python-dotenv
@@ -42,5 +44,7 @@ jobs:
       - uses: actions/cache/save@v4
         if: always() && steps.plan.outputs.has == 'true'
         with:
-          path: state
+          path: |
+            state
+            !state/session_*.json
           key: state-${{ github.run_id }}
