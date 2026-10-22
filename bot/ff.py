@@ -56,7 +56,16 @@ def hours_left(rem):
     return d.get("d", 0) * 24 + d.get("h", 0) + d.get("m", 0) / 60
 
 
-def candidates(sidata):
+def team_score(a, b):
+    stop = {"fc", "cf", "ac", "sc", "afc", "cd", "ud", "rc", "ss", "us", "calcio", "club", "de", "real", "sk", "fk", "kv", "spor", "kulubu", "d"}
+    ta, tb = set(norm(a)) - stop, set(norm(b)) - stop
+    return len(ta & tb) + (1 if any(len(x) >= 4 and (x.startswith(y) or y.startswith(x)) for x in ta for y in tb if len(y) >= 4) else 0)
+
+
+def candidates(sidata, official=None):
+    """Candidats ordenats per PS. official = {equip SorareInside: [titulars oficials]}: per a aquests equips
+    només compten els titulars confirmats (i compten com a 100%, encara que abans tinguessin menys del 80%)."""
+    official = official or {}
     order = sidata["_order"]
     opp = {}
     for i in range(0, len(order) - 1, 2):
@@ -66,13 +75,53 @@ def candidates(sidata):
         rows = sidata.get(t)
         if not isinstance(rows, list):
             continue
+        off = official.get(t)
         for r in rows:
             for p in r:
-                if p.get("ps") is not None and (p.get("pct") or 0) >= 80:
-                    out.append({"si": p["name"], "team": t, "opp": opp.get(t), "ps": p["ps"], "pct": p["pct"]})
+                if p.get("ps") is None:
+                    continue
+                if off is not None:
+                    if not any(name_score(p["name"], o) >= 60 for o in off):
+                        continue  # no és titular oficial
+                elif (p.get("pct") or 0) < 80:
+                    continue
+                out.append({"si": p["name"], "team": t, "opp": opp.get(t), "ps": p["ps"], "pct": 100 if off is not None else p["pct"]})
     out.sort(key=lambda x: -x["ps"])  # ordenació estable: en cas d'empat, l'ordre de la llista
     for i, c in enumerate(out):
         c["idx"] = i
+    return out
+
+
+def official_lineups(slug, kickoff, sidata, wait_until=None, log=None):
+    """Onzes oficials (ESPN) dels partits que comencen a `kickoff`. Espera (reintenta cada 3 min)
+    fins a `wait_until` si encara no s'han publicat. Retorna {equip SorareInside: [titulars]}."""
+    import time
+    from bot import espn
+    try:
+        evs = espn.matches_at(slug, kickoff.astimezone(dt.timezone.utc))
+    except Exception as e:
+        (log or []).append(f"ESPN no disponible ({e})")
+        return {}
+    teams = [t for t in sidata.get("_order", [])]
+    out = {}
+    for ev in evs:
+        st = None
+        while True:
+            try:
+                st = espn.starters(slug, ev["id"])
+            except Exception:
+                st = None
+            if st or not wait_until or dt.datetime.now(dt.timezone.utc) >= wait_until:
+                break
+            time.sleep(180)
+        if not st:
+            (log or []).append(f"onzes oficials de {ev['home']}-{ev['away']} encara no publicats")
+            continue
+        for espn_team, names in st.items():
+            best = max(teams, key=lambda t: team_score(t, espn_team), default=None)
+            if best and team_score(best, espn_team) > 0:
+                out[best] = names
+        (log or []).append(f"onzes oficials de {ev['home']}-{ev['away']} aplicats")
     return out
 
 
@@ -266,7 +315,13 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
             deadline = dt.datetime.now(MADRID) + dt.timedelta(hours=h)
             sidata = si.extract_league(spg, country, league, deadline.date())
             save_json(f"si_ff_{slug}.json", sidata)
-            cands = candidates(sidata)
+            official, olog = {}, []
+            if final:
+                kickoff = deadline
+                official = official_lineups(slug, kickoff, sidata, wait_until=kickoff.astimezone(dt.timezone.utc) - dt.timedelta(minutes=15), log=olog)
+                if official:  # dades fresques: els onzes poden haver canviat mentre esperàvem
+                    sidata = si.extract_league(spg, country, league, deadline.date())
+            cands = candidates(sidata, official)
             pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
             pg.wait_for_timeout(2500)
             inject(pg, "ff")
@@ -285,6 +340,8 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
             order = {"G": 0, "D": 1, "M": 2, "F": 3}
             names = ", ".join(f"{c['ff']} {c['ps']}" for c in sorted(pick, key=lambda c: order[c["pos"]]))
             warn = f" | ⚠️ no trobats a FutbolFantasy: {', '.join(missing)}" if missing else ""
+            if olog:
+                warn += " | " + "; ".join(olog)
             if dry:
                 report.append(f"🧪 {g['label']} ({tac}, {total} PS) [prova, no desat]: {names}{warn}")
                 continue
