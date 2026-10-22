@@ -1,0 +1,205 @@
+{
+ "leagues": {
+  "laliga": {
+   "si": [
+    "Spain",
+    "Primera División"
+   ],
+   "p11": "laliga"
+  },
+  "laliga2": {
+   "si": [
+    "Spain",
+    "Segunda División"
+   ],
+   "p11": "laliga2"
+  },
+  "premier-league": {
+   "si": [
+    "England",
+    "Premier League"
+   ],
+   "p11": "premier-league"
+  },
+  "serie-a": {
+   "si": [
+    "Italy",
+    "Serie A"
+   ],
+   "p11": "serie-a"
+  },
+  "champions": {
+   "si": [
+    "Europe",
+    "UEFA Champions League"
+   ],
+   "p11": "champions"
+  },
+  "europa-league": {
+   "si": [
+    "Europe",
+    "UEFA Europa League"
+   ]
+  },
+  "conference": {
+   "si": [
+    "Europe",
+    "UEFA Conference League"
+   ]
+  }
+ },
+ "teams": {
+  "laliga2": {
+   "UD Las Palmas": "las-palmas",
+   "CD Castellón": "castellon",
+   "Granada CF": "granada",
+   "Cádiz CF": "cadiz",
+   "Real Sporting de Gijón": "sporting",
+   "Albacete Balompié": "albacete",
+   "Real Club Celta de Vigo II": "celta-fortuna",
+   "CD Tenerife": "tenerife",
+   "SD Eibar": "eibar",
+   "RCD Mallorca": "mallorca",
+   "Girona FC": "girona",
+   "FC Andorra": "andorra-fc",
+   "CD Leganés": "leganes",
+   "Córdoba CF": "cordoba",
+   "Real Sociedad de Fútbol II (Sanse)": "real-sociedad-b",
+   "UD Almería": "almeria",
+   "Agrupación Deportiva Ceuta FC": "ceuta",
+   "Real Oviedo": "real-oviedo",
+   "Burgos CF": "burgos",
+   "CE Sabadell FC": "sabadell",
+   "Real Valladolid CF": "valladolid",
+   "CD Eldense": "eldense"
+  },
+  "premier-league": {
+   "Leeds United FC": "leeds-united",
+   "Manchester United FC": "manchester-united",
+   "Manchester City FC": "manchester-city",
+   "Ipswich Town FC": "ipswich",
+   "Newcastle United FC": "newcastle",
+   "Aston Villa FC": "aston-villa",
+   "Brentford FC": "brentford",
+   "Liverpool FC": "liverpool",
+   "Everton FC": "everton",
+   "Chelsea FC": "chelsea",
+   "AFC Bournemouth": "bournemouth",
+   "Sunderland AFC": "sunderland",
+   "Brighton & Hove Albion FC": "brighton",
+   "Crystal Palace FC": "crystal-palace",
+   "Nottingham Forest FC": "nottingham-forest",
+   "Arsenal FC": "arsenal",
+   "Tottenham Hotspur FC": "tottenham",
+   "Coventry City FC": "coventrycity",
+   "Fulham FC": "fulham",
+   "Hull City AFC": "hullcity"
+  },
+  "serie-a": {
+   "AS Roma": "roma",
+   "Genoa CFC": "genoa",
+   "Bologna FC 1909": "bologna",
+   "FC Internazionale Milano": "inter",
+   "Parma Calcio 1913": "parma",
+   "Torino FC": "torino",
+   "AC Monza": "monza",
+   "Cagliari Calcio": "cagliari",
+   "AC Milan": "milan",
+   "Atalanta Bergamasca Calcio": "atalanta",
+   "ACF Fiorentina": "fiorentina",
+   "Calcio Como": "como",
+   "Udinese Calcio": "udinese",
+   "US Lecce": "lecce",
+   "Venezia FC": "venezia",
+   "SSC Napoli": "napoles",
+   "Frosinone Calcio": "frosinone",
+   "US Sassuolo Calcio": "sassuolo",
+   "Juventus FC": "juventus",
+   "SS Lazio": "lazio"
+  },
+  "laliga": {
+   "Real Betis": "betis",
+   "FC Barcelona": "barcelona",
+   "Real Club Deportivo de La Coruña": "deportivo",
+   "Levante UD": "levante",
+   "CA Osasuna": "osasuna",
+   "Real Racing Club de Santander": "racing",
+   "Real Madrid": "real-madrid",
+   "Sevilla FC": "sevilla",
+   "Villarreal CF": "villarreal",
+   "Elche CF": "elche",
+   "Málaga CF": "malaga",
+   "Real Sociedad": "real-sociedad",
+   "Valencia CF": "valencia",
+   "Athletic Club": "athletic",
+   "Getafe CF": "getafe",
+   "Rayo Vallecano": "rayo-vallecano",
+   "RCD Espanyol de Barcelona": "espanyol",
+   "Atlético de Madrid": "atletico",
+   "RC Celta": "celta",
+   "D. Alavés": "alaves"
+  },
+  "champions": {
+   "Paris Saint-Germain": "paris-saint-germain",
+   "FC Barcelona": "barcelona",
+   "VfB Stuttgart": "stuttgart",
+   "Atlético de Madrid": "atletico",
+   "Sporting Clube de Portugal": "sporting-cp",
+   "LASK": "lask",
+   "Liverpool FC": "liverpool",
+   "Villarreal CF": "villarreal",
+   "Fenerbahçe Spor Kulübü": "fenerbahce",
+   "SK Slavia Praha": "slavia-praga",
+   "Real Madrid": "real-madrid",
+   "RB Leipzig": "leipzig",
+   "AS Roma": "roma",
+   "ŠK Slovan Bratislava": "slovan-bratislava",
+   "FC Internazionale Milano": "inter",
+   "FC Shakhtar Donetsk": "shakhtar-donetsk",
+   "Club Brugge KV": "brujas",
+   "RC Lens": "lens",
+   "Aston Villa FC": "aston-villa",
+   "Viking FK": "viking",
+   "Sabah FK": "sabah",
+   "Borussia Dortmund": "borussia-dortmund",
+   "LOSC Lille": "lille",
+   "Galatasaray Spor Kulübü": "galatasaray",
+   "Real Betis": "betis",
+   "Feyenoord Rotterdam": "feyenoord",
+   "Manchester City FC": "manchester-city",
+   "AEK Athens FC": "aek-atenas",
+   "FC Porto": "porto",
+   "PSV Eindhoven": "psv",
+   "Calcio Como": "como",
+   "Manchester United FC": "manchester-united",
+   "FC Bayern München": "bayern-munich",
+   "Arsenal FC": "arsenal",
+   "SSC Napoli": "napoles",
+   "FK Bodø / Glimt": "bodo-glimt"
+  }
+ },
+ "alias": {
+  "Álex Jiménez": "Alejandro Jiménez",
+  "Tasos Douvikas": "Anastasios Douvikas",
+  "Javi Montero": "Francisco Montero",
+  "Dela": "Adrián de la Fuente",
+  "Yehor Yarmolyuk": "Yegor Yarmolyuk",
+  "Alisson Becker": "Alisson",
+  "Emiliano Buendía": "Emi Buendía",
+  "Williams": "Iñaki Williams",
+  "Cala": "Álex Calatrava",
+  "Robert Ure": "Robbie Ure",
+  "Jeff Chabot": "Julian Chabot",
+  "Alejandro Grimaldo": "Álex Grimaldo",
+  "João Cardoso": "Johnny Cardoso",
+  "João Victor": "João Tornich",
+  "Archibald Brown": "Archie Brown",
+  "Rash Ibrahim": "Rahim Ibrahim",
+  "Kasper Kairinen": "Kaan Kairinen",
+  "Rubén Alves": "Rubén González",
+  "Urri": "Albert Orriols"
+ },
+ "goleador_override": {
+  "laliga2/girona": "Vladyslav Vanat"
+ }
+}
