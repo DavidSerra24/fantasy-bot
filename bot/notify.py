@@ -17,4 +17,6 @@ def telegram(text: str) -> bool:
         json={"chat_id": chat, "text": text, "disable_web_page_preview": True},
         timeout=20,
     )
+    if not r.ok:
+        print("::warning title=telegram::" + r.text[:200])
     return r.ok
