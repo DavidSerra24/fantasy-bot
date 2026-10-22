@@ -16,6 +16,16 @@ window.__ff = (function () {
     }
     return out;
   }
+  // Tots els jocs de la pàgina (també els plens): id, etiqueta, tancament (hora de Madrid) i jugadors triats.
+  function cards() {
+    return [...document.querySelectorAll('.fantasy-juego[id^="juego-"]')].map(c => {
+      const txt = c.innerText.split('\n').map(s => s.trim()).filter(Boolean);
+      let ids = []; try { ids = JSON.parse(c.dataset.filtrar || '[]'); } catch (e) {}
+      return { id: c.dataset.id, label: txt.find(s => /·/.test(s)) || txt[0] || '', title: txt.find(s => /Jornada|Puntos en|Trío|Resiliencia/i.test(s)) || '',
+               end: c.dataset.dateEnd || null, ids, empty: c.querySelectorAll('a.fantasy-add').length,
+               slots: [...c.querySelectorAll('a.fantasy-slot')].map(a => +a.dataset.posicion) };
+    });
+  }
   // Resultats visibles del selector obert.
   function results() {
     const m = document.querySelector('.modal.show'); if (!m) return null;
@@ -29,5 +39,5 @@ window.__ff = (function () {
     await sleep(900); return results();
   }
   function rules() { const m = document.querySelector('.modal.show'); return m ? m.innerText : null; }
-  return { games, results, search, rules };
+  return { games, cards, results, search, rules };
 })();

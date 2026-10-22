@@ -9,6 +9,7 @@ import json
 import datetime as dt
 import re
 import unicodedata
+from zoneinfo import ZoneInfo
 
 from playwright.sync_api import sync_playwright
 
@@ -91,11 +92,15 @@ def close_modal(page):
 
 
 def lookup(page, jid, cands, limit=60):
+    open_picker(page, jid)
+    return lookup_open(page, cands, limit)
+
+
+def lookup_open(page, cands, limit=60):
     """Busca cada candidat al selector: posició, usos i equip a FutbolFantasy.
     Primer dedueix l'equip de FutbolFantasy de cada equip de SorareInside amb els noms segurs,
     i després només accepta jugadors d'aquell equip (evita confondre Nico Paz amb Yeferson Paz)."""
     from collections import Counter
-    open_picker(page, jid)
     raw = []
     for c in cands[:limit]:
         c["si"] = ALIAS.get(f"{c['team']}|{c['si']}", ALIAS.get(c["si"], c["si"]))
@@ -121,7 +126,7 @@ def lookup(page, jid, cands, limit=60):
             continue
         if best["u"] is not None and str(best["u"]) == "0":
             continue  # sense usos
-        found.append({**c, "ff": best["n"], "pos": POS[best["p"]], "uses": best["u"]})
+        found.append({**c, "ff": best["n"], "ffid": str(best["id"]), "pos": POS[best["p"]], "uses": best["u"]})
     return found, missing
 
 
@@ -188,7 +193,45 @@ def use_items(page, comp_slug, pick, report):
             return
 
 
-def run(max_hours=20.0, only=None, dry=False):
+MADRID = ZoneInfo("Europe/Madrid")
+
+
+def cards(page):
+    page.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
+    page.wait_for_timeout(3000)
+    inject(page, "ff")
+    out = page.evaluate("() => __ff.cards()")
+    for c in out:
+        c["ids"] = [str(x) for x in c["ids"]]
+        c["hours"] = None
+        if c["end"]:
+            end = dt.datetime.strptime(c["end"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=MADRID)
+            c["hours"] = (end - dt.datetime.now(MADRID)).total_seconds() / 3600
+    return out
+
+
+def remove_players(page, jid, remove_ids, log):
+    """Treu del camp els jugadors indicats (clic al jugador → 'Quitar selección')."""
+    for _ in range(15):
+        card = next((c for c in cards(page) if c["id"] == jid), None)
+        left = [i for i in (card["ids"] if card else []) if i in remove_ids]
+        if not left:
+            return
+        idx = card["ids"].index(left[0])
+        slots = sorted(card["slots"])
+        pos = slots[idx] if idx < len(slots) else slots[0]
+        page.locator(f'#juego-{jid} a.fantasy-slot[data-posicion="{pos}"]').first.click()
+        page.locator(".modal.show").wait_for(timeout=10000)
+        page.wait_for_timeout(800)
+        page.locator(".modal.show").get_by_text("Quitar selección").first.click()
+        page.locator(".modal.show").wait_for(state="hidden", timeout=10000)
+        page.wait_for_timeout(1200)
+    log.append("⚠️ no he pogut treure tots els jugadors")
+
+
+def run(max_hours=20.0, only=None, dry=False, final=False):
+    """final=True: revisió abans de tancar. Torna a calcular l'onze amb les dades més noves
+    (onzes oficials si ja han sortit) i fa els canvis necessaris encara que el joc ja estigui ple."""
     report = []
     with sync_playwright() as p:
         b = p.chromium.launch()
@@ -196,66 +239,83 @@ def run(max_hours=20.0, only=None, dry=False):
         pg = ctx.new_page()
         login_futbolfantasy(pg)
         save_session(ctx, "futbolfantasy")
-        pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
-        pg.wait_for_timeout(3000)
-        inject(pg, "ff")
-        games = pg.evaluate("() => __ff.games()")
+        allc = cards(pg)
+        save_json("deadlines_ff.json", {c["label"]: c["end"] for c in allc if c["end"]})
         sctx = spg = None
-        for g in games:
+        for g in allc:
             comp = next((c for c in COMPS if g["label"].startswith(c[0] + " ·")), None)
+            h = g["hours"]
+            if h is None or h <= 0:
+                continue
             if not comp:
-                if g["empty"]:
+                if g["empty"] and h <= max_hours:
                     report.append(f"✋ {g['label'] or g['title']}: pendent (joc especial, encara no automatitzat)")
                 continue
             label, slug, (country, league) = comp
             if only and slug not in only:
                 continue
-            h = hours_left(g["rem"])
-            if g["empty"] < 11:
-                continue  # ja fet (o a mitges: no el toquem)
             if h > max_hours:
-                report.append(f"⏳ {g['label']}: tanca d'aquí a {h:.0f} h, encara no")
                 continue
+            if not final and g["empty"] < 11:
+                continue  # ja fet: només el toca la revisió final
             if spg is None:
                 sctx = new_context(b, "sorareinside")
                 spg = sctx.new_page()
                 login_sorareinside(spg)
                 save_session(sctx, "sorareinside")
-            deadline = dt.datetime.now() + dt.timedelta(hours=h)
+            deadline = dt.datetime.now(MADRID) + dt.timedelta(hours=h)
             sidata = si.extract_league(spg, country, league, deadline.date())
             save_json(f"si_ff_{slug}.json", sidata)
             cands = candidates(sidata)
-            # Regles del joc: tàctiques permeses.
             pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
             pg.wait_for_timeout(2500)
             inject(pg, "ff")
-            found, missing = lookup(pg, g["id"], cands)
-            tactics = DEFAULT_TACTICS
-            best = optimise(found, tactics)
+            jid = g["id"]
+            if g["empty"] == 0:  # el selector s'obre des d'un jugador si no hi ha cap '+'
+                pg.locator(f'#juego-{jid} a.fantasy-slot').first.click()
+                pg.locator(".modal.show input[type=text]").wait_for(timeout=10000)
+                found, missing = lookup_open(pg, cands)
+            else:
+                found, missing = lookup(pg, jid, cands)
+            best = optimise(found, DEFAULT_TACTICS)
             if not best:
                 report.append(f"❌ {g['label']}: no he trobat un onze vàlid")
                 continue
             (total, _), tac, pick = best
             order = {"G": 0, "D": 1, "M": 2, "F": 3}
             names = ", ".join(f"{c['ff']} {c['ps']}" for c in sorted(pick, key=lambda c: order[c["pos"]]))
+            warn = f" | ⚠️ no trobats a FutbolFantasy: {', '.join(missing)}" if missing else ""
             if dry:
-                report.append(f"🧪 {g['label']} ({tac}, {total} PS) [prova, no desat]: {names}" + (f" | ⚠️ no trobats a FutbolFantasy: {', '.join(missing)}" if missing else ""))
+                report.append(f"🧪 {g['label']} ({tac}, {total} PS) [prova, no desat]: {names}{warn}")
                 continue
-            fill(pg, g["id"], pick)
-            # Comprovació
+            new_ids = {c["ffid"] for c in pick}
+            cur = set(g["ids"])
+            out_ids = cur - new_ids
+            if final and cur == new_ids:
+                report.append(f"✅ {g['label']}: revisat abans de tancar, sense canvis")
+                continue
+            if out_ids:
+                remove_players(pg, jid, out_ids, report)
+            card = next((c for c in cards(pg) if c["id"] == jid), {"ids": []})
+            todo = [c for c in pick if c["ffid"] not in set(card["ids"])]
             pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
-            pg.wait_for_timeout(3000)
+            pg.wait_for_timeout(2500)
             inject(pg, "ff")
-            left = next((x["empty"] for x in pg.evaluate("() => __ff.games()") if x["id"] == g["id"]), 0)
-            report.append(f"{'✅' if left == 0 else '⚠️'} {g['label']} ({tac}, {total} PS): {names}" + ("" if left == 0 else f" — falten {left}") + (f" | ⚠️ no trobats a FutbolFantasy: {', '.join(missing)}" if missing else ""))
+            fill(pg, jid, todo)
+            after = next((c for c in cards(pg) if c["id"] == jid), {"ids": [], "empty": 11})
+            ok = set(after["ids"]) == new_ids
+            changes = f" | canvis: surten {len(out_ids)}, entren {len(todo)}" if final and cur else ""
+            report.append(f"{'✅' if ok else '⚠️'} {g['label']} ({tac}, {total} PS): {names}{changes}{warn}" + ("" if ok else f" — revisa-ho, falten {after['empty']}"))
+            save_json(f"ff_{slug}.json", {"jid": jid, "pick": pick})
             use_items(pg, slug, pick, report)
         save_session(ctx, "futbolfantasy")
         b.close()
-    msg = "FutbolFantasy Fantasy✨\n" + ("\n".join(report) or "Res a fer ara.")
+    msg = "FutbolFantasy Fantasy✨" + (" (revisió final)" if final else "") + "\n" + ("\n".join(report) or "Res a fer ara.")
     print(msg)
     for l in report:
         print("::notice title=ff::" + l)
-    telegram(msg)
+    if report:
+        telegram(msg)
 
 
 if __name__ == "__main__":
@@ -263,5 +323,6 @@ if __name__ == "__main__":
     ap.add_argument("--max-hours", type=float, default=20.0)
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--final", action="store_true")
     a = ap.parse_args()
-    run(a.max_hours, a.only, a.dry)
+    run(a.max_hours, a.only, a.dry, a.final)

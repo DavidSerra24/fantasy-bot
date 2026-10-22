@@ -1,0 +1,46 @@
+name: Automàtic (cada 30 min)
+on:
+  schedule:
+    # Cada 30 minuts, de 7:05 a 23:35 (hora de Madrid a l'estiu; una hora menys a l'hivern)
+    - cron: "5,35 5-21 * * *"
+  workflow_dispatch:
+concurrency: fantasy
+jobs:
+  auto:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      SI_EMAIL: ${{ secrets.SI_EMAIL }}
+      SI_PASSWORD: ${{ secrets.SI_PASSWORD }}
+      FF_EMAIL: ${{ secrets.FF_EMAIL }}
+      FF_PASSWORD: ${{ secrets.FF_PASSWORD }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/cache/restore@v4
+        with:
+          path: state
+          key: state-${{ github.run_id }}
+          restore-keys: state-
+      - run: pip install requests python-dotenv
+      - name: Planificar
+        id: plan
+        run: python -m bot.plan
+      - name: Preparar navegador
+        if: steps.plan.outputs.has == 'true'
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+      - name: Executar
+        if: steps.plan.outputs.has == 'true'
+        run: python -m bot.execute
+      - uses: actions/cache/save@v4
+        if: always() && steps.plan.outputs.has == 'true'
+        with:
+          path: state
+          key: state-${{ github.run_id }}
