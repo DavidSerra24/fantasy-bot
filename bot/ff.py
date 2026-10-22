@@ -5,6 +5,7 @@ Normes (CLAUDE.md): ≥80% titular, respectar usos, tàctica vàlida, cap parell
 màxims punts projectats; empat → el que surt primer a la llista. Ítems → elegible amb més PS.
 """
 import argparse
+import json
 import datetime as dt
 import re
 import unicodedata
@@ -13,7 +14,7 @@ from playwright.sync_api import sync_playwright
 
 from bot import si
 from bot.notify import telegram
-from bot.web import inject, login_futbolfantasy, login_sorareinside, new_context, save_json, save_session
+from bot.web import ROOT, inject, login_futbolfantasy, login_sorareinside, new_context, save_json, save_session
 
 FF = "https://www.futbolfantasy.com"
 # Etiqueta del joc → (pàgina de la competició, país i lliga a SorareInside). L'ordre importa (LaLiga 2 abans que LaLiga).
@@ -25,6 +26,7 @@ COMPS = [
     ("Champions", "champions", ("Europe", "UEFA Champions League")),
     ("Europa League", "europa-league", ("Europe", "UEFA Europa League")),
 ]
+ALIAS = json.loads((ROOT / "config" / "futbolfantasy.json").read_text(encoding="utf-8")).get("alias", {})
 DEFAULT_TACTICS = ["5-3-2", "5-4-1", "4-5-1", "4-4-2", "4-3-3", "3-5-2", "3-4-3"]
 POS = {"POR": "G", "DEF": "D", "MED": "M", "DEL": "F"}
 
@@ -41,6 +43,9 @@ def name_score(a, b):
     if sa and sa <= sb or sb and sb <= sa:
         return 80
     if ta and tb and ta[-1] == tb[-1]:
+        return 60
+    # noms escurçats: "Rodri" / "Rodrigo" (mínim 4 lletres), el filtre d'equip evita confusions
+    if any(len(x) >= 4 and len(y) >= 4 and (x.startswith(y) or y.startswith(x)) for x in ta for y in tb):
         return 60
     return len(sa & sb) * 20
 
@@ -93,6 +98,7 @@ def lookup(page, jid, cands, limit=60):
     open_picker(page, jid)
     raw = []
     for c in cands[:limit]:
+        c["si"] = ALIAS.get(f"{c['team']}|{c['si']}", ALIAS.get(c["si"], c["si"]))
         res = page.evaluate("(q) => __ff.search(q)", c["si"]) or []
         if not res and norm(c["si"]):
             res = page.evaluate("(q) => __ff.search(q)", norm(c["si"])[-1]) or []
@@ -104,17 +110,19 @@ def lookup(page, jid, cands, limit=60):
         if len(strong) == 1 and strong[0]["t"]:
             votes.setdefault(c["team"], Counter())[strong[0]["t"]] += 1
     team_id = {t: v.most_common(1)[0][0] for t, v in votes.items()}
-    found = []
+    found, missing = [], []
     for c, res in raw:
         tid = team_id.get(c["team"])
         ok = [r for r in res if r["p"] in POS and (r["t"] == tid if tid else name_score(c["si"], r["n"]) >= 80)]
         best = max(ok, key=lambda r: name_score(c["si"], r["n"]), default=None)
         if not best or name_score(c["si"], best["n"]) < 60:
+            if c["ps"] >= (cands[min(15, len(cands) - 1)]["ps"] if cands else 0):
+                missing.append(f"{c['si']} ({c['team']}, {c['ps']} PS)")
             continue
         if best["u"] is not None and str(best["u"]) == "0":
             continue  # sense usos
         found.append({**c, "ff": best["n"], "pos": POS[best["p"]], "uses": best["u"]})
-    return found
+    return found, missing
 
 
 def optimise(found, tactics):
@@ -221,7 +229,7 @@ def run(max_hours=20.0, only=None, dry=False):
             pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
             pg.wait_for_timeout(2500)
             inject(pg, "ff")
-            found = lookup(pg, g["id"], cands)
+            found, missing = lookup(pg, g["id"], cands)
             tactics = DEFAULT_TACTICS
             best = optimise(found, tactics)
             if not best:
@@ -231,7 +239,7 @@ def run(max_hours=20.0, only=None, dry=False):
             order = {"G": 0, "D": 1, "M": 2, "F": 3}
             names = ", ".join(f"{c['ff']} {c['ps']}" for c in sorted(pick, key=lambda c: order[c["pos"]]))
             if dry:
-                report.append(f"🧪 {g['label']} ({tac}, {total} PS) [prova, no desat]: {names}")
+                report.append(f"🧪 {g['label']} ({tac}, {total} PS) [prova, no desat]: {names}" + (f" | ⚠️ no trobats a FutbolFantasy: {', '.join(missing)}" if missing else ""))
                 continue
             fill(pg, g["id"], pick)
             # Comprovació
@@ -239,7 +247,7 @@ def run(max_hours=20.0, only=None, dry=False):
             pg.wait_for_timeout(3000)
             inject(pg, "ff")
             left = next((x["empty"] for x in pg.evaluate("() => __ff.games()") if x["id"] == g["id"]), 0)
-            report.append(f"{'✅' if left == 0 else '⚠️'} {g['label']} ({tac}, {total} PS): {names}" + ("" if left == 0 else f" — falten {left}"))
+            report.append(f"{'✅' if left == 0 else '⚠️'} {g['label']} ({tac}, {total} PS): {names}" + ("" if left == 0 else f" — falten {left}") + (f" | ⚠️ no trobats a FutbolFantasy: {', '.join(missing)}" if missing else ""))
             use_items(pg, slug, pick, report)
         save_session(ctx, "futbolfantasy")
         b.close()
