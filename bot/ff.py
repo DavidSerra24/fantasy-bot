@@ -86,19 +86,34 @@ def close_modal(page):
 
 
 def lookup(page, jid, cands, limit=60):
-    """Busca cada candidat al selector: posició i usos a FutbolFantasy."""
+    """Busca cada candidat al selector: posició, usos i equip a FutbolFantasy.
+    Primer dedueix l'equip de FutbolFantasy de cada equip de SorareInside amb els noms segurs,
+    i després només accepta jugadors d'aquell equip (evita confondre Nico Paz amb Yeferson Paz)."""
+    from collections import Counter
     open_picker(page, jid)
-    found = []
+    raw = []
     for c in cands[:limit]:
         res = page.evaluate("(q) => __ff.search(q)", c["si"]) or []
-        if not res:
-            res = page.evaluate("(q) => __ff.search(q)", norm(c["si"])[-1] if norm(c["si"]) else c["si"]) or []
-        best = max(res, key=lambda r: name_score(c["si"], r["n"]), default=None)
-        if best and name_score(c["si"], best["n"]) >= 60 and best["p"] in POS:
-            if best["u"] is not None and str(best["u"]) == "0":
-                continue  # sense usos
-            found.append({**c, "ff": best["n"], "pos": POS[best["p"]], "uses": best["u"]})
+        if not res and norm(c["si"]):
+            res = page.evaluate("(q) => __ff.search(q)", norm(c["si"])[-1]) or []
+        raw.append((c, res))
     close_modal(page)
+    votes = {}
+    for c, res in raw:
+        strong = [r for r in res if name_score(c["si"], r["n"]) >= 80]
+        if len(strong) == 1 and strong[0]["t"]:
+            votes.setdefault(c["team"], Counter())[strong[0]["t"]] += 1
+    team_id = {t: v.most_common(1)[0][0] for t, v in votes.items()}
+    found = []
+    for c, res in raw:
+        tid = team_id.get(c["team"])
+        ok = [r for r in res if r["p"] in POS and (r["t"] == tid if tid else name_score(c["si"], r["n"]) >= 80)]
+        best = max(ok, key=lambda r: name_score(c["si"], r["n"]), default=None)
+        if not best or name_score(c["si"], best["n"]) < 60:
+            continue
+        if best["u"] is not None and str(best["u"]) == "0":
+            continue  # sense usos
+        found.append({**c, "ff": best["n"], "pos": POS[best["p"]], "uses": best["u"]})
     return found
 
 
