@@ -30,12 +30,11 @@ def league_info(page, comp):
     page.goto(BASE + comp, wait_until="domcontentloaded")
     page.wait_for_timeout(2500)
     txt = page.inner_text("main")
-    m = re.search(r"Tiempo restante para pron[oó]sticos.*?\n(.*?)(?:Inicia|Quiniela|Alineaciones)", txt, re.S)
     hours = None
-    if m:
-        part = m.group(1)
-        nums = dict((u.upper()[:3], int(n)) for n, u in re.findall(r"(\d+)\s*\n?\s*(D[IÍ]AS?|HORAS?|MIN)", part, re.I))
-        hours = nums.get("DÍA", nums.get("DIA", 0)) * 24 + nums.get("HOR", 0) + nums.get("MIN", 0) / 60
+    end = page.evaluate("() => document.querySelector('[data-countdown-end]')?.dataset.countdownEnd || null")
+    if end:
+        d = dt.datetime.fromisoformat(end[:19]).replace(tzinfo=dt.timezone.utc)
+        hours = (d - dt.datetime.now(dt.timezone.utc)).total_seconds() / 3600
     dates = re.findall(r"\n(\d{2})/(\d{2})\n\d{2}:\d{2}", txt)
     links = page.evaluate("(c) => [...new Set([...document.querySelectorAll('a[href*=\"/'+c+'/equipo/\"]')].map(a => a.getAttribute('href').split('/equipo/')[1]))]", comp)
     first = None
