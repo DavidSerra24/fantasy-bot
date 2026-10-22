@@ -36,8 +36,7 @@ def main():
         b.close()
     ok = telegram("🤖 Hola David! Sóc el teu bot de fantasy. Prova de configuració:\n" + "\n".join(lines))
     lines.append(f"{'✅' if ok else '❌'} Telegram: missatge {'enviat' if ok else 'NO enviat'}")
-    for l in lines:
-        print("::notice title=login::" + l)
+    print("::notice title=login::" + " || ".join(l for l in lines if "secret" not in l))
 
 
 if __name__ == "__main__":

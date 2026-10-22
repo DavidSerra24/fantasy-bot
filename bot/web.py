@@ -61,7 +61,7 @@ def _fill_login(page, user, pwd):
 def login_sorareinside(page):
     user, pwd = os.getenv("SI_EMAIL"), os.getenv("SI_PASSWORD")
     def logged():
-        return bool(user) and user.lower() in page.inner_text("body").lower()
+        return "Manage Lineups" in page.inner_text("body")
     page.goto("https://sorareinside.com/lineups", wait_until="domcontentloaded")
     page.wait_for_timeout(4000)
     if logged():
