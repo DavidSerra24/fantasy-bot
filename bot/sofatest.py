@@ -5,6 +5,7 @@ from bot.web import new_context
 with sync_playwright() as p:
     b = p.chromium.launch(); ctx = new_context(b, "sofascore")
     pg = S.open_page(ctx)
+    print(f"::notice title=s::pàgina: {pg.title()[:80]}")
     for comp, day in [("europa-league", dt.date(2026,10,22)), ("serie-a", dt.date(2026,10,23)), ("laliga", dt.date(2026,10,23))]:
         try:
             ev = S.events(pg, day, comp)

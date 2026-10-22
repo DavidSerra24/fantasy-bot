@@ -2,7 +2,7 @@
 import datetime as dt
 import json
 
-API = "https://api.sofascore.com/api/v1"
+API = "https://www.sofascore.com/api/v1"
 # Noms de torneig a Sofascore per a cada competició
 TOURNAMENTS = {"laliga": "LaLiga", "laliga2": "LaLiga 2", "premier-league": "Premier League", "serie-a": "Serie A",
                "champions": "UEFA Champions League", "europa-league": "UEFA Europa League"}
