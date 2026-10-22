@@ -59,11 +59,13 @@ def _fill_login(page, user, pwd):
 
 
 def login_sorareinside(page):
+    user, pwd = os.getenv("SI_EMAIL"), os.getenv("SI_PASSWORD")
+    def logged():
+        return bool(user) and user.lower() in page.inner_text("body").lower()
     page.goto("https://sorareinside.com/lineups", wait_until="domcontentloaded")
     page.wait_for_timeout(4000)
-    if page.locator("text=Manage Lineups").count() or page.locator("text=Account").count():
+    if logged():
         return "ja connectat"
-    user, pwd = os.getenv("SI_EMAIL"), os.getenv("SI_PASSWORD")
     if not user or not pwd:
         raise LoginError("Falten SI_EMAIL / SI_PASSWORD")
     page.goto("https://sorareinside.com/login", wait_until="domcontentloaded")
@@ -71,7 +73,7 @@ def login_sorareinside(page):
     _fill_login(page, user, pwd)
     page.goto("https://sorareinside.com/lineups", wait_until="domcontentloaded")
     page.wait_for_timeout(4000)
-    if not (page.locator("text=Manage Lineups").count() or page.locator("text=Account").count()):
+    if not logged():
         raise LoginError("No s'ha pogut entrar a SorareInside")
     return "connectat"
 
@@ -85,7 +87,9 @@ def login_predicted11(page):
     if not user or not pwd:
         raise LoginError("Falten FF_EMAIL / FF_PASSWORD")
     _fill_login(page, user, pwd)
-    if "login" in page.url and page.locator("input[type=password]").count():
+    page.goto("https://www.predicted11.com/es/champions", wait_until="domcontentloaded")
+    page.wait_for_timeout(2000)
+    if page.locator("text=Inicia sesión o regístrate").count():
         raise LoginError("No s'ha pogut entrar a Predicted11")
     return "connectat"
 
