@@ -83,7 +83,7 @@ def login_sorareinside(page):
 def p11_logged(page):
     page.goto("https://www.predicted11.com/profile/edit", wait_until="domcontentloaded")
     page.wait_for_timeout(2000)
-    return "login" not in page.url and not page.locator("input[type=password]").count()
+    return "login" not in page.url and page.get_by_text("Cerrar sesión").count() > 0
 
 
 def login_predicted11(page):
