@@ -24,6 +24,7 @@ window.__p11 = (function () {
     if (!sc.length) return { none: true };
     const max = Math.max(...sc.map(o => o.s)); let best = sc.filter(o => o.s === max);
     if (best.length > 1 && wantPos) { const b2 = best.filter(o => o.x.pos === wantPos); if (b2.length) best = b2; }
+    if (best.length > 1 && new Set(best.map(o => norm(o.x.nombre))).size === 1) best = [best[0]]; // mateix jugador duplicat (amb/sense accent)
     if (best.length > 1) return { amb: best.map(o => o.x.nombre) };
     return { x: best[0].x, s: max };
   }
