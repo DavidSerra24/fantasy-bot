@@ -27,7 +27,7 @@ class LoginError(RuntimeError):
 def new_context(browser, site):
     path = STATE / f"session_{site}.json"
     kw = dict(locale="es-ES", timezone_id="Europe/Madrid", user_agent=UA,
-              viewport={"width": 1280, "height": 900})
+              viewport={"width": 700, "height": 1270})
     if path.exists():
         kw["storage_state"] = str(path)
     return browser.new_context(**kw)

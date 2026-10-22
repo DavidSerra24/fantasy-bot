@@ -14,7 +14,7 @@ def telegram(text: str) -> bool:
         return False
     r = requests.post(
         f"https://api.telegram.org/bot{token}/sendMessage",
-        json={"chat_id": chat, "text": text, "disable_web_page_preview": True},
+        json={"chat_id": chat, "text": text[:4000], "disable_web_page_preview": True},
         timeout=20,
     )
     if not r.ok:

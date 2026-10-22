@@ -111,6 +111,7 @@ window.__p11 = (function () {
       const log = await fill(entry.rows, { subFallback: ['Matteo Darmian', 'Darmian'] });
       res = { sig, formation: log.formation, placed: log.placed }; msg = 'FILLED ' + log.formation + ' ' + log.placed.length + (log.unmatched.length ? ' UN:' + log.unmatched.join(',') : '') + (log.amb.length ? ' AMB:' + log.amb.join(',') : '');
     }
+    if (!res.placed || res.placed.length < 11) { res.msg = (msg || '') + ' (icones no tocades: onze incomplet)'; return res; }
     const flat = entry.rows.flat();
     const placed = res.placed.map(p => { const d = flat.find(x => x.name === p.si) || {}; return { ...p, ps: d.ps ?? null, goals: d.goals || 0, pct: d.pct, nsubs: (d.subs || []).length, row: d.row }; });
     res.icons = await icons(placed, golOv);

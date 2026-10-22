@@ -139,9 +139,9 @@ def run(comps, force=False, max_hours=30.0):
                     if c["n"] == 11 and c["icons"] == 3 and c["tactic"] != "Manual":
                         ok += 1
                     else:
-                        bad.append(f"{slug}: {c['n']} jug, {c['icons']} icones, {c['tactic']} {res.get('msg','')}")
-                    if "UN:" in res.get("msg", "") or "AMB:" in res.get("msg", ""):
-                        bad.append(f"{slug}: {res['msg']}")
+                        bad.append(f"{slug}: {c['n']} jug, {c['icons']} icones, {c['tactic']} {res.get('msg','')[:200]}")
+                    elif "UN:" in res.get("msg", "") or "AMB:" in res.get("msg", ""):
+                        bad.append(f"{slug}: {res['msg'][:200]}")
                 except Exception as e:  # un equip no ha d'aturar la resta
                     bad.append(f"{slug}: error {type(e).__name__} {str(e)[:80]}")
                 save_json(f"p11_{comp}.json", prev_all)
