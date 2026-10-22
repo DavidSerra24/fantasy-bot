@@ -165,7 +165,7 @@ def use_items(page, comp_slug, pick, report):
             return
 
 
-def run(max_hours=20.0, only=None):
+def run(max_hours=20.0, only=None, dry=False):
     report = []
     with sync_playwright() as p:
         b = p.chromium.launch()
@@ -213,14 +213,17 @@ def run(max_hours=20.0, only=None):
                 report.append(f"❌ {g['label']}: no he trobat un onze vàlid")
                 continue
             (total, _), tac, pick = best
+            order = {"G": 0, "D": 1, "M": 2, "F": 3}
+            names = ", ".join(f"{c['ff']} {c['ps']}" for c in sorted(pick, key=lambda c: order[c["pos"]]))
+            if dry:
+                report.append(f"🧪 {g['label']} ({tac}, {total} PS) [prova, no desat]: {names}")
+                continue
             fill(pg, g["id"], pick)
             # Comprovació
             pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
             pg.wait_for_timeout(3000)
             inject(pg, "ff")
             left = next((x["empty"] for x in pg.evaluate("() => __ff.games()") if x["id"] == g["id"]), 0)
-            order = {"G": 0, "D": 1, "M": 2, "F": 3}
-            names = ", ".join(c["ff"] for c in sorted(pick, key=lambda c: order[c["pos"]]))
             report.append(f"{'✅' if left == 0 else '⚠️'} {g['label']} ({tac}, {total} PS): {names}" + ("" if left == 0 else f" — falten {left}"))
             use_items(pg, slug, pick, report)
         save_session(ctx, "futbolfantasy")
@@ -236,5 +239,6 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-hours", type=float, default=20.0)
     ap.add_argument("--only", nargs="*")
+    ap.add_argument("--dry", action="store_true")
     a = ap.parse_args()
-    run(a.max_hours, a.only)
+    run(a.max_hours, a.only, a.dry)

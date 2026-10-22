@@ -15,6 +15,9 @@ on:
       force:
         description: "Predicted11: forçar encara que falti molt (true/false)"
         default: "false"
+      ffargs:
+        description: "FutbolFantasy: opcions (p.ex. --dry --max-hours 40)"
+        default: ""
 concurrency: fantasy
 jobs:
   run:
@@ -51,7 +54,7 @@ jobs:
       - name: FutbolFantasy
         if: env.WHAT == 'tot' || env.WHAT == 'ff'
         continue-on-error: true
-        run: python -m bot.ff
+        run: python -m bot.ff ${{ github.event.inputs.ffargs }}
       - uses: actions/cache/save@v4
         if: always()
         with:
