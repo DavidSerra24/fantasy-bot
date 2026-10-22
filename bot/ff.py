@@ -93,6 +93,7 @@ def candidates(sidata, official=None):
 
 
 def official_lineups(slug, kickoff, sidata, wait_until=None, log=None):
+    log = log if log is not None else []
     """Onzes oficials (ESPN) dels partits que comencen a `kickoff`. Espera (reintenta cada 3 min)
     fins a `wait_until` si encara no s'han publicat. Retorna {equip SorareInside: [titulars]}."""
     import time
@@ -100,7 +101,7 @@ def official_lineups(slug, kickoff, sidata, wait_until=None, log=None):
     try:
         evs = espn.matches_at(slug, kickoff.astimezone(dt.timezone.utc))
     except Exception as e:
-        (log or []).append(f"ESPN no disponible ({e})")
+        log.append(f"ESPN no disponible ({e})")
         return {}
     teams = [t for t in sidata.get("_order", [])]
     out = {}
@@ -115,13 +116,13 @@ def official_lineups(slug, kickoff, sidata, wait_until=None, log=None):
                 break
             time.sleep(180)
         if not st:
-            (log or []).append(f"onzes oficials de {ev['home']}-{ev['away']} encara no publicats")
+            log.append(f"onzes oficials de {ev['home']}-{ev['away']} encara no publicats")
             continue
         for espn_team, names in st.items():
             best = max(teams, key=lambda t: team_score(t, espn_team), default=None)
             if best and team_score(best, espn_team) > 0:
                 out[best] = names
-        (log or []).append(f"onzes oficials de {ev['home']}-{ev['away']} aplicats")
+        log.append(f"onzes oficials de {ev['home']}-{ev['away']} aplicats")
     return out
 
 
