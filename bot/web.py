@@ -81,9 +81,16 @@ def login_sorareinside(page):
 
 
 def p11_logged(page):
-    page.goto("https://www.predicted11.com/profile/edit", wait_until="domcontentloaded")
-    page.wait_for_timeout(2000)
-    return "login" not in page.url and page.get_by_text("Cerrar sesión").count() > 0
+    page.goto("https://www.predicted11.com/es/laliga", wait_until="domcontentloaded")
+    page.wait_for_timeout(2500)
+    return "Inicia sesión o regístrate" not in page.inner_text("body")
+
+
+def form_errors(page):
+    try:
+        return page.evaluate("() => [...document.querySelectorAll('.alert, .invalid-feedback, .error, .text-danger, [role=alert]')].map(e => e.innerText.trim()).filter(Boolean).join(' / ').slice(0, 300)")
+    except Exception:
+        return ""
 
 
 def login_predicted11(page):
@@ -95,15 +102,23 @@ def login_predicted11(page):
     if not user or not pwd:
         raise LoginError("Falten FF_EMAIL / FF_PASSWORD")
     _fill_login(page, user, pwd)
+    err = form_errors(page)
     if not p11_logged(page):
-        raise LoginError("No s'ha pogut entrar a Predicted11 (" + page.url + ")")
+        raise LoginError("No s'ha pogut entrar a Predicted11. Missatge de la web: " + (err or "cap"))
     return "connectat"
 
 
-def login_futbolfantasy(page):
+NICK = os.getenv("FF_NICK", "DavidSerra24")
+
+
+def ff_logged(page):
     page.goto("https://www.futbolfantasy.com/fantasy/perfil", wait_until="domcontentloaded")
     page.wait_for_timeout(2500)
-    if "login" not in page.url and not page.locator("input[type=password]").count():
+    return "login" not in page.url and NICK.lower() in page.inner_text("body").lower()
+
+
+def login_futbolfantasy(page):
+    if ff_logged(page):
         return "ja connectat"
     user, pwd = os.getenv("FF_EMAIL"), os.getenv("FF_PASSWORD")
     if not user or not pwd:
@@ -111,9 +126,9 @@ def login_futbolfantasy(page):
     page.goto("https://www.futbolfantasy.com/login", wait_until="domcontentloaded")
     page.wait_for_timeout(2500)
     _fill_login(page, user, pwd)
-    page.goto("https://www.futbolfantasy.com/fantasy/perfil", wait_until="domcontentloaded")
-    if "login" in page.url:
-        raise LoginError("No s'ha pogut entrar a FutbolFantasy")
+    err = form_errors(page)
+    if not ff_logged(page):
+        raise LoginError("No s'ha pogut entrar a FutbolFantasy. Missatge de la web: " + (err or "cap"))
     return "connectat"
 
 
