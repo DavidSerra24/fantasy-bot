@@ -27,6 +27,7 @@ def main():
                 lines.append(f"❌ {site}: {type(e).__name__}: {str(e)[:150]}")
                 try:
                     pg.screenshot(path=f"out/{site}.png")
+                    lines.append(f"   url {site}: {pg.url}  text: {pg.inner_text('body')[:200]!r}")
                     ins = pg.evaluate("() => [...document.querySelectorAll('input,button')].map(e => e.tagName + ':' + (e.type||'') + ':' + (e.name||e.id||'') + ':' + (e.innerText||e.placeholder||'').slice(0,30)).join(' | ')")
                     lines.append(f"   formulari {site}: {ins[:400]}")
                 except Exception:

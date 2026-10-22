@@ -68,7 +68,9 @@ def login_sorareinside(page):
         return "ja connectat"
     if not user or not pwd:
         raise LoginError("Falten SI_EMAIL / SI_PASSWORD")
-    page.goto("https://sorareinside.com/login", wait_until="domcontentloaded")
+    page.goto("https://sorareinside.com/", wait_until="domcontentloaded")
+    page.wait_for_timeout(3000)
+    page.get_by_text("Login", exact=True).first.click()
     page.wait_for_timeout(3000)
     _fill_login(page, user, pwd)
     page.goto("https://sorareinside.com/lineups", wait_until="domcontentloaded")
@@ -78,19 +80,23 @@ def login_sorareinside(page):
     return "connectat"
 
 
+def p11_logged(page):
+    page.goto("https://www.predicted11.com/profile/edit", wait_until="domcontentloaded")
+    page.wait_for_timeout(2000)
+    return "login" not in page.url and not page.locator("input[type=password]").count()
+
+
 def login_predicted11(page):
+    if p11_logged(page):
+        return "ja connectat"
     page.goto("https://www.predicted11.com/es/login", wait_until="domcontentloaded")
     page.wait_for_timeout(2500)
-    if "login" not in page.url:
-        return "ja connectat"
     user, pwd = os.getenv("FF_EMAIL"), os.getenv("FF_PASSWORD")
     if not user or not pwd:
         raise LoginError("Falten FF_EMAIL / FF_PASSWORD")
     _fill_login(page, user, pwd)
-    page.goto("https://www.predicted11.com/es/champions", wait_until="domcontentloaded")
-    page.wait_for_timeout(2000)
-    if page.locator("text=Inicia sesión o regístrate").count():
-        raise LoginError("No s'ha pogut entrar a Predicted11")
+    if not p11_logged(page):
+        raise LoginError("No s'ha pogut entrar a Predicted11 (" + page.url + ")")
     return "connectat"
 
 
