@@ -1,25 +1,28 @@
-"""Mira com marca FutbolFantasy els possibles revulsius al selector (no canvia res)."""
+"""Busca com marca FutbolFantasy els possibles revulsius a les alineacions probables (no canvia res)."""
 from playwright.sync_api import sync_playwright
-from bot import ff
-from bot.web import new_context, login_futbolfantasy
+from bot.web import new_context
+
+def note(m):
+    for i in range(0, len(m), 900):
+        print("::notice title=rv::" + m[i:i+900])
 
 with sync_playwright() as p:
     b = p.chromium.launch()
-    ctx = new_context(b, "futbolfantasy")
+    ctx = new_context(b, "anon")
     pg = ctx.new_page()
-    login_futbolfantasy(pg)
-    cs = ff.cards(pg)
-    g = next(c for c in cs if "revulsivo" in c["title"].lower())
-    pg.locator(f'#juego-{g["id"]} a.fantasy-add').first.click()
-    pg.locator(".modal.show").wait_for(timeout=10000)
-    pg.wait_for_timeout(2500)
-    info = pg.evaluate("""() => { const m=document.querySelector('.modal.show');
-      const items=[...m.querySelectorAll('.sel-item')];
-      const withImg=items.filter(e=>e.querySelectorAll('img, svg, i, [class*=icon], [class*=badge]').length>2);
-      const cls=new Set(); items.forEach(e=>e.querySelectorAll('*').forEach(x=>String(x.className).split(' ').forEach(c=>c&&cls.add(c))));
-      return JSON.stringify({n:items.length, filters:m.innerText.slice(0,400), classes:[...cls].slice(0,80),
-        sample:items.slice(0,2).map(e=>e.outerHTML.slice(0,900))}); }""")
-    for i in range(0, len(info), 900):
-        print("::notice title=rv::" + info[i:i+900])
-    ff.close_modal(pg)
+    pg.goto("https://www.futbolfantasy.com/laliga", wait_until="domcontentloaded")
+    pg.wait_for_timeout(3000)
+    links = pg.evaluate("() => [...new Set([...document.querySelectorAll('a')].map(a=>a.href).filter(h=>/alinea/i.test(h)))].slice(0,15)")
+    note("enllaços: " + " ; ".join(links))
+    target = next((l for l in links if "posibles" in l or "probables" in l), links[0] if links else None)
+    if target:
+        pg.goto(target, wait_until="domcontentloaded")
+        pg.wait_for_timeout(4000)
+        note("pàgina: " + pg.url)
+        info = pg.evaluate("""() => { const el=[...document.querySelectorAll('*')].find(e=>e.childElementCount===0 && /Puado/.test(e.textContent));
+          if(!el) return 'Puado no trobat. Text: ' + document.body.innerText.slice(0,500);
+          let c=el; for(let i=0;i<4;i++) c=c.parentElement;
+          const legend=[...document.querySelectorAll('[title],[data-original-title],[alt]')].map(e=>(e.getAttribute('title')||e.getAttribute('data-original-title')||e.getAttribute('alt'))).filter(t=>t&&/revuls|banquillo|suplent|sale|entra/i.test(t));
+          return 'context: ' + c.outerHTML.slice(0,2500) + ' || llegenda: ' + [...new Set(legend)].slice(0,20).join(' / '); }""")
+        note(info)
     b.close()
