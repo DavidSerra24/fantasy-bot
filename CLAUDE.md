@@ -32,6 +32,17 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - Ítems: fer clic a l'ítem, veure a qui es pot assignar i posar-lo a l'elegible amb més PS.
 - Especials de partit: els N jugadors amb més PS (≥80%) dels dos equips.
 
+## Sorare Set (mode gratuït; en preparació, encara no automatitzat)
+- Obre sobres cada dia. Dos taulers: el **personal** i el **d'equip** (amb 9 persones més, cal arribar a uns punts per avançar).
+- Fins a 4 alineacions per nivell. No es repeteixen jugadors entre alineacions (si ja hi ha un jugador, a la següent se salta encara que en tingui una altra carta).
+- De cada jugador, la carta amb **més experiència**.
+- Ordre: mitjana de punts (de més a menys). Desempat: més experiència, després la lletra d'impacte (A > B > C > D…), després el que surt primer a la llista.
+- No posar jugadors de dos equips que s'enfrontin (es queda el de més mitjana). **Excepció**: si els dos són davanters, sí que es poden posar.
+- Esperar que Sorare marqui els jugadors com a titulars (així s'actualitzen les lletres d'impacte).
+- **Tauler personal**: filtre "Playing soon" (primer els que juguen abans). Si a l'hora del partit no hi ha prou titulars confirmats, completar amb els següents que tinguin ≥80% de titularitat.
+- **Tauler d'equip**: filtre "Average score" (jugadors de tot el dia). Esperar els onzes del primer partit del dia; si no hi ha cap jugador a posar, esperar als següents partits i fer l'alineació quan toqui posar un titular.
+- Accés: el David entra amb Google + Authenticator (el bot no pot fer-ho sol; pendent de decidir com).
+
 ## Mister (LaLiga 2)
 - El David envia la llista de la plantilla. Ordenar-la per % de titularitat i, dins de cada %, per PS. Els jugadors sense dades van al final del seu grup.
 
