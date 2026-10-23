@@ -22,7 +22,7 @@ P11 = ["laliga", "laliga2", "premier-league", "serie-a", "champions"]
 FF_LABEL = {"laliga": "LaLiga ·", "laliga2": "LaLiga 2 ·", "premier-league": "Premier League ·",
             "serie-a": "Serie A ·", "champions": "Champions ·", "europa-league": "Europa League ·"}
 LEAD = dt.timedelta(minutes=50)       # FutbolFantasy: revisió final (onzes oficials)
-LEAD_P11 = dt.timedelta(minutes=120)  # Predicted11: última revisió (GitHub pot endarrerir les execucions)
+LEAD_P11 = dt.timedelta(minutes=50)   # Predicted11: última revisió (si GitHub comença tard, no passa res)
 WINDOW = dt.timedelta(minutes=60)  # s'agafa l'acció si toca dins la propera hora i s'espera fins a l'hora exacta
 
 
