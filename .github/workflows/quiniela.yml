@@ -1,0 +1,27 @@
+name: Quiniela
+on:
+  workflow_dispatch:
+    inputs:
+      comp:
+        description: "Competició: laliga, laliga2, premier-league, serie-a, champions"
+        default: "laliga"
+      resultats:
+        description: "Resultats: «Local 2-1 Visitant; Local 0-0 Visitant; ...» (buit = només veure els partits)"
+        default: ""
+jobs:
+  quiniela:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt && python -m playwright install --with-deps chromium
+      - run: python -m bot.quiniela "${{ github.event.inputs.comp }}" "${{ github.event.inputs.resultats }}"
+        env:
+          FF_EMAIL: ${{ secrets.FF_EMAIL }}
+          FF_PASSWORD: ${{ secrets.FF_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
