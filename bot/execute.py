@@ -9,7 +9,11 @@ from bot.notify import telegram
 from bot.web import STATE, load_json, save_json
 
 acts = json.loads((STATE / "actions.json").read_text(encoding="utf-8"))
-acts.sort(key=lambda a: a["at"])
+acts.sort(key=lambda a: (a["at"], a.get("deadline", "")))  # a la mateixa hora, primer el que tanca abans
+import sys
+only = sys.argv[1] if len(sys.argv) > 1 else None  # executar només una acció (clau)
+if only:
+    acts = [a for a in acts if a["key"] == only]
 done = set()
 for a in acts:
     key = (a["do"], a["comp"])
@@ -17,7 +21,7 @@ for a in acts:
         continue
     wait = (dt.datetime.fromisoformat(a["at"]) - dt.datetime.now(dt.timezone.utc)).total_seconds()
     if wait > 0:
-        time.sleep(min(wait, 1800))
+        time.sleep(min(wait, 3600))
     try:
         if a["do"] == "p11":
             p11.run([a["comp"]], force=False, max_hours=99)

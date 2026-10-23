@@ -42,8 +42,9 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - Repositori: DavidSerra24/fantasy-bot. S'executa a GitHub Actions; no cal el PC del David. Oracle Free Tier (Madrid) no té capacitat.
 - `auto.yml` cada 30 min (`bot/plan.py` → `bot/execute.py`):
   - Matí (9:00 Madrid): Predicted11 de les competicions que tanquen avui i FutbolFantasy dels jocs que tanquen avui.
-  - Predicted11: última revisió 50 min abans del tancament (tancament = 2 h abans del primer partit). Llegeix `data-countdown-end`.
-  - FutbolFantasy: revisió final 50 min abans del primer partit (dades fresques de SorareInside, amb onzes oficials) i canvis de jugadors si cal. Tancaments a `#juego-<id>[data-date-end]`.
+  - Predicted11: última revisió 2 h abans del tancament (tancament = 2 h abans del primer partit). Llegeix `data-countdown-end`. Només refà equips si canvien jugadors o posicions.
+  - GitHub endarrereix les execucions programades (sovint 1 cop per hora): el planificador agafa les accions de la propera hora i s'espera fins a l'hora exacta; si en queda alguna pendent, la fa de seguida (primer la que tanca abans).
+  - FutbolFantasy: revisió final 50 min abans del primer partit (dades fresques de SorareInside, amb onzes oficials d'ESPN) i canvis de jugadors si cal. Inclou els extres de LaLiga. Tancaments a `#juego-<id>[data-date-end]`.
 - `fantasy.yml` (manual): proves (`--dry`), forçar competicions. `debug.yml` i `logintest.yml` per diagnosi.
 - Resultats: anotacions dels jobs (`::notice`) i Telegram (`bot/notify.py`).
 - Equivalències de noms: `config/predicted11.json` (alias) i `config/futbolfantasy.json`.

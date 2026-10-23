@@ -21,8 +21,9 @@ UTC = dt.timezone.utc
 P11 = ["laliga", "laliga2", "premier-league", "serie-a", "champions"]
 FF_LABEL = {"laliga": "LaLiga ·", "laliga2": "LaLiga 2 ·", "premier-league": "Premier League ·",
             "serie-a": "Serie A ·", "champions": "Champions ·", "europa-league": "Europa League ·"}
-LEAD = dt.timedelta(minutes=50)
-WINDOW = dt.timedelta(minutes=30)
+LEAD = dt.timedelta(minutes=50)       # FutbolFantasy: revisió final (onzes oficials)
+LEAD_P11 = dt.timedelta(minutes=120)  # Predicted11: última revisió (GitHub pot endarrerir les execucions)
+WINDOW = dt.timedelta(minutes=60)  # s'agafa l'acció si toca dins la propera hora i s'espera fins a l'hora exacta
 
 
 def p11_deadline(comp):
@@ -53,8 +54,8 @@ def plan(now=None, done=None):
             return False
         return t < now + WINDOW
 
-    def add(key, t, do, comp):
-        acts.append({"key": key, "at": max(t, now).isoformat(), "do": do, "comp": comp})
+    def add(key, t, do, comp, deadline):
+        acts.append({"key": key, "at": max(t, now).isoformat(), "do": do, "comp": comp, "deadline": deadline.isoformat()})
 
     morning_t = local.replace(hour=9, minute=0, second=0, microsecond=0).astimezone(UTC)
     ff_today = None
@@ -71,20 +72,20 @@ def plan(now=None, done=None):
             if D.astimezone(MADRID).date() == local.date():
                 k = f"p11-mati:{comp}:{D.isoformat()}"
                 if due(k, morning_t, D):
-                    add(k, morning_t, "p11", comp)
+                    add(k, morning_t, "p11", comp, D)
             k = f"p11-final:{comp}:{D.isoformat()}"
-            if due(k, D - LEAD, D):
-                add(k, D - LEAD, "p11", comp)
+            if due(k, D - LEAD_P11, D):
+                add(k, D - LEAD_P11, "p11", comp, D)
         if K and K > now:
             info.append(f"{comp}: FutbolFantasy tanca {K.astimezone(MADRID):%a %d %H:%M}")
             if K.astimezone(MADRID).date() == local.date():
                 ff_today = K if not ff_today else min(ff_today, K)
             k = f"ff-final:{comp}:{K.isoformat()}"
             if due(k, K - LEAD, K):
-                add(k, K - LEAD, "fffinal", comp)
+                add(k, K - LEAD, "fffinal", comp, K)
     k = f"ff-mati:{local.date()}"
     if (ff_today or not ffd) and due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
-        add(k, morning_t, "ff", None)
+        add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
     return acts, info
 
 
