@@ -143,7 +143,7 @@ def _rebuild(page, card, order):
     """Per a jocs omplerts abans de guardar l'estat: deduir quins candidats hi ha posats (nom + id)."""
     from bot.web import inject
     inject(page, "ff")
-    page.locator(f'#juego-{card["id"]} a.fantasy-slot').first.click()
+    ff.click(page, f'#juego-{card["id"]} a.fantasy-slot')
     page.locator(".modal.show input[type=text]").wait_for(timeout=10000)
     picked = []
     for n in order[:15]:
@@ -193,7 +193,7 @@ def final_extras(page, report):
         desired = [x["n"] for x in order if valid(x)]
         # Treure els que no tenen usos (així no es canvia un jugador per un que no es pot posar)
         inject(page, "ff")
-        page.locator(f'#juego-{card["id"]} a.fantasy-slot').first.click()
+        ff.click(page, f'#juego-{card["id"]} a.fantasy-slot')
         page.locator(".modal.show input[type=text]").wait_for(timeout=10000)
         usable = []
         for n in desired[:10]:

@@ -126,8 +126,19 @@ def official_lineups(slug, kickoff, sidata, wait_until=None, log=None):
     return out
 
 
+def click(page, selector):
+    """Clic real a un element: el centra a la pantalla (que no el tapi cap anunci) i, si cal, força el clic."""
+    loc = page.locator(selector).first
+    loc.evaluate("e => e.scrollIntoView({block: 'center'})")
+    page.wait_for_timeout(300)
+    try:
+        loc.click(timeout=8000)
+    except Exception:
+        loc.click(force=True, timeout=8000)
+
+
 def open_picker(page, jid):
-    page.locator(f'a.fantasy-add[data-juego="{jid}"]').first.click()
+    click(page, f'a.fantasy-add[data-juego="{jid}"]')
     page.locator(".modal.show input[type=text]").wait_for(timeout=10000)
     page.wait_for_timeout(600)
 
@@ -270,7 +281,7 @@ def remove_players(page, jid, remove_ids, log):
         idx = card["ids"].index(left[0])
         slots = sorted(card["slots"])
         pos = slots[idx] if idx < len(slots) else slots[0]
-        page.locator(f'#juego-{jid} a.fantasy-slot[data-posicion="{pos}"]').first.click()
+        click(page, f'#juego-{jid} a.fantasy-slot[data-posicion="{pos}"]')
         page.locator(".modal.show").wait_for(timeout=10000)
         page.wait_for_timeout(800)
         page.locator(".modal.show").get_by_text("Quitar selección").first.click()
@@ -330,7 +341,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
             inject(pg, "ff")
             jid = g["id"]
             if g["empty"] == 0:  # el selector s'obre des d'un jugador si no hi ha cap '+'
-                pg.locator(f'#juego-{jid} a.fantasy-slot').first.click()
+                click(pg, f'#juego-{jid} a.fantasy-slot')
                 pg.locator(".modal.show input[type=text]").wait_for(timeout=10000)
                 found, missing = lookup_open(pg, cands)
             else:
