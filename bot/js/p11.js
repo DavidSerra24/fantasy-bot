@@ -62,7 +62,8 @@ window.__p11 = (function () {
       if (!btn) { log.unmatched.push(p.name + ' (no slot)'); continue; }
       btn.click(); await sleep(700);
       const list = items(); let m = match(p.name, list, used, posFor(k, sizes));
-      if (!m.x && (p.subs || []).length && (opts.subFallback || []).includes(p.name)) { const m2 = match(p.subs[0].name, list, used, posFor(k, sizes)); if (m2.x) { log.subbed = (log.subbed || []).concat(p.name + '→' + m2.x.nombre); m = m2; } }
+      if (!m.x && (p.subs || []).length) { // no és a Predicted11: posar el suplent que indica SorareInside
+         const m2 = match(p.subs[0].name, list, used, posFor(k, sizes)); if (m2.x) { log.subbed = (log.subbed || []).concat(p.name + '→' + m2.x.nombre); m = m2; } }
       if (m.x) { used.add(m.x.id); m.x.el.click(); placed.push({ si: p.name, p11: m.x.nombre, id: m.x.id, s: m.s }); await sleep(900); }
       else { if (m.amb) log.amb.push(p.name + ' → ' + m.amb.join(' / ')); else log.unmatched.push(p.name);
         document.getElementById('closePlayerSelector')?.click();
@@ -110,7 +111,7 @@ window.__p11 = (function () {
     const st = state(); let res = prev && prev.placed ? prev : null; let msg = '';
     if (!res || prev.sig !== sig || st.tactic === 'Manual' || st.n < 11) {
       const log = await fill(entry.rows, { subFallback: ['Matteo Darmian', 'Darmian'] });
-      res = { sig, formation: log.formation, placed: log.placed }; msg = 'FILLED ' + log.formation + ' ' + log.placed.length + (log.unmatched.length ? ' UN:' + log.unmatched.join(',') : '') + (log.amb.length ? ' AMB:' + log.amb.join(',') : '');
+      res = { sig, formation: log.formation, placed: log.placed }; msg = 'FILLED ' + log.formation + ' ' + log.placed.length + (log.unmatched.length ? ' UN:' + log.unmatched.join(',') : '') + (log.amb.length ? ' AMB:' + log.amb.join(',') : '') + (log.subbed ? ' SUBSTITUT:' + log.subbed.join(',') : '');
     }
     if (!res.placed || res.placed.length < 11) { res.msg = (msg || '') + ' (icones no tocades: onze incomplet)'; return res; }
     const flat = entry.rows.flat();
