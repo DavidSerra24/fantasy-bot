@@ -1,0 +1,34 @@
+name: Consulta de jugadors
+on:
+  workflow_dispatch:
+    inputs:
+      lliga:
+        description: "Lliga: laliga, laliga2, premier-league, serie-a, champions, europa-league"
+        default: "laliga2"
+      jugadors:
+        description: "Jugadors separats per comes (p. ex. Matos, Alemañ, Tomeo)"
+        required: true
+jobs:
+  consulta:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            state
+            !state/session_*.json
+          key: state-${{ github.run_id }}
+          restore-keys: state-
+      - run: pip install -r requirements.txt && python -m playwright install --with-deps chromium
+      - run: python -m bot.consulta --lliga "${{ github.event.inputs.lliga }}" --jugadors "${{ github.event.inputs.jugadors }}"
+        env:
+          SI_EMAIL: ${{ secrets.SI_EMAIL }}
+          SI_PASSWORD: ${{ secrets.SI_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
