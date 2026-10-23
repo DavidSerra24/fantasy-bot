@@ -211,7 +211,7 @@ def final_extras(page, report):
         top = desired[:3]
         keep = [p for p in current if any(ff.name_score(p["n"], d) >= 80 for d in top)]
         out = [p for p in current if p not in keep]
-        if not out and len(current) == 3:
+        if not out and (len(current) == 3 or card["empty"] == 0):
             report.append(f"✅ {KINDS[kind]}: revisat, sense canvis")
             continue
         if out:
@@ -220,5 +220,5 @@ def final_extras(page, report):
         page.wait_for_timeout(2500)
         inject(page, "ff")
         todo = [d for d in desired if not any(ff.name_score(p["n"], d) >= 80 for p in keep)]
-        new = fill_names(page, card["id"], todo, report, f"{KINDS[kind]} (canvi: surten {', '.join(p['n'] for p in out) or 'cap'})", want=3 - len(keep))
+        new = fill_names(page, card["id"], todo, report, f"{KINDS[kind]} (canvi: surten {', '.join(p['n'] for p in out) or 'cap'})", want=min(3 - len(keep), card["empty"] + len(out)))
         save_json(f"extra_{kind}.json", {"jid": card["id"], "picked": keep + new})
