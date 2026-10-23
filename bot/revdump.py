@@ -14,8 +14,7 @@ with sync_playwright() as p:
     pg.wait_for_timeout(3000)
     links = pg.evaluate("() => [...new Set([...document.querySelectorAll('a')].map(a=>a.href).filter(h=>/alinea/i.test(h)))].slice(0,15)")
     note("enllaços: " + " ; ".join(links))
-    target = next((l for l in links if "posibles" in l or "probables" in l), links[0] if links else None)
-    if target:
+    for target in ["https://www.futbolfantasy.com/laliga/posibles-alineaciones", "https://www.futbolfantasy.com/equipos/espanyol"]:
         pg.goto(target, wait_until="domcontentloaded")
         pg.wait_for_timeout(4000)
         note("pàgina: " + pg.url)
@@ -25,4 +24,5 @@ with sync_playwright() as p:
           const legend=[...document.querySelectorAll('[title],[data-original-title],[alt]')].map(e=>(e.getAttribute('title')||e.getAttribute('data-original-title')||e.getAttribute('alt'))).filter(t=>t&&/revuls|banquillo|suplent|sale|entra/i.test(t));
           return 'context: ' + c.outerHTML.slice(0,2500) + ' || llegenda: ' + [...new Set(legend)].slice(0,20).join(' / '); }""")
         note(info)
+        pg.screenshot(path="out.png")
     b.close()
