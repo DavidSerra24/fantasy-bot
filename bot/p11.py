@@ -120,11 +120,12 @@ def run(comps, force=False, max_hours=30.0):
             save_json(f"si_{comp}.json", sidata)
             entries, missing = build_entries(comp, sidata, info["slugs"])
             prev_all = load_json(f"p11_{comp}.json")
-            ok, bad = 0, []
+            ok, bad, pending = 0, [], []
             skipped = 0
             for slug, entry in entries.items():
                 # Només compten els jugadors i la seva posició a l'onze (no els punts projectats)
-                h = hashlib.md5(json.dumps([[p["name"] for p in r] for r in entry["rows"]], ensure_ascii=False).encode()).hexdigest()
+                # (i si ja tenen punts projectats, perquè les icones en depenen: abans de tenir-ne no es poden posar bé)
+                h = hashlib.md5(json.dumps([[[p["name"], p.get("ps") is not None] for p in r] for r in entry["rows"]], ensure_ascii=False).encode()).hexdigest()
                 pv = prev_all.get(slug) or {}
                 c0 = pv.get("check") or {}
                 if not force and pv.get("hash") == h and c0.get("n") == 11 and c0.get("icons") == 3 and c0.get("tactic") != "Manual":
@@ -136,7 +137,11 @@ def run(comps, force=False, max_hours=30.0):
                     res["hash"] = h
                     prev_all[slug] = res
                     c = res["check"]
-                    if c["n"] != 11 or c["icons"] != 3 or c["tactic"] == "Manual":
+                    nops = sum(1 for r in entry["rows"] for p in r if p.get("ps") is None)
+                    if c["n"] == 11 and c["icons"] != 3 and c["tactic"] != "Manual" and nops:
+                        pending.append(slug)  # onze posat; falten punts projectats per a les icones
+                        ok += 1
+                    elif c["n"] != 11 or c["icons"] != 3 or c["tactic"] == "Manual":
                         bad.append(f"{slug}: {c['n']} jug, {c['icons']} icones, {c['tactic']} {res.get('msg','')[:200]}")
                     elif "UN:" in res.get("msg", "") or "AMB:" in res.get("msg", ""):
                         bad.append(f"{slug}: {res['msg'][:200]}")
@@ -146,6 +151,8 @@ def run(comps, force=False, max_hours=30.0):
                     bad.append(f"{slug}: error {type(e).__name__} {str(e)[:80]}")
                 save_json(f"p11_{comp}.json", prev_all)
             line = f"✅ {comp} ({sidata.get('_gw')}): {ok}/{len(info['slugs'])} equips correctes ({skipped} sense canvis), tanca d'aquí a {info['hours']:.1f} h"
+            if pending:
+                line += f"\n  ⏳ icones pendents (encara sense punts projectats): {', '.join(pending)}"
             if bad or missing:
                 line += "\n  ⚠️ " + "\n  ⚠️ ".join(bad + missing)
             report.append(line)
