@@ -345,7 +345,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
             pg.wait_for_timeout(2500)
             inject(pg, "ff")
             jid = g["id"]
-            if g["empty"] == 0:
+            if g["empty"] == 0 and not dry:
                 # El selector obert des d'un jugador només mostra la seva posició: cal un '+' (selector complet).
                 remove_players(pg, jid, {g["ids"][-1]}, report)
                 pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
@@ -390,7 +390,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
             from bot import extras
             if not final:
                 extras.run(pg, b, report, max_hours=max_hours, dry=dry)
-            elif not only or "laliga" in only:
+            elif (not only or "laliga" in only) and not dry:
                 extras.final_extras(pg, report)
         except Exception as e:
             import traceback

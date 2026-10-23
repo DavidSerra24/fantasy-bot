@@ -34,7 +34,8 @@ for a in acts:
         elif a["do"] == "ff":
             ff.run(max_hours=20)
         elif a["do"] == "fffinal":
-            ff.run(max_hours=3, only=[a["comp"]], final=True)
+            # Desactivat temporalment (23/10): la revisió final només informa, no canvia res.
+            ff.run(max_hours=3, only=[a["comp"]], final=True, dry=True)
     except Exception as e:
         traceback.print_exc()
         telegram(f"❌ Error a {a['do']} {a['comp'] or ''}: {type(e).__name__}: {str(e)[:300]}")
