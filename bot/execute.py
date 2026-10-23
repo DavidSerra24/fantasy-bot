@@ -25,14 +25,14 @@ for a in acts:
     names = {"laliga": "LaLiga", "laliga2": "LaLiga 2", "premier-league": "Premier", "serie-a": "Serie A",
              "champions": "Champions", "europa-league": "Europa League", None: ""}
     what = {"p11": f"Predicted11 {names.get(a['comp'], a['comp'])}" + (" (última revisió)" if "final" in a.get("key", "") else " (matí)"),
-            "ff": "Fantasy de FutbolFantasy (matí: onzes, ítems i extres)",
+            "ff": "Fantasy de FutbolFantasy (matí: jocs buits, ítems i extres del dia)",
             "fffinal": f"revisió final del Fantasy {names.get(a['comp'], a['comp'])} (onzes oficials)"}[a["do"]]
     telegram(f"▶️ Començo: {what}")
     try:
         if a["do"] == "p11":
             p11.run([a["comp"]], force=False, max_hours=99)
         elif a["do"] == "ff":
-            ff.run(max_hours=20)
+            ff.run(max_hours=24 * 8, extras_hours=20)
         elif a["do"] == "fffinal":
             ff.run(max_hours=3, only=[a["comp"]], final=True)
     except Exception as e:

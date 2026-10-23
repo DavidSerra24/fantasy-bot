@@ -359,7 +359,7 @@ def final_review(page, g, cands, report, label, dry=False):
     return tac, total, pick, changes, missing
 
 
-def run(max_hours=20.0, only=None, dry=False, final=False):
+def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
     """final=True: revisió abans de tancar. Torna a calcular l'onze amb les dades més noves
     (onzes oficials si ja han sortit) i fa els canvis necessaris encara que el joc ja estigui ple."""
     report = []
@@ -381,7 +381,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
             if not comp:
                 if re.search(r"revulsivo|antagonista|resiliencia", g["label"] + " " + g["title"], re.I):
                     continue  # els fa bot/extras.py
-                if g["empty"] and h <= max_hours:
+                if g["empty"] and h <= (extras_hours or max_hours):
                     report.append(f"✋ {g['label'] or g['title']}: pendent (joc especial, encara no automatitzat)")
                 continue
             label, slug, (country, league) = comp
@@ -391,78 +391,81 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
                 continue
             if not final and g["empty"] < 11:
                 continue  # ja fet: només el toca la revisió final
-            if spg is None:
-                sctx = new_context(b, "sorareinside")
-                spg = sctx.new_page()
-                login_sorareinside(spg)
-                save_session(sctx, "sorareinside")
-            deadline = dt.datetime.now(MADRID) + dt.timedelta(hours=h)
-            sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
-            save_json(f"si_ff_{slug}.json", sidata)
-            official, olog = {}, []
-            if final:
-                kickoff = deadline
-                official = official_lineups(slug, kickoff, sidata, wait_until=kickoff.astimezone(dt.timezone.utc) - dt.timedelta(minutes=15), log=olog)
-                if official:  # dades fresques: els onzes poden haver canviat mentre esperàvem
-                    sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
-            cands = candidates(sidata, official)
-            pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
-            pg.wait_for_timeout(2500)
-            inject(pg, "ff")
-            jid = g["id"]
-            if final and g["empty"] < 11:
-                r = final_review(pg, g, cands, report, g["label"], dry=dry)
-                if not r:
+            try:
+                if spg is None:
+                    sctx = new_context(b, "sorareinside")
+                    spg = sctx.new_page()
+                    login_sorareinside(spg)
+                    save_session(sctx, "sorareinside")
+                deadline = dt.datetime.now(MADRID) + dt.timedelta(hours=h)
+                sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
+                save_json(f"si_ff_{slug}.json", sidata)
+                official, olog = {}, []
+                if final:
+                    kickoff = deadline
+                    official = official_lineups(slug, kickoff, sidata, wait_until=kickoff.astimezone(dt.timezone.utc) - dt.timedelta(minutes=15), log=olog)
+                    if official:  # dades fresques: els onzes poden haver canviat mentre esperàvem
+                        sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
+                cands = candidates(sidata, official)
+                pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
+                pg.wait_for_timeout(2500)
+                inject(pg, "ff")
+                jid = g["id"]
+                if final and g["empty"] < 11:
+                    r = final_review(pg, g, cands, report, g["label"], dry=dry)
+                    if not r:
+                        continue
+                    tac, total, pick, changes = r[:4]
+                    miss = r[4] if len(r) > 4 else []
+                    order = {"G": 0, "D": 1, "M": 2, "F": 3}
+                    names = ", ".join(f"{c['ff']} {c['ps']}" for c in sorted(pick, key=lambda c: order.get(c["pos"], 9)))
+                    sl = read_slots(pg, jid)
+                    ok = len(sl) == 11
+                    extra = (" | " + "; ".join(olog)) if olog else ""
+                    report.append(f"{'✅' if ok else '⚠️'} {g['label']} revisió final ({tac}, {total} PS): {changes} | onze: {names}{extra}" + ("" if ok else f" — REVISA-HO: {len(sl)} jugadors"))
+                    if not dry:
+                        use_items(pg, slug, pick, report)
                     continue
-                tac, total, pick, changes = r[:4]
-                miss = r[4] if len(r) > 4 else []
+                found, missing = lookup(pg, jid, cands)
+                best = optimise(found, DEFAULT_TACTICS)
+                if not best:
+                    report.append(f"❌ {g['label']}: no he trobat un onze vàlid")
+                    continue
+                (total, _), tac, pick = best
                 order = {"G": 0, "D": 1, "M": 2, "F": 3}
-                names = ", ".join(f"{c['ff']} {c['ps']}" for c in sorted(pick, key=lambda c: order.get(c["pos"], 9)))
-                sl = read_slots(pg, jid)
-                ok = len(sl) == 11
-                extra = (" | " + "; ".join(olog)) if olog else ""
-                report.append(f"{'✅' if ok else '⚠️'} {g['label']} revisió final ({tac}, {total} PS): {changes} | onze: {names}{extra}" + ("" if ok else f" — REVISA-HO: {len(sl)} jugadors"))
-                if not dry:
-                    use_items(pg, slug, pick, report)
-                continue
-            found, missing = lookup(pg, jid, cands)
-            best = optimise(found, DEFAULT_TACTICS)
-            if not best:
-                report.append(f"❌ {g['label']}: no he trobat un onze vàlid")
-                continue
-            (total, _), tac, pick = best
-            order = {"G": 0, "D": 1, "M": 2, "F": 3}
-            names = ", ".join(f"{c['ff']} {c['ps']}" for c in sorted(pick, key=lambda c: order[c["pos"]]))
-            warn = f" | ⚠️ no trobats a FutbolFantasy: {', '.join(missing)}" if missing else ""
-            if olog:
-                warn += " | " + "; ".join(olog)
-            if dry:
-                report.append(f"🧪 {g['label']} ({tac}, {total} PS) [prova, no desat]: {names}{warn}")
-                continue
-            new_ids = {c["ffid"] for c in pick}
-            cur = set(g["ids"])
-            out_ids = cur - new_ids
-            if final and cur == new_ids:
-                report.append(f"✅ {g['label']}: revisat abans de tancar, sense canvis")
-                continue
-            if out_ids:
-                remove_players(pg, jid, out_ids, report)
-            card = next((c for c in cards(pg) if c["id"] == jid), {"ids": []})
-            todo = [c for c in pick if c["ffid"] not in set(card["ids"])]
-            pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
-            pg.wait_for_timeout(2500)
-            inject(pg, "ff")
-            fill(pg, jid, todo)
-            after = next((c for c in cards(pg) if c["id"] == jid), {"ids": [], "empty": 11})
-            ok = set(after["ids"]) == new_ids
-            changes = f" | canvis: surten {len(out_ids)}, entren {len(todo)}" if final and cur else ""
-            report.append(f"{'✅' if ok else '⚠️'} {g['label']} ({tac}, {total} PS): {names}{changes}{warn}" + ("" if ok else f" — revisa-ho, falten {after['empty']}"))
-            save_json(f"ff_{slug}.json", {"jid": jid, "pick": pick})
-            use_items(pg, slug, pick, report)
+                names = ", ".join(f"{c['ff']} {c['ps']}" for c in sorted(pick, key=lambda c: order[c["pos"]]))
+                warn = f" | ⚠️ no trobats a FutbolFantasy: {', '.join(missing)}" if missing else ""
+                if olog:
+                    warn += " | " + "; ".join(olog)
+                if dry:
+                    report.append(f"🧪 {g['label']} ({tac}, {total} PS) [prova, no desat]: {names}{warn}")
+                    continue
+                new_ids = {c["ffid"] for c in pick}
+                cur = set(g["ids"])
+                out_ids = cur - new_ids
+                if final and cur == new_ids:
+                    report.append(f"✅ {g['label']}: revisat abans de tancar, sense canvis")
+                    continue
+                if out_ids:
+                    remove_players(pg, jid, out_ids, report)
+                card = next((c for c in cards(pg) if c["id"] == jid), {"ids": []})
+                todo = [c for c in pick if c["ffid"] not in set(card["ids"])]
+                pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
+                pg.wait_for_timeout(2500)
+                inject(pg, "ff")
+                fill(pg, jid, todo)
+                after = next((c for c in cards(pg) if c["id"] == jid), {"ids": [], "empty": 11})
+                ok = set(after["ids"]) == new_ids
+                changes = f" | canvis: surten {len(out_ids)}, entren {len(todo)}" if final and cur else ""
+                report.append(f"{'✅' if ok else '⚠️'} {g['label']} ({tac}, {total} PS): {names}{changes}{warn}" + ("" if ok else f" — revisa-ho, falten {after['empty']}"))
+                save_json(f"ff_{slug}.json", {"jid": jid, "pick": pick})
+                use_items(pg, slug, pick, report)
+            except Exception as e:  # un joc no ha d'aturar la resta
+                report.append(f"❌ {g['label']}: {type(e).__name__}: {str(e)[:200]}")
         try:
             from bot import extras
             if not final:
-                extras.run(pg, b, report, max_hours=max_hours, dry=dry)
+                extras.run(pg, b, report, max_hours=extras_hours or max_hours, dry=dry)
             elif not only or "laliga" in only:
                 extras.final_extras(pg, report, dry=True)  # extres: només informa fins que es provi amb un joc real
         except Exception as e:

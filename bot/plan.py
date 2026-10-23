@@ -1,7 +1,8 @@
 """Planificador (cada 30 minuts, molt lleuger: sense navegador).
 
 Mira els tancaments i decideix què cal fer en els propers 30 minuts:
-  - Matí (primera execució de les 9 h, hora de Madrid): Predicted11 i FutbolFantasy de les jornades que tanquen avui.
+  - Matí (9 h, hora de Madrid), cada dia: Predicted11 de totes les jornades obertes i FutbolFantasy dels jocs buits
+    (els extres de LaLiga, només el dia que tanquen).
   - Predicted11: última revisió 50 min abans del tancament (que és 2 h abans del primer partit).
   - FutbolFantasy: revisió final 50 min abans del primer partit (amb els onzes oficials si ja hi són).
 Escriu state/actions.json: [{"at": ISO UTC, "do": "p11"|"ff"|"fffinal", "comp": ...}]
@@ -69,8 +70,9 @@ def plan(now=None, done=None):
         K = ff_deadline(comp, ffd) or (D + dt.timedelta(hours=2) if D else None)
         if D and D > now:
             info.append(f"{comp}: Predicted11 tanca {D.astimezone(MADRID):%a %d %H:%M}")
-            if D.astimezone(MADRID).date() == local.date():
-                k = f"p11-mati:{comp}:{D.isoformat()}"
+            # cada matí s'omple (o s'actualitza) tot el que és obert; la revisió final és sempre 50 min abans
+            if True:
+                k = f"p11-mati:{comp}:{local.date()}"
                 if due(k, morning_t, D):
                     add(k, morning_t, "p11", comp, D)
             k = f"p11-final:{comp}:{D.isoformat()}"
@@ -84,7 +86,7 @@ def plan(now=None, done=None):
             if due(k, K - LEAD, K):
                 add(k, K - LEAD, "fffinal", comp, K)
     k = f"ff-mati:{local.date()}"
-    if (ff_today or not ffd) and due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
+    if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
     return acts, info
 
