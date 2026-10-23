@@ -2,7 +2,7 @@
 import datetime as dt
 import re
 
-from bot.web import inject
+from bot.web import inject, load_json, save_json
 
 MONTHS = {m: i for i, m in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], 1)}
 
@@ -41,11 +41,42 @@ def pick_gameweek(page, day):
     return name
 
 
-def extract_league(page, country, league, day, log=print):
-    """Retorna {equip: files} per a la lliga a la gameweek del dia `day`."""
+def league_age_minutes(page, country, league):
+    """Minuts (com a mínim) des de l'última actualització de la lliga a SorareInside ("Updated X ago")."""
+    txt = page.evaluate("""([c, l]) => { const all = [...document.querySelectorAll('main *')].filter(e => e.childElementCount === 0).map(e => e.textContent.trim()).filter(Boolean);
+        let cur = null; for (let i = 0; i < all.length; i++) { if (all[i] === c) cur = c; else if (cur === c && all[i] === l) { return all.slice(i + 1, i + 4).find(t => /^Updated /.test(t)) || null; } } return null; }""", [country, league])
+    if not txt:
+        return None
+    t = txt.lower()
+    if "second" in t or "just now" in t:
+        return 0
+    m = re.search(r"(\d+|an?) (minute|hour|day)", t)
+    if not m:
+        return None
+    n = 1 if m.group(1) in ("a", "an") else int(m.group(1))
+    unit = {"minute": 1, "hour": 60, "day": 1440}[m.group(2)]
+    # límit inferior ("an hour ago" = 45-89 min, "3 hours" = 2,5-3,5 h): així mai es fa servir una dada antiga per error
+    if unit == 1:
+        return n
+    return 45 if (unit == 60 and n == 1) else n * unit - unit // 2
+
+
+def extract_league(page, country, league, day, log=print, use_cache=True):
+    """Retorna {equip: files} per a la lliga a la gameweek del dia `day`.
+    Si SorareInside diu que la lliga no s'ha actualitzat des de l'última lectura, retorna les dades guardades."""
     page.goto("https://sorareinside.com/lineups", wait_until="domcontentloaded")
     page.wait_for_timeout(4000)
     gw = pick_gameweek(page, day)
+    key = f"si_cache_{re.sub(r'[^a-z0-9]+', '_', (league + '_' + gw).lower())}.json"
+    now = dt.datetime.now(dt.timezone.utc)
+    age = league_age_minutes(page, country, league)
+    cache = load_json(key)
+    if use_cache and cache and age is not None:
+        updated_at = now - dt.timedelta(minutes=age)
+        read_at = dt.datetime.fromisoformat(cache["read_at"])
+        if updated_at < read_at - dt.timedelta(minutes=5):
+            log(f"SorareInside {league} {gw}: sense canvis des de la darrera lectura (actualitzada fa {age}+ min)")
+            return cache["data"]
     inject(page, "si")
     r = page.evaluate("([c,l]) => __si.league(c,l)", [country, league])
     if r != "ok":
@@ -56,4 +87,5 @@ def extract_league(page, country, league, day, log=print):
     data = {"_gw": gw, "_order": teams}
     for t in teams:
         data[t] = page.evaluate("(t) => __si2.team(t)", t)
+    save_json(key, {"read_at": now.isoformat(), "data": data})
     return data

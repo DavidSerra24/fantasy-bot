@@ -327,14 +327,14 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
                 login_sorareinside(spg)
                 save_session(sctx, "sorareinside")
             deadline = dt.datetime.now(MADRID) + dt.timedelta(hours=h)
-            sidata = si.extract_league(spg, country, league, deadline.date())
+            sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=not final)
             save_json(f"si_ff_{slug}.json", sidata)
             official, olog = {}, []
             if final:
                 kickoff = deadline
                 official = official_lineups(slug, kickoff, sidata, wait_until=kickoff.astimezone(dt.timezone.utc) - dt.timedelta(minutes=15), log=olog)
                 if official:  # dades fresques: els onzes poden haver canviat mentre esperàvem
-                    sidata = si.extract_league(spg, country, league, deadline.date())
+                    sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
             cands = candidates(sidata, official)
             pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
             pg.wait_for_timeout(2500)
