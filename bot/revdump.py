@@ -10,7 +10,7 @@ with sync_playwright() as p:
     b = p.chromium.launch()
     ctx = new_context(b, "anon")
     pg = ctx.new_page()
-    pg.goto("https://www.futbolfantasy.com/partidos/22519-racing-espanyol", wait_until="networkidle", timeout=60000)
+    pg.goto("https://www.futbolfantasy.com/partidos/22519-racing-espanyol", wait_until="domcontentloaded", timeout=60000)
     pg.wait_for_timeout(3000)
     for _ in range(8):
         pg.mouse.wheel(0, 3000); pg.wait_for_timeout(700)
