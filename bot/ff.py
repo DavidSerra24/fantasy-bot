@@ -373,7 +373,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
             if not final:
                 extras.run(pg, b, report, max_hours=max_hours, dry=dry)
             elif not only or "laliga" in only:
-                extras.final_revulsivo(pg, report)
+                extras.final_extras(pg, report)
         except Exception as e:
             report.append(f"❌ Extres: {type(e).__name__}: {str(e)[:200]}")
         save_session(ctx, "futbolfantasy")

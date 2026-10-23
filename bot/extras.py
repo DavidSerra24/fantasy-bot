@@ -85,99 +85,140 @@ def fill_names(page, jid, names, report, label, want=3):
     return placed
 
 
+KINDS = {"revulsivo": "Trío revulsivo", "antagonista": "Trío antagonista", "resiliencia": "Resiliencia de portero"}
+
+
+def kind_of(card):
+    t = (card["title"] + " " + card["label"]).lower()
+    return next((k for k in KINDS if k in t), None)
+
+
+def orders(sidata, players):
+    """Llista ordenada de candidats per a cada joc: [{'n': nom, 'team': equip SorareInside o None}]."""
+    gks = gk_list(sidata)
+    starters = [p for p in players if not p["suplente"] and p["pct"] >= 80]
+    low = sorted(gks, key=lambda x: x["ps"])
+    hot = sorted([p for p in starters if p["pj"] > 0], key=lambda p: -(p["amarillas"] / p["pj"]))
+    return {
+        "revulsivo": [{"n": p["name"], "team": None} for p in pick_revulsivo(players)],
+        "antagonista": [{"n": x["si"], "team": x["team"], "gk": True} for x in low[:4]]
+                       + [{"n": p["name"], "team": None} for p in hot if not any(ff.name_score(p["name"], x["si"]) >= 80 for x in low)],
+        "resiliencia": [{"n": x["si"], "team": x["team"], "gk": True} for x in sorted(gks, key=lambda x: -x["ps"])],
+    }
+
+
 def run(page, b, report, max_hours=20.0, dry=False):
     """page: sessió de FutbolFantasy ja iniciada. Omple els extres de LaLiga que estiguin buits i tanquin aviat."""
+    from bot.web import inject
     cards = ff.cards(page)
-    games = [c for c in cards if c["hours"] and 0 < c["hours"] <= max_hours and c["empty"] == 3
-             and re.search(r"revulsivo|antagonista|resiliencia", c["title"] + c["label"], re.I)]
+    games = [c for c in cards if c["hours"] and 0 < c["hours"] <= max_hours and c["empty"] == 3 and kind_of(c)]
     if not games:
         return
-    lal = next((c for c in cards if c["label"].startswith("LaLiga ·")), None)
-    jornada = int(re.search(r"J(\d+)", games[0]["label"] + " " + games[0]["title"]).group(1)) if re.search(r"J(\d+)", games[0]["label"] + " " + games[0]["title"]) else None
+    m = re.search(r"J(\d+)", games[0]["label"] + " " + games[0]["title"])
+    jornada = int(m.group(1)) if m else None
     sctx = new_context(b, "sorareinside")
     spg = sctx.new_page()
     login_sorareinside(spg)
     save_session(sctx, "sorareinside")
     deadline = dt.datetime.now(ff.MADRID) + dt.timedelta(hours=games[0]["hours"])
     sidata = si.extract_league(spg, "Spain", "Primera División", deadline.date())
-    gks = gk_list(sidata)
+    save_json("si_ff_laliga.json", sidata)
     players = match_pages(page, jornada) if jornada else []
-    starters = [p for p in players if not p["suplente"] and p["pct"] >= 80]
+    save_json("extras_players.json", players)
+    ords = orders(sidata, players)
     for g in games:
-        t = (g["title"] + " " + g["label"]).lower()
-        if "revulsivo" in t:
-            names = [p["name"] for p in pick_revulsivo(players)]
-            label = "Trío revulsivo"
-        elif "antagonista" in t:
-            low = sorted(gks, key=lambda x: x["ps"])[:2]
-            hot = sorted([p for p in starters if p["pj"] > 0], key=lambda p: -(p["amarillas"] / p["pj"]))
-            names = [x["si"] for x in low] + [p["name"] for p in hot if not any(ff.name_score(p["name"], x["si"]) >= 80 for x in low)]
-            label = "Trío antagonista"
-        else:
-            names = [x["si"] for x in sorted(gks, key=lambda x: -x["ps"])]
-            label = "Resiliencia de portero"
+        kind = kind_of(g)
+        names = [x["n"] for x in ords[kind]]
         if dry:
-            report.append(f"🧪 {label} [prova]: {', '.join(names[:6])}")
+            report.append(f"🧪 {KINDS[kind]} [prova]: {', '.join(names[:6])}")
             continue
         page.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
         page.wait_for_timeout(2500)
-        from bot.web import inject
         inject(page, "ff")
-        placed = fill_names(page, g["id"], names, report, label)
-        if label == "Trío revulsivo":
-            save_json("revulsivo.json", {"jid": g["id"], "picked": placed, "order": names})
-    save_json("extras_players.json", players)
+        placed = fill_names(page, g["id"], names, report, KINDS[kind])
+        save_json(f"extra_{kind}.json", {"jid": g["id"], "picked": placed})
 
 
-def final_revulsivo(page, report):
-    """Revisió final: si algun revulsiu triat és titular en l'onze oficial del primer partit, canviar-lo."""
+def _rebuild(page, card, order):
+    """Per a jocs omplerts abans de guardar l'estat: deduir quins candidats hi ha posats (nom + id)."""
+    from bot.web import inject
+    inject(page, "ff")
+    page.locator(f'#juego-{card["id"]} a.fantasy-slot').first.click()
+    page.locator(".modal.show input[type=text]").wait_for(timeout=10000)
+    picked = []
+    for n in order[:15]:
+        res = page.evaluate("(q) => __ff.search(q)", n) or []
+        best = max(res, key=lambda r: ff.name_score(n, r["n"]), default=None)
+        if best and ff.name_score(n, best["n"]) >= 80 and str(best["id"]) in card["ids"]:
+            picked.append({"n": best["n"], "id": str(best["id"])})
+    ff.close_modal(page)
+    return picked
+
+
+def final_extras(page, report):
+    """Revisió final dels extres de LaLiga (dades fresques + onzes oficials del primer partit)."""
     from bot import espn
     from bot.web import load_json, inject
-    st = load_json("revulsivo.json")
-    cards = ff.cards(page)
-    if not st.get("jid"):  # jornada omplerta abans d'existir aquesta revisió: reconstruir
-        g = next((c for c in cards if "revulsivo" in (c["title"] + c["label"]).lower() and c["ids"]), None)
-        players = load_json("extras_players.json", [])
-        if not g or not players:
-            return
-        order = [p["name"] for p in pick_revulsivo(players)]
-        inject(page, "ff")
-        page.locator(f'#juego-{g["id"]} a.fantasy-slot').first.click()
-        page.locator(".modal.show input[type=text]").wait_for(timeout=10000)
-        picked = []
-        for n in order[:12]:
-            res = page.evaluate("(q) => __ff.search(q)", n) or []
-            best = max(res, key=lambda r: ff.name_score(n, r["n"]), default=None)
-            if best and ff.name_score(n, best["n"]) >= 80 and str(best["id"]) in g["ids"]:
-                picked.append({"n": best["n"], "id": str(best["id"])})
-        ff.close_modal(page)
-        st = {"jid": g["id"], "picked": picked, "order": order}
-        save_json("revulsivo.json", st)
-    card = next((c for c in cards if c["id"] == st["jid"]), None)
-    if not card or not card["hours"] or card["hours"] <= 0:
+    sidata, players = load_json("si_ff_laliga.json"), load_json("extras_players.json", [])
+    if not sidata or not players:
         return
-    kickoff = (dt.datetime.now(ff.MADRID) + dt.timedelta(hours=card["hours"])).astimezone(dt.timezone.utc)
-    starters = []
+    cards = [c for c in ff.cards(page) if kind_of(c) and c["ids"] and c["hours"] and c["hours"] > 0]
+    if not cards:
+        return
+    kickoff = (dt.datetime.now(ff.MADRID) + dt.timedelta(hours=cards[0]["hours"])).astimezone(dt.timezone.utc)
+    starters, teams_first = [], set()
     for ev in espn.matches_at("laliga", kickoff):
         lu = espn.starters("laliga", ev["id"])
-        if lu:
-            for names in lu.values():
-                starters += names
-        else:
-            report.append(f"ℹ️ Trío revulsivo: l'onze oficial de {ev['home']}-{ev['away']} encara no hi és")
-    if not starters:
-        return
+        if not lu:
+            report.append(f"ℹ️ Extres: l'onze oficial de {ev['home']}-{ev['away']} encara no hi és")
+            continue
+        for team, names in lu.items():
+            starters += names
+            best = max(sidata.get("_order", []), key=lambda t: ff.team_score(t, team), default=None)
+            if best and ff.team_score(best, team) > 0:
+                teams_first.add(best)
     is_starter = lambda n: any(ff.name_score(n, s) >= 80 for s in starters)
-    out = [p for p in st["picked"] if p["id"] in card["ids"] and is_starter(p["n"])]
-    if not out:
-        report.append("✅ Trío revulsivo: cap dels triats és titular al primer partit")
-        return
-    ff.remove_players(page, st["jid"], {p["id"] for p in out}, report)
-    chosen = {ff.norm(p["n"])[-1] for p in st["picked"]}
-    nxt = [n for n in st["order"] if ff.norm(n) and ff.norm(n)[-1] not in chosen and not is_starter(n)]
-    page.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
-    page.wait_for_timeout(2500)
-    inject(page, "ff")
-    new = fill_names(page, st["jid"], nxt, report, "Trío revulsivo (canvi: " + ", ".join(p["n"] for p in out) + " són titulars)", want=len(out))
-    st["picked"] = [p for p in st["picked"] if p not in out] + new
-    save_json("revulsivo.json", st)
+    ords = orders(sidata, players)
+    for card in cards:
+        kind = kind_of(card)
+        order = ords[kind]
+
+        def valid(x):
+            if kind == "revulsivo":
+                return not (starters and is_starter(x["n"]))
+            if x.get("team") in teams_first and starters:
+                return is_starter(x["n"])  # porter d'un equip del primer partit: ha de ser titular oficial
+            return True
+
+        desired = [x["n"] for x in order if valid(x)]
+        # Treure els que no tenen usos (així no es canvia un jugador per un que no es pot posar)
+        inject(page, "ff")
+        page.locator(f'#juego-{card["id"]} a.fantasy-slot').first.click()
+        page.locator(".modal.show input[type=text]").wait_for(timeout=10000)
+        usable = []
+        for n in desired[:10]:
+            res = page.evaluate("(q) => __ff.search(q)", n) or []
+            best = max(res, key=lambda r: ff.name_score(n, r["n"]), default=None)
+            if best and ff.name_score(n, best["n"]) >= 80 and not (best["u"] is not None and str(best["u"]) == "0"):
+                usable.append(n)
+        ff.close_modal(page)
+        desired = usable + desired[10:]
+        st = load_json(f"extra_{kind}.json")
+        picked = st.get("picked") if st.get("jid") == card["id"] else None
+        if not picked:
+            picked = _rebuild(page, card, [x["n"] for x in order])
+        current = [p for p in picked if p["id"] in card["ids"]]
+        top = desired[:3]
+        keep = [p for p in current if any(ff.name_score(p["n"], d) >= 80 for d in top)]
+        out = [p for p in current if p not in keep]
+        if not out and len(current) == 3:
+            report.append(f"✅ {KINDS[kind]}: revisat, sense canvis")
+            continue
+        if out:
+            ff.remove_players(page, card["id"], {p["id"] for p in out}, report)
+        page.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
+        page.wait_for_timeout(2500)
+        inject(page, "ff")
+        todo = [d for d in desired if not any(ff.name_score(p["n"], d) >= 80 for p in keep)]
+        new = fill_names(page, card["id"], todo, report, f"{KINDS[kind]} (canvi: surten {', '.join(p['n'] for p in out) or 'cap'})", want=3 - len(keep))
+        save_json(f"extra_{kind}.json", {"jid": card["id"], "picked": keep + new})
