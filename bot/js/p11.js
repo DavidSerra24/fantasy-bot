@@ -16,6 +16,9 @@ window.__p11 = (function () {
     if (part && iniOk) return 60;
     const lev = (a, b) => { const d = Array.from({ length: a.length + 1 }, (_, i) => [i]); for (let j = 1; j <= b.length; j++) d[0][j] = j; for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return d[a.length][b.length]; };
     const fz = full.every(t => nt.some(x => lev(t, x) <= (t.length > 6 ? 2 : 1))); if (fz && iniOk) return 55;
+    // Mateix cognom amb el nom de pila escrit diferent (Andy/Andrew Robertson): acceptat si no hi ha dubte dins l'equip
+    const sl = st[st.length - 1], nl = toks(it.nombre).slice(-1)[0];
+    if (sl && nl && sl.length >= 4 && sl === nl) return 56;
     return 0;
   }
   function items() { return [...document.querySelectorAll('#playerList .player-item')].map(e => ({ el: e, id: e.dataset.id, nombre: e.dataset.nombre, corto: e.dataset.nombrecorto, pos: e.dataset.posicion })); }
