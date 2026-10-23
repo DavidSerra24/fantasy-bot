@@ -307,6 +307,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
         allc = cards(pg)
         save_json("deadlines_ff.json", {c["label"]: c["end"] for c in allc if c["end"]})
         sctx = spg = None
+        allc.sort(key=lambda c: c["hours"] if c["hours"] is not None else 1e9)  # primer el que tanca abans
         for g in allc:
             comp = next((c for c in COMPS if g["label"].startswith(c[0] + " ·")), None)
             h = g["hours"]
@@ -344,12 +345,14 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
             pg.wait_for_timeout(2500)
             inject(pg, "ff")
             jid = g["id"]
-            if g["empty"] == 0:  # el selector s'obre des d'un jugador si no hi ha cap '+'
-                click(pg, f'#juego-{jid} a.fantasy-slot')
-                pg.locator(".modal.show input[type=text]").wait_for(timeout=10000)
-                found, missing = lookup_open(pg, cands)
-            else:
-                found, missing = lookup(pg, jid, cands)
+            if g["empty"] == 0:
+                # El selector obert des d'un jugador només mostra la seva posició: cal un '+' (selector complet).
+                remove_players(pg, jid, {g["ids"][-1]}, report)
+                pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
+                pg.wait_for_timeout(2500)
+                inject(pg, "ff")
+                g["ids"] = g["ids"][:-1]
+            found, missing = lookup(pg, jid, cands)
             best = optimise(found, DEFAULT_TACTICS)
             if not best:
                 report.append(f"❌ {g['label']}: no he trobat un onze vàlid")
