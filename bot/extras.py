@@ -139,24 +139,9 @@ def run(page, b, report, max_hours=20.0, dry=False):
         save_json(f"extra_{kind}.json", {"jid": g["id"], "picked": placed})
 
 
-def _rebuild(page, card, order):
-    """Per a jocs omplerts abans de guardar l'estat: deduir quins candidats hi ha posats (nom + id)."""
-    from bot.web import inject
-    inject(page, "ff")
-    ff.click(page, f'#juego-{card["id"]} a.fantasy-slot')
-    page.locator(".modal.show input[type=text]").wait_for(timeout=10000)
-    picked = []
-    for n in order[:15]:
-        res = page.evaluate("(q) => __ff.search(q)", n) or []
-        best = max(res, key=lambda r: ff.name_score(n, r["n"]), default=None)
-        if best and ff.name_score(n, best["n"]) >= 80 and str(best["id"]) in card["ids"]:
-            picked.append({"n": best["n"], "id": str(best["id"])})
-    ff.close_modal(page)
-    return picked
-
-
-def final_extras(page, report):
-    """Revisió final dels extres de LaLiga (dades fresques + onzes oficials del primer partit)."""
+def final_extras(page, report, dry=False):
+    """Revisió final dels extres de LaLiga (dades fresques + onzes oficials del primer partit).
+    Els jugadors ja triats s'identifiquen per les caselles (el buscador no els mostra)."""
     from bot import espn
     from bot.web import load_json, inject
     sidata, players = load_json("si_ff_laliga.json"), load_json("extras_players.json", [])
@@ -177,48 +162,33 @@ def final_extras(page, report):
             best = max(sidata.get("_order", []), key=lambda t: ff.team_score(t, team), default=None)
             if best and ff.team_score(best, team) > 0:
                 teams_first.add(best)
-    is_starter = lambda n: any(ff.name_score(n, s) >= 80 for s in starters)
+    is_starter = lambda n: any(ff.name_score(n, s_) >= 80 for s_ in starters)
     ords = orders(sidata, players)
     for card in cards:
         kind = kind_of(card)
-        order = ords[kind]
 
         def valid(x):
             if kind == "revulsivo":
                 return not (starters and is_starter(x["n"]))
             if x.get("team") in teams_first and starters:
-                return is_starter(x["n"])  # porter d'un equip del primer partit: ha de ser titular oficial
+                return is_starter(x["n"])
             return True
 
-        desired = [x["n"] for x in order if valid(x)]
-        # Treure els que no tenen usos (així no es canvia un jugador per un que no es pot posar)
-        inject(page, "ff")
-        ff.click(page, f'#juego-{card["id"]} a.fantasy-slot')
-        page.locator(".modal.show input[type=text]").wait_for(timeout=10000)
-        usable = []
-        for n in desired[:10]:
-            res = page.evaluate("(q) => __ff.search(q)", n) or []
-            best = max(res, key=lambda r: ff.name_score(n, r["n"]), default=None)
-            if best and ff.name_score(n, best["n"]) >= 80 and not (best["u"] is not None and str(best["u"]) == "0"):
-                usable.append(n)
-        ff.close_modal(page)
-        desired = usable + desired[10:]
-        st = load_json(f"extra_{kind}.json")
-        picked = st.get("picked") if st.get("jid") == card["id"] else None
-        if not picked:
-            picked = _rebuild(page, card, [x["n"] for x in order])
-        current = [p for p in picked if p["id"] in card["ids"]]
+        desired = [x["n"] for x in ords[kind] if valid(x)]
+        slots = ff.read_slots(page, card["id"])
         top = desired[:3]
-        keep = [p for p in current if any(ff.name_score(p["n"], d) >= 80 for d in top)]
-        out = [p for p in current if p not in keep]
-        if not out and (len(current) == 3 or card["empty"] == 0):
+        keep = [s_ for s_ in slots if any(ff.name_score(s_["name"], d) >= 60 for d in top)]
+        out = [s_ for s_ in slots if s_ not in keep]
+        if not out:
             report.append(f"✅ {KINDS[kind]}: revisat, sense canvis")
             continue
-        if out:
-            ff.remove_players(page, card["id"], {p["id"] for p in out}, report)
+        if dry:
+            report.append(f"🧪 {KINDS[kind]}: canviaria {', '.join(s_['name'] for s_ in out)} (millors ara: {', '.join(top)}) — no he fet cap canvi")
+            continue
+        for s_ in out:
+            ff.remove_slot(page, card["id"], s_["slot"])
         page.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
         page.wait_for_timeout(2500)
         inject(page, "ff")
-        todo = [d for d in desired if not any(ff.name_score(p["n"], d) >= 80 for p in keep)]
-        new = fill_names(page, card["id"], todo, report, f"{KINDS[kind]} (canvi: surten {', '.join(p['n'] for p in out) or 'cap'})", want=min(3 - len(keep), card["empty"] + len(out)))
-        save_json(f"extra_{kind}.json", {"jid": card["id"], "picked": keep + new})
+        todo = [d for d in desired if not any(ff.name_score(s_["name"], d) >= 60 for s_ in keep)]
+        fill_names(page, card["id"], todo, report, f"{KINDS[kind]} (canvi: surten {', '.join(s_['name'] for s_ in out)})", want=len(out))
