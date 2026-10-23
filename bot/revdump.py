@@ -10,12 +10,14 @@ with sync_playwright() as p:
     pg.goto("https://www.futbolfantasy.com/partidos/22519-racing-espanyol", wait_until="domcontentloaded", timeout=60000)
     pg.wait_for_timeout(6000)
     r = pg.evaluate("""() => {
-      const attrs = e => Object.fromEntries([...e.attributes].filter(a=>!/^(style|onerror|onload|src|data-src)$/.test(a.name)).map(a=>[a.name, a.value.slice(0,80)]));
-      const pl = [...document.querySelectorAll('[class*="jugador_"]')].filter(e => /Puado/.test(e.innerText + ' ' + e.getAttribute('data-nombre') + ' ' + e.outerHTML.slice(0,3000)));
-      const rev = [...document.querySelectorAll('*')].filter(e => [...e.attributes].some(a => /revuls/i.test(a.value)) || (e.childElementCount===0 && /revuls/i.test(e.textContent)));
-      return JSON.stringify({
-        puado: pl.slice(0,2).map(e => ({attrs: attrs(e), text: e.innerText.slice(0,120), kids: [...e.querySelectorAll('*')].map(k => k.tagName + ':' + JSON.stringify(attrs(k))).filter(s=>s.length<300).slice(0,25)})),
-        rev: rev.slice(0,10).map(e => e.tagName + ':' + JSON.stringify(attrs(e)) + ':' + e.textContent.trim().slice(0,60))
-      }); }""")
+      const leg = document.querySelector('.revulsivo-modal'); 
+      const legend = leg ? [...leg.querySelectorAll('li, .row, p, div')].filter(e=>e.childElementCount<6).map(e=>e.innerText.replace(/\\s+/g,' ').trim() + ' [' + [...e.querySelectorAll('.ff-revulsivo')].map(x=>x.className).join(',') + ']').filter(t=>t.length>3).slice(0,20) : [];
+      const pls = [...document.querySelectorAll('[class*="jugador_"]')].filter(e=>e.querySelector('.ff-revulsivo')).map(e => {
+        const a = e.querySelector('a[data-nombre], [data-nombre]');
+        const rv = e.querySelector('.ff-revulsivo');
+        return (a?.getAttribute('data-nombre') || '?') + ' | ' + rv.className.replace('ff-revulsivo','').trim() + ' | ' + rv.innerText.trim() + ' | onceff=' + e.getAttribute('data-onceff');
+      });
+      return JSON.stringify({legend: [...new Set(legend)], players: pls.slice(0,40), nameattrs: [...document.querySelectorAll('[class*="jugador_"] [data-nombre]')].slice(0,3).map(x=>x.getAttribute('data-nombre'))});
+    }""")
     note(r)
     b.close()
