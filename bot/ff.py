@@ -46,7 +46,11 @@ def name_score(a, b):
     if ta and tb and ta[-1] == tb[-1]:
         return 60
     # noms escurçats: "Rodri" / "Rodrigo" (mínim 4 lletres), el filtre d'equip evita confusions
-    if any(len(x) >= 4 and len(y) >= 4 and (x.startswith(y) or y.startswith(x)) for x in ta for y in tb):
+    # Noms escurçats ("Rodri"/"Rodrigo"): entre cognoms, o qualsevol paraula si un dels dos és un sol nom
+    pairs = [(ta[-1], tb[-1])] if ta and tb else []
+    if len(ta) == 1 or len(tb) == 1:
+        pairs = [(x, y) for x in ta for y in tb]
+    if any(len(x) >= 4 and len(y) >= 4 and (x.startswith(y) or y.startswith(x)) for x, y in pairs):
         return 60
     return len(sa & sb) * 20
 
