@@ -39,5 +39,15 @@ window.__ff = (function () {
     await sleep(900); return results();
   }
   function rules() { const m = document.querySelector('.modal.show'); return m ? m.innerText : null; }
-  return { games, cards, results, search, rules };
+  // Caselles ocupades d'un joc: posició de la casella, nom curt i posició del jugador (G/D/M/F).
+  function slots(id) {
+    const card = document.getElementById('juego-' + id); if (!card) return [];
+    const map = { Portero: 'G', Defensa: 'D', Mediocampista: 'M', Delantero: 'F' };
+    return [...card.querySelectorAll('a.fantasy-slot')].map(a => {
+      const cls = (a.closest('.slot')?.className || '');
+      const m = cls.match(/posicion-(\w+)/);
+      return { slot: +a.dataset.posicion, name: (a.querySelector('.slot-name')?.textContent || a.innerText).trim(), pos: m ? (map[m[1]] || m[1]) : null };
+    });
+  }
+  return { games, cards, results, search, rules, slots };
 })();

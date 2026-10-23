@@ -275,6 +275,22 @@ def cards(page):
     return out
 
 
+def remove_slot(page, jid, slot):
+    """Buida una casella concreta (clic al jugador → 'Quitar selección')."""
+    click(page, f'#juego-{jid} a.fantasy-slot[data-posicion="{slot}"]')
+    page.locator(".modal.show").wait_for(timeout=10000)
+    page.wait_for_timeout(800)
+    page.locator(".modal.show").get_by_text("Quitar selección").first.click()
+    page.locator(".modal.show").wait_for(state="hidden", timeout=10000)
+    page.wait_for_timeout(1200)
+
+
+def read_slots(page, jid):
+    cards(page)
+    inject(page, "ff")
+    return page.evaluate("(id) => __ff.slots(id)", jid)
+
+
 def remove_players(page, jid, remove_ids, log):
     """Treu del camp els jugadors indicats (clic al jugador → 'Quitar selección')."""
     for _ in range(15):
