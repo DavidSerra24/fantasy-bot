@@ -63,11 +63,11 @@ def gk_list(sidata):
     return out
 
 
-def fill_names(page, jid, names, report, label):
+def fill_names(page, jid, names, report, label, want=3):
     """Busca cada nom al selector del joc i el posa (usa la mateixa lògica de noms que el Fantasy)."""
     placed = []
     for n in names:
-        if len(placed) >= 3:
+        if len(placed) >= want:
             break
         ff.open_picker(page, jid)
         res = page.evaluate("(q) => __ff.search(q)", n) or []
@@ -80,8 +80,8 @@ def fill_names(page, jid, names, report, label):
         page.locator(".modal.show .sel-item:visible").filter(has=page.locator(".sel-nombre", has_text=best["n"])).first.click()
         page.locator(".modal.show").wait_for(state="hidden", timeout=10000)
         page.wait_for_timeout(800)
-        placed.append(best["n"])
-    report.append(f"{'✅' if len(placed) == 3 else '⚠️'} {label}: {', '.join(placed) or 'cap'}")
+        placed.append({"n": best["n"], "id": str(best["id"])})
+    report.append(f"{'✅' if len(placed) == want else '⚠️'} {label}: {', '.join(p['n'] for p in placed) or 'cap'}")
     return placed
 
 
@@ -123,5 +123,61 @@ def run(page, b, report, max_hours=20.0, dry=False):
         page.wait_for_timeout(2500)
         from bot.web import inject
         inject(page, "ff")
-        fill_names(page, g["id"], names, report, label)
+        placed = fill_names(page, g["id"], names, report, label)
+        if label == "Trío revulsivo":
+            save_json("revulsivo.json", {"jid": g["id"], "picked": placed, "order": names})
     save_json("extras_players.json", players)
+
+
+def final_revulsivo(page, report):
+    """Revisió final: si algun revulsiu triat és titular en l'onze oficial del primer partit, canviar-lo."""
+    from bot import espn
+    from bot.web import load_json, inject
+    st = load_json("revulsivo.json")
+    cards = ff.cards(page)
+    if not st.get("jid"):  # jornada omplerta abans d'existir aquesta revisió: reconstruir
+        g = next((c for c in cards if "revulsivo" in (c["title"] + c["label"]).lower() and c["ids"]), None)
+        players = load_json("extras_players.json", [])
+        if not g or not players:
+            return
+        order = [p["name"] for p in pick_revulsivo(players)]
+        inject(page, "ff")
+        page.locator(f'#juego-{g["id"]} a.fantasy-slot').first.click()
+        page.locator(".modal.show input[type=text]").wait_for(timeout=10000)
+        picked = []
+        for n in order[:12]:
+            res = page.evaluate("(q) => __ff.search(q)", n) or []
+            best = max(res, key=lambda r: ff.name_score(n, r["n"]), default=None)
+            if best and ff.name_score(n, best["n"]) >= 80 and str(best["id"]) in g["ids"]:
+                picked.append({"n": best["n"], "id": str(best["id"])})
+        ff.close_modal(page)
+        st = {"jid": g["id"], "picked": picked, "order": order}
+        save_json("revulsivo.json", st)
+    card = next((c for c in cards if c["id"] == st["jid"]), None)
+    if not card or not card["hours"] or card["hours"] <= 0:
+        return
+    kickoff = (dt.datetime.now(ff.MADRID) + dt.timedelta(hours=card["hours"])).astimezone(dt.timezone.utc)
+    starters = []
+    for ev in espn.matches_at("laliga", kickoff):
+        lu = espn.starters("laliga", ev["id"])
+        if lu:
+            for names in lu.values():
+                starters += names
+        else:
+            report.append(f"ℹ️ Trío revulsivo: l'onze oficial de {ev['home']}-{ev['away']} encara no hi és")
+    if not starters:
+        return
+    is_starter = lambda n: any(ff.name_score(n, s) >= 80 for s in starters)
+    out = [p for p in st["picked"] if p["id"] in card["ids"] and is_starter(p["n"])]
+    if not out:
+        report.append("✅ Trío revulsivo: cap dels triats és titular al primer partit")
+        return
+    ff.remove_players(page, st["jid"], {p["id"] for p in out}, report)
+    chosen = {ff.norm(p["n"])[-1] for p in st["picked"]}
+    nxt = [n for n in st["order"] if ff.norm(n) and ff.norm(n)[-1] not in chosen and not is_starter(n)]
+    page.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
+    page.wait_for_timeout(2500)
+    inject(page, "ff")
+    new = fill_names(page, st["jid"], nxt, report, "Trío revulsivo (canvi: " + ", ".join(p["n"] for p in out) + " són titulars)", want=len(out))
+    st["picked"] = [p for p in st["picked"] if p not in out] + new
+    save_json("revulsivo.json", st)
