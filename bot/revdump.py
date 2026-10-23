@@ -13,11 +13,12 @@ with sync_playwright() as p:
       const leg = document.querySelector('.revulsivo-modal'); 
       const legend = leg ? [...leg.querySelectorAll('li, .row, p, div')].filter(e=>e.childElementCount<6).map(e=>e.innerText.replace(/\\s+/g,' ').trim() + ' [' + [...e.querySelectorAll('.ff-revulsivo')].map(x=>x.className).join(',') + ']').filter(t=>t.length>3).slice(0,20) : [];
       const pls = [...document.querySelectorAll('[class*="jugador_"]')].filter(e=>e.querySelector('.ff-revulsivo')).map(e => {
-        const a = e.querySelector('a[data-nombre], [data-nombre]');
+        const a = e.querySelector('a[data-probabilidad]') || e.querySelector('a');
         const rv = e.querySelector('.ff-revulsivo');
-        return (a?.getAttribute('data-nombre') || '?') + ' | ' + rv.className.replace('ff-revulsivo','').trim() + ' | ' + rv.innerText.trim() + ' | onceff=' + e.getAttribute('data-onceff');
+        const d = a ? Object.fromEntries([...a.attributes].filter(x=>x.name.startsWith('data-') && !/toggle|target/.test(x.name)).map(x=>[x.name.slice(5), x.value.slice(0,40)])) : {};
+        return JSON.stringify({rv: rv.className.replace('ff-revulsivo','').replace('mx-auto','').trim(), pct: rv.innerText.trim(), href: a?.getAttribute('href'), d, img: e.querySelector('img[alt]')?.alt, txt: e.innerText.replace(/\s+/g,' ').trim().slice(0,80)});
       });
-      return JSON.stringify({legend: [...new Set(legend)], players: pls.slice(0,40), nameattrs: [...document.querySelectorAll('[class*="jugador_"] [data-nombre]')].slice(0,3).map(x=>x.getAttribute('data-nombre'))});
+      return JSON.stringify({legend: [...new Set(legend)], players: pls.slice(0,3), nameattrs: [...document.querySelectorAll('[class*="jugador_"] [data-nombre]')].slice(0,3).map(x=>x.getAttribute('data-nombre'))});
     }""")
     note(r)
     b.close()
