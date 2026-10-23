@@ -35,9 +35,9 @@ def match_pages(page, jornada):
             const a = e.querySelector('a[data-probabilidad]'); if (!a) return null;
             const rv = e.querySelector('.ff-revulsivo');
             const name = e.querySelector('img[alt]')?.alt && e.querySelector('img[alt]').alt !== 'Más info' ? e.querySelector('img[alt]').alt
-                         : e.innerText.replace(/\\s+/g, ' ').trim().replace(/^[\\d.]+\\s*/, '').replace(/^\\d+%\\s*/, '');
+                         : e.innerText.replace(/\\s+/g, ' ').trim().replace(/^[\\d.%\\s]+/, '');
             const num = k => parseFloat(a.getAttribute('data-' + k)) || 0;
-            return { name, url, suplente: e.getAttribute('data-onceff') === 'suplente', revulsivo: !!rv,
+            return { name: name.replace(/^[%\\s]+/, '').trim(), url, suplente: e.getAttribute('data-onceff') === 'suplente', revulsivo: !!rv,
                      pct: parseInt(a.getAttribute('data-probabilidad')) || 0, lesion: a.getAttribute('data-lesion'),
                      pj: num('totalpartidosjugados'), amarillas: num('totalamarillas'), media: num('totalpuntosfutmondostatspartido') };
         }).filter(Boolean)""", url)
