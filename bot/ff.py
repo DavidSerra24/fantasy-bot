@@ -298,6 +298,8 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
             if h is None or h <= 0:
                 continue
             if not comp:
+                if re.search(r"revulsivo|antagonista|resiliencia", g["label"] + " " + g["title"], re.I):
+                    continue  # els fa bot/extras.py
                 if g["empty"] and h <= max_hours:
                     report.append(f"✋ {g['label'] or g['title']}: pendent (joc especial, encara no automatitzat)")
                 continue
@@ -366,6 +368,12 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
             report.append(f"{'✅' if ok else '⚠️'} {g['label']} ({tac}, {total} PS): {names}{changes}{warn}" + ("" if ok else f" — revisa-ho, falten {after['empty']}"))
             save_json(f"ff_{slug}.json", {"jid": jid, "pick": pick})
             use_items(pg, slug, pick, report)
+        if not final:
+            try:
+                from bot import extras
+                extras.run(pg, b, report, max_hours=max_hours, dry=dry)
+            except Exception as e:
+                report.append(f"❌ Extres: {type(e).__name__}: {str(e)[:200]}")
         save_session(ctx, "futbolfantasy")
         b.close()
     msg = "FutbolFantasy Fantasy✨" + (" (revisió final)" if final else "") + "\n" + ("\n".join(report) or "Res a fer ara.")
