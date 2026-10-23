@@ -123,7 +123,8 @@ def run(comps, force=False, max_hours=30.0):
             ok, bad = 0, []
             skipped = 0
             for slug, entry in entries.items():
-                h = hashlib.md5(json.dumps(entry, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+                # Només compten els jugadors i la seva posició a l'onze (no els punts projectats)
+                h = hashlib.md5(json.dumps([[p["name"] for p in r] for r in entry["rows"]], ensure_ascii=False).encode()).hexdigest()
                 pv = prev_all.get(slug) or {}
                 c0 = pv.get("check") or {}
                 if not force and pv.get("hash") == h and c0.get("n") == 11 and c0.get("icons") == 3 and c0.get("tactic") != "Manual":

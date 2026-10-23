@@ -327,7 +327,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
                 login_sorareinside(spg)
                 save_session(sctx, "sorareinside")
             deadline = dt.datetime.now(MADRID) + dt.timedelta(hours=h)
-            sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=not final)
+            sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
             save_json(f"si_ff_{slug}.json", sidata)
             official, olog = {}, []
             if final:

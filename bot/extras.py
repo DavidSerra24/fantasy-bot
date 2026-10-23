@@ -121,7 +121,7 @@ def run(page, b, report, max_hours=20.0, dry=False):
     login_sorareinside(spg)
     save_session(sctx, "sorareinside")
     deadline = dt.datetime.now(ff.MADRID) + dt.timedelta(hours=games[0]["hours"])
-    sidata = si.extract_league(spg, "Spain", "Primera División", deadline.date())
+    sidata = si.extract_league(spg, "Spain", "Primera División", deadline.date(), use_cache=False)
     save_json("si_ff_laliga.json", sidata)
     players = match_pages(page, jornada) if jornada else []
     save_json("extras_players.json", players)
