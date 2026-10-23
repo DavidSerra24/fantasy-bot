@@ -201,11 +201,12 @@ def optimise(found, tactics):
         d, m, f = map(int, tac.split("-"))
         need = {"G": 1, "D": d, "M": m, "F": f}
         pick, teams = [], set()
-        for c in found:  # ja ordenats per PS (i ordre de la llista en cas d'empat)
+        for c in sorted(found, key=lambda c: not c.get("lock")):  # primer els que s'han de mantenir; després per PS
             if need[c["pos"]] and c["opp"] not in teams:
                 pick.append(c)
                 need[c["pos"]] -= 1
-                teams.add(c["team"])
+                if c["team"]:
+                    teams.add(c["team"])
         if any(need.values()):
             continue
         key = (sum(c["ps"] for c in pick), -sum(c["idx"] for c in pick))
@@ -310,9 +311,11 @@ def remove_players(page, jid, remove_ids, log):
     log.append("⚠️ no he pogut treure tots els jugadors")
 
 
-def final_review(page, g, cands, report, label, dry=False):
+def final_review(page, g, cands, report, label, dry=False, known=None):
     """Revisió d'un onze ja (parcialment) ple. Retorna (tàctica, total, pick, canvis) o None.
-    Els jugadors que ja són a l'onze no surten al buscador, així que s'identifiquen per les caselles."""
+    Els jugadors que ja són a l'onze no surten al buscador, així que s'identifiquen per les caselles.
+    known: noms amb dades a SorareInside (revisió diària). Si un jugador de l'onze no hi surt (equip encara
+    sense onze o sense punts projectats), no se'l treu: es manté fins que hi hagi dades."""
     jid = g["id"]
     slots = read_slots(page, jid)
     cur = []
@@ -320,15 +323,21 @@ def final_review(page, g, cands, report, label, dry=False):
         best = max(cands, key=lambda c: name_score(s_["name"], c["si"]), default=None)
         if best and name_score(s_["name"], best["si"]) >= 60:
             cur.append({**best, "ff": s_["name"], "pos": s_["pos"], "slot": s_["slot"], "current": True})
+        elif known is not None and not any(name_score(s_["name"], k) >= 60 for k in known):
+            cur.append({"si": s_["name"], "team": None, "opp": None, "ps": 0, "pct": 0, "idx": 99998,
+                        "ff": s_["name"], "pos": s_["pos"], "slot": s_["slot"], "current": True, "lock": True})
         else:  # ja no és candidat (p. ex. ara té menys del 80% o no és titular oficial): es canviarà si cal
             cur.append({"si": s_["name"], "team": None, "opp": None, "ps": -1, "pct": 0, "idx": 99999,
                         "ff": s_["name"], "pos": s_["pos"], "slot": s_["slot"], "current": True})
     removed_first = None
     if g["empty"] == 0 and cur:
+        if all(c.get("lock") for c in cur):
+            report.append(f"⏳ {label}: encara no hi ha dades dels jugadors de l'onze; ho miraré més endavant")
+            return None
         if dry:
             report.append(f"🧪 {label}: (prova) amb l'onze ple cal buidar una casella per buscar; no faig res")
             return None
-        removed_first = min(cur, key=lambda c: (c["ps"], -c["idx"]))
+        removed_first = min([c for c in cur if not c.get("lock")], key=lambda c: (c["ps"], -c["idx"]))
         remove_slot(page, jid, removed_first["slot"])
         cur = [c for c in cur if c is not removed_first]
     page.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
@@ -340,6 +349,12 @@ def final_review(page, g, cands, report, label, dry=False):
     pool.sort(key=lambda c: (-c["ps"], c["idx"]))
     best = optimise(pool, DEFAULT_TACTICS)
     if not best:
+        if removed_first:  # tornar a deixar l'onze com estava
+            page.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
+            page.wait_for_timeout(2500)
+            inject(page, "ff")
+            fill(page, jid, [removed_first])
+        report.append(f"⏳ {label}: amb les dades d'ara no surt cap onze vàlid millor; el deixo com està")
         return None
     (total, _), tac, pick = best
     keep = [c for c in cur if any(c is p for p in pick)]
@@ -411,8 +426,10 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                 pg.wait_for_timeout(2500)
                 inject(pg, "ff")
                 jid = g["id"]
-                if final and g["empty"] < 11:
-                    r = final_review(pg, g, cands, report, g["label"], dry=dry)
+                if g["empty"] < 11:
+                    known = None if final else [p_["name"] for t in sidata.get("_order", []) if isinstance(sidata.get(t), list)
+                                                for r_ in sidata[t] for p_ in r_ if p_.get("ps") is not None]
+                    r = final_review(pg, g, cands, report, g["label"], dry=dry, known=known)
                     if not r:
                         continue
                     tac, total, pick, changes = r[:4]
@@ -422,14 +439,15 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                     sl = read_slots(pg, jid)
                     ok = len(sl) == 11
                     extra = (" | " + "; ".join(olog)) if olog else ""
-                    report.append(f"{'✅' if ok else '⚠️'} {g['label']} revisió final ({tac}, {total} PS): {changes} | onze: {names}{extra}" + ("" if ok else f" — REVISA-HO: {len(sl)} jugadors"))
+                    report.append(f"{'✅' if ok else '⚠️'} {g['label']} {'revisió final' if final else 'revisió diària'} ({tac}, {total} PS): {changes} | onze: {names}{extra}" + ("" if ok else f" — REVISA-HO: {len(sl)} jugadors"))
                     if not dry:
                         use_items(pg, slug, pick, report)
                     continue
                 found, missing = lookup(pg, jid, cands)
                 best = optimise(found, DEFAULT_TACTICS)
                 if not best:
-                    report.append(f"❌ {g['label']}: no he trobat un onze vàlid")
+                    report.append(f"❌ {g['label']}: no he trobat un onze vàlid" if final else
+                                  f"⏳ {g['label']}: encara falten dades a SorareInside per fer un onze ({len(found)} jugadors); ho torno a provar demà")
                     continue
                 (total, _), tac, pick = best
                 order = {"G": 0, "D": 1, "M": 2, "F": 3}

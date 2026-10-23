@@ -41,7 +41,7 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 ## Infraestructura
 - Repositori: DavidSerra24/fantasy-bot. S'executa a GitHub Actions; no cal el PC del David. Oracle Free Tier (Madrid) no té capacitat.
 - `auto.yml` cada 30 min (`bot/plan.py` → `bot/execute.py`):
-  - Matí (9:00 Madrid), cada dia: Predicted11 de totes les jornades obertes (només refà equips que canviïn) i FutbolFantasy dels jocs buits que tanquin en ≤8 dies. Els extres de LaLiga només el dia que tanquen (la seva revisió final encara només informa). Sempre hi ha revisió final abans de tancar.
+  - Matí (9:00 Madrid), cada dia: Predicted11 de totes les jornades obertes (només refà equips que canviïn) i FutbolFantasy dels jocs que tanquin en ≤8 dies: omple els buits i revisa/edita els ja omplerts amb les dades del dia. Els jugadors de l'onze sense dades a SorareInside (equip encara sense onze o sense PS) es mantenen. Si no surt un onze vàlid, espera a l'endemà. Els extres de LaLiga només el dia que tanquen. Sempre hi ha revisió final abans de tancar.
   - Predicted11: última revisió 50 min abans del tancament (tancament = 2 h abans del primer partit). Llegeix `data-countdown-end`. Només refà equips si canvien jugadors o posicions.
   - GitHub endarrereix les execucions programades (sovint 1 cop per hora): el planificador agafa les accions de la propera hora i s'espera fins a l'hora exacta; si en queda alguna pendent, la fa de seguida (primer la que tanca abans).
   - FutbolFantasy: revisió final 50 min abans del primer partit (dades fresques de SorareInside, amb onzes oficials d'ESPN) i canvis de jugadors si cal. Inclou els extres de LaLiga. Tancaments a `#juego-<id>[data-date-end]`.

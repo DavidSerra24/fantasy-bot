@@ -25,7 +25,7 @@ for a in acts:
     names = {"laliga": "LaLiga", "laliga2": "LaLiga 2", "premier-league": "Premier", "serie-a": "Serie A",
              "champions": "Champions", "europa-league": "Europa League", None: ""}
     what = {"p11": f"Predicted11 {names.get(a['comp'], a['comp'])}" + (" (última revisió)" if "final" in a.get("key", "") else " (matí)"),
-            "ff": "Fantasy de FutbolFantasy (matí: jocs buits, ítems i extres del dia)",
+            "ff": "Fantasy de FutbolFantasy (matí: omplir i revisar els jocs oberts, ítems i extres del dia)",
             "fffinal": f"revisió final del Fantasy {names.get(a['comp'], a['comp'])} (onzes oficials)"}[a["do"]]
     telegram(f"▶️ Començo: {what}")
     try:
