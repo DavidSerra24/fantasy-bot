@@ -41,7 +41,7 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - Esperar que Sorare marqui els jugadors com a titulars (així s'actualitzen les lletres d'impacte).
 - **Tauler personal**: filtre "Playing soon" (primer els que juguen abans). Si a l'hora del partit no hi ha prou titulars confirmats, completar amb els següents que tinguin ≥80% de titularitat.
 - **Tauler d'equip**: filtre "Average score" (jugadors de tot el dia). Esperar els onzes del primer partit del dia; si no hi ha cap jugador a posar, esperar als següents partits i fer l'alineació quan toqui posar un titular.
-- Accés: el David entra amb Google + Authenticator (el bot no pot fer-ho sol; pendent de decidir com).
+- Accés: el David entra amb Google + Authenticator. El bot no pot fer-ho sol; extreure la sessió des del navegador està bloquejat per seguretat. Pendent (25/10): investigar l'API oficial de Sorare (api.sorare.com/graphql). Alternativa: fer-ho des del navegador de l'app amb el PC engegat. El Set són les "series" (sorare.com/football/series/play; tauler d'equip a /series/squad).
 
 ## Mister (LaLiga 2)
 - El David envia la llista de la plantilla. Ordenar-la per % de titularitat i, dins de cada %, per PS. Els jugadors sense dades van al final del seu grup.
