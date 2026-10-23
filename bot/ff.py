@@ -386,6 +386,8 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
             elif not only or "laliga" in only:
                 extras.final_extras(pg, report)
         except Exception as e:
+            import traceback
+            print("::notice title=tb::" + traceback.format_exc().replace("\n", " | ")[-1500:])
             report.append(f"❌ Extres: {type(e).__name__}: {str(e)[:200]}")
         save_session(ctx, "futbolfantasy")
         b.close()
