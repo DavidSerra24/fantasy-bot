@@ -10,7 +10,7 @@ with sync_playwright() as p:
     b = p.chromium.launch()
     ctx = new_context(b, "anon")
     pg = ctx.new_page()
-    pg.goto("https://www.futbolfantasy.com/laliga/posibles-alineaciones", wait_until="networkidle", timeout=60000)
+    pg.goto("https://www.futbolfantasy.com/partidos/22519-racing-espanyol", wait_until="networkidle", timeout=60000)
     pg.wait_for_timeout(3000)
     for _ in range(8):
         pg.mouse.wheel(0, 3000); pg.wait_for_timeout(700)
@@ -20,7 +20,8 @@ with sync_playwright() as p:
     note("enllaços: " + " ; ".join(links))
     info = pg.evaluate("""() => { const el=[...document.querySelectorAll('*')].find(e=>e.childElementCount===0 && /Puado/.test(e.textContent));
       if(!el) return 'Puado no trobat';
-      let c=el; for(let i=0;i<5;i++) c=c.parentElement;
-      return c.outerHTML.slice(0,3000); }""")
+      let c=el; for(let i=0;i<3;i++) c=c.parentElement;
+      const tips=[...document.querySelectorAll('[title],[data-original-title],[data-bs-original-title],[data-tooltip],[alt]')].map(e=>(e.getAttribute('title')||e.getAttribute('data-original-title')||e.getAttribute('data-bs-original-title')||e.getAttribute('data-tooltip')||e.getAttribute('alt'))).filter(Boolean);
+      return c.outerHTML.slice(0,2500) + ' || TIPS: ' + [...new Set(tips)].filter(t=>t.length<80).slice(0,60).join(' / '); }""")
     note("context: " + info)
     b.close()
