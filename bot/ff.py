@@ -310,6 +310,55 @@ def remove_players(page, jid, remove_ids, log):
     log.append("⚠️ no he pogut treure tots els jugadors")
 
 
+def final_review(page, g, cands, report, label, dry=False):
+    """Revisió d'un onze ja (parcialment) ple. Retorna (tàctica, total, pick, canvis) o None.
+    Els jugadors que ja són a l'onze no surten al buscador, així que s'identifiquen per les caselles."""
+    jid = g["id"]
+    slots = read_slots(page, jid)
+    cur = []
+    for s_ in slots:
+        best = max(cands, key=lambda c: name_score(s_["name"], c["si"]), default=None)
+        if best and name_score(s_["name"], best["si"]) >= 60:
+            cur.append({**best, "ff": s_["name"], "pos": s_["pos"], "slot": s_["slot"], "current": True})
+        else:  # ja no és candidat (p. ex. ara té menys del 80% o no és titular oficial): es canviarà si cal
+            cur.append({"si": s_["name"], "team": None, "opp": None, "ps": -1, "pct": 0, "idx": 99999,
+                        "ff": s_["name"], "pos": s_["pos"], "slot": s_["slot"], "current": True})
+    removed_first = None
+    if g["empty"] == 0 and cur:
+        if dry:
+            report.append(f"🧪 {label}: (prova) amb l'onze ple cal buidar una casella per buscar; no faig res")
+            return None
+        removed_first = min(cur, key=lambda c: (c["ps"], -c["idx"]))
+        remove_slot(page, jid, removed_first["slot"])
+        cur = [c for c in cur if c is not removed_first]
+    page.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
+    page.wait_for_timeout(2500)
+    inject(page, "ff")
+    found, missing = lookup(page, jid, cands)
+    cur_names = [c["si"] for c in cur]
+    pool = [c for c in found if not any(name_score(c["si"], n) >= 80 for n in cur_names)] + cur
+    pool.sort(key=lambda c: (-c["ps"], c["idx"]))
+    best = optimise(pool, DEFAULT_TACTICS)
+    if not best:
+        return None
+    (total, _), tac, pick = best
+    keep = [c for c in cur if any(c is p for p in pick)]
+    out = [c for c in cur if not any(c is p for p in pick)]
+    todo = [p for p in pick if not p.get("current")]
+    if dry:
+        return tac, total, pick, f"(prova) sortirien {len(out) + (1 if removed_first and not any(name_score(removed_first['si'], p['si']) >= 80 for p in todo) else 0)}"
+    for c in out:
+        remove_slot(page, jid, c["slot"])
+    page.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
+    page.wait_for_timeout(2500)
+    inject(page, "ff")
+    fill(page, jid, todo)
+    gone = [c["ff"] for c in out] + ([removed_first["ff"]] if removed_first and not any(name_score(removed_first["si"], p["si"]) >= 80 for p in todo) else [])
+    came = [p["ff"] for p in todo if not (removed_first and name_score(removed_first["si"], p["si"]) >= 80)]
+    changes = f"surten: {', '.join(gone) or 'cap'} · entren: {', '.join(came) or 'cap'}"
+    return tac, total, pick, changes, missing
+
+
 def run(max_hours=20.0, only=None, dry=False, final=False):
     """final=True: revisió abans de tancar. Torna a calcular l'onze amb les dades més noves
     (onzes oficials si ja han sortit) i fa els canvis necessaris encara que el joc ja estigui ple."""
@@ -361,13 +410,21 @@ def run(max_hours=20.0, only=None, dry=False, final=False):
             pg.wait_for_timeout(2500)
             inject(pg, "ff")
             jid = g["id"]
-            if g["empty"] == 0 and not dry:
-                # El selector obert des d'un jugador només mostra la seva posició: cal un '+' (selector complet).
-                remove_players(pg, jid, {g["ids"][-1]}, report)
-                pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
-                pg.wait_for_timeout(2500)
-                inject(pg, "ff")
-                g["ids"] = g["ids"][:-1]
+            if final and g["empty"] < 11:
+                r = final_review(pg, g, cands, report, g["label"], dry=dry)
+                if not r:
+                    continue
+                tac, total, pick, changes = r[:4]
+                miss = r[4] if len(r) > 4 else []
+                order = {"G": 0, "D": 1, "M": 2, "F": 3}
+                names = ", ".join(f"{c['ff']} {c['ps']}" for c in sorted(pick, key=lambda c: order.get(c["pos"], 9)))
+                sl = read_slots(pg, jid)
+                ok = len(sl) == 11
+                extra = (" | " + "; ".join(olog)) if olog else ""
+                report.append(f"{'✅' if ok else '⚠️'} {g['label']} revisió final ({tac}, {total} PS): {changes} | onze: {names}{extra}" + ("" if ok else f" — REVISA-HO: {len(sl)} jugadors"))
+                if not dry:
+                    use_items(pg, slug, pick, report)
+                continue
             found, missing = lookup(pg, jid, cands)
             best = optimise(found, DEFAULT_TACTICS)
             if not best:
