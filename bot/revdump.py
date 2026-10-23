@@ -10,19 +10,17 @@ with sync_playwright() as p:
     b = p.chromium.launch()
     ctx = new_context(b, "anon")
     pg = ctx.new_page()
-    pg.goto("https://www.futbolfantasy.com/laliga", wait_until="domcontentloaded")
+    pg.goto("https://www.futbolfantasy.com/laliga/posibles-alineaciones", wait_until="networkidle", timeout=60000)
     pg.wait_for_timeout(3000)
-    links = pg.evaluate("() => [...new Set([...document.querySelectorAll('a')].map(a=>a.href).filter(h=>/alinea/i.test(h)))].slice(0,15)")
+    for _ in range(8):
+        pg.mouse.wheel(0, 3000); pg.wait_for_timeout(700)
+    t = pg.inner_text("body")
+    note(f"longitud text {len(t)}; conté Puado: {'Puado' in t}; inici: {t[:300]!r}")
+    links = pg.evaluate("() => [...new Set([...document.querySelectorAll('a')].map(a=>a.href).filter(h=>/espanyol|partido|alinea/i.test(h)))].slice(0,20)")
     note("enllaços: " + " ; ".join(links))
-    for target in ["https://www.futbolfantasy.com/laliga/posibles-alineaciones", "https://www.futbolfantasy.com/equipos/espanyol"]:
-        pg.goto(target, wait_until="domcontentloaded")
-        pg.wait_for_timeout(4000)
-        note("pàgina: " + pg.url)
-        info = pg.evaluate("""() => { const el=[...document.querySelectorAll('*')].find(e=>e.childElementCount===0 && /Puado/.test(e.textContent));
-          if(!el) return 'Puado no trobat. Text: ' + document.body.innerText.slice(0,500);
-          let c=el; for(let i=0;i<4;i++) c=c.parentElement;
-          const legend=[...document.querySelectorAll('[title],[data-original-title],[alt]')].map(e=>(e.getAttribute('title')||e.getAttribute('data-original-title')||e.getAttribute('alt'))).filter(t=>t&&/revuls|banquillo|suplent|sale|entra/i.test(t));
-          return 'context: ' + c.outerHTML.slice(0,2500) + ' || llegenda: ' + [...new Set(legend)].slice(0,20).join(' / '); }""")
-        note(info)
-        pg.screenshot(path="out.png")
+    info = pg.evaluate("""() => { const el=[...document.querySelectorAll('*')].find(e=>e.childElementCount===0 && /Puado/.test(e.textContent));
+      if(!el) return 'Puado no trobat';
+      let c=el; for(let i=0;i<5;i++) c=c.parentElement;
+      return c.outerHTML.slice(0,3000); }""")
+    note("context: " + info)
     b.close()
