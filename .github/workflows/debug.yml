@@ -22,3 +22,5 @@ jobs:
           SI_PASSWORD: ${{ secrets.SI_PASSWORD }}
           FF_EMAIL: ${{ secrets.FF_EMAIL }}
           FF_PASSWORD: ${{ secrets.FF_PASSWORD }}
+          MISTER_EMAIL: ${{ secrets.MISTER_EMAIL }}
+          MISTER_PASSWORD: ${{ secrets.MISTER_PASSWORD }}
