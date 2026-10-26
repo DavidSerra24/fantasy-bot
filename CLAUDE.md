@@ -44,15 +44,19 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - Accés: el David entra amb Google + Authenticator. El bot no pot fer-ho sol; extreure la sessió des del navegador està bloquejat per seguretat. Pendent (25/10): investigar l'API oficial de Sorare (api.sorare.com/graphql). Alternativa: fer-ho des del navegador de l'app amb el PC engegat. El Set són les "series" (sorare.com/football/series/play; tauler d'equip a /series/squad).
 
 ## Mister — en preparació
-- Dues lligues: **"Quique Carcel…"** (LaLiga 2, dades de SorareInside Segunda División) i **"Fentaniños"** (LaLiga, dades de Primera División).
+- Dues lligues: **"Quique Carcel…"** (LaLiga 2) i **"Fentaniños"** (LaLiga).
+- Font del % de titularitat per al mercat:
+  - LaLiga 2: SorareInside (Segunda División). Franges: 80–90% → 70% → 60%.
+  - LaLiga: **FutbolFantasy, "Mis equipos"** (filtre de forma i probabilitat). Mínim per fitxar: **70%** (entre 70 i 95%); si baixa del 70%, es ven. El David hi té els jugadors del Mister: quan el bot compri o vengui, ha d'actualitzar també "Mis equipos".
 - Consulta manual: el David envia la llista de la plantilla. Ordenar-la per % de titularitat i, dins de cada %, per PS. Els jugadors sense dades van al final del seu grup.
 - **Alineació** (automàtica; tanca a l'inici del primer partit de la jornada): primer els jugadors amb 80–90% ordenats per PS de SorareInside; si no n'hi ha prou, després els de 70% i després els de 60%. Dins de cada franja, primer els que tenen PS i al final els que no. **Sí que es poden posar jugadors d'equips que s'enfronten.** El Mister també mostra qui és titular (fer-ho servir a la revisió final).
 - **Tàctica**: la que convingui segons els jugadors triats. **Capità**: el titular amb més PS.
+- **Horaris del mercat**: els jugadors nous surten a les **5:00**; les ofertes per als jugadors posats en venda arriben a les **17:00** i a les **5:00**.
 - **Mercat** (sense confirmació; són diners virtuals del joc):
-  - Compres: jugadors amb ≥60% de titularitat, **primer els més barats**, pujant el **preu mínim que posa el mercat**. Es pot pujar fins on permeti el saldo negatiu màxim.
-  - Si falten jugadors per fer un onze vàlid, pujar per jugadors encara que tinguin <60%.
-  - Vendes durant la setmana: jugadors de la plantilla amb <60% de titularitat a SorareInside.
-  - **El dia que comença la jornada**: posar en venda jugadors començant pels de menys PS fins que el saldo quedi en positiu (saldo negatiu en començar = 0 punts).
+  - Compres: primer la franja més alta (80–90%, després 70%, després 60%; a LaLiga 70–95% de FutbolFantasy) i, dins de cada franja, **del més barat al més car**, pujant el **preu mínim del mercat**. Es pot pujar fins on permeti el saldo negatiu màxim.
+  - **El dia abans de la jornada**: si falten jugadors per completar alguna posició de l'onze, pujar fort (el màxim possible) per jugadors d'aquella posició, encara que tinguin menys del mínim.
+  - Vendes durant la setmana: jugadors per sota del mínim (LaLiga 2: <60% a SorareInside; LaLiga: <70% a FutbolFantasy).
+  - **El dia que comença la jornada, abans de les 17:00**: posar en venda jugadors de menys a més PS fins que el bot calculi que es pot saldar el deute, **més un jugador de marge**. Saldo negatiu en començar la jornada = 0 punts.
   - **Mai vendre si la plantilla deixa de poder fer un onze vàlid**: com a mínim 1 porter, 1 davanter i prou defenses i migcampistes per completar l'onze.
 - Accés: correu + contrasenya als GitHub Secrets (MISTER_EMAIL, MISTER_PASSWORD). La web és accessible des de GitHub (API interna a /api2/). Galetes: el bot clica "Aceptar y continuar" (autoritzat pel David; "Rechazar" obliga a subscriure's).
 
