@@ -1,9 +1,6 @@
-"""Reconeixement de Mister (només lectura): flux d'entrada."""
-import os
+"""Reconeixement de Mister (només lectura): equip, alineació, mercat i peticions internes."""
 from playwright.sync_api import sync_playwright
-
-U = "https://mister.mundodeportivo.com"
-
+from bot.mister import U, new_context, login
 
 LOG = []
 
@@ -13,89 +10,33 @@ def note(t):
 
 
 def flush():
-    """GitHub només mostra 10 anotacions per pas: s'agrupa tot en blocs grans."""
     txt = "\n".join(LOG)
     for i in range(0, min(len(txt), 9 * 6000), 6000):
         print("::notice title=log" + str(i // 6000) + "::" + txt[i:i + 6000].replace("\n", " ¶ "))
 
 
-def dump(pg, tag):
-    txt = pg.inner_text("body")[:700].replace("\n", " / ")
-    els = pg.evaluate("""() => [...document.querySelectorAll('input,button,a,[role=button]')].filter(e => e.offsetParent !== null).slice(0, 50)
-        .map(e => e.tagName + '[' + (e.type||'') + '] ' + (e.className||'').toString().slice(0,30) + ' ' + (e.name||e.id||'') + ' «' + (e.innerText||e.placeholder||e.getAttribute('href')||'').trim().slice(0,30) + '»').join(' | ')""")
-    note(f"{tag}: {pg.url} | {txt}")
-    note(f"{tag} els: {els[:2500]}")
-
-
 with sync_playwright() as p:
     b = p.chromium.launch()
-    ctx = b.new_context(locale="es-ES", timezone_id="Europe/Madrid", viewport={"width": 700, "height": 1270},
-                        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36")
-    pg = ctx.new_page()
-    pg.goto(U, wait_until="domcontentloaded", timeout=45000)
-    pg.wait_for_timeout(4000)
+    pg = new_context(b).new_page()
+    reqs = []
+    pg.on("request", lambda r: reqs.append(r.method + " " + r.url.split("?")[0] + " " + (r.post_data or "")[:120]) if "mundodeportivo" in r.url and r.resource_type in ("xhr", "fetch") else None)
     try:
-        pg.locator("#didomi-notice-agree-button").click(timeout=8000)
-        pg.wait_for_timeout(2000)
-    except Exception as e:
-        note(f"cookies: {e}")
-    dump(pg, "1")
-    for i in range(4):
-        btn = pg.get_by_text("Siguiente", exact=False).first
-        if not btn.count() or not btn.is_visible():
-            break
-        btn.click()
-        pg.wait_for_timeout(1500)
-    dump(pg, "2")
-    pg.get_by_text("Empezar", exact=False).first.click()
-    pg.wait_for_timeout(3000)
-    dump(pg, "3")
-    import re
-    try:
-        reqs = []
-        pg.on("request", lambda r: reqs.append(r.method + " " + r.url.split("?")[0]) if "/api" in r.url and "mundodeportivo" in r.url else None)
-        for step in range(6):
-            cp = pg.get_by_text("Continuar con contraseña").first
-            if cp.count() and cp.is_visible():
-                cp.click()
-                pg.wait_for_timeout(2500)
-                continue
-            if pg.locator("input[type=password]:visible").count():
-                pg.locator("input[type=password]:visible").first.fill(os.environ["MISTER_PASSWORD"])
-                pg.locator("button[type=submit]:visible").last.click()
-                pg.wait_for_timeout(5000)
-                dump(pg, f"pw{step}")
-                break
-            if pg.locator("input[type=email]:visible, input[name*=mail]:visible").count():
-                pg.locator("input[type=email]:visible, input[name*=mail]:visible").first.fill(os.environ["MISTER_EMAIL"])
-                pg.locator("button[type=submit]:visible").last.click()
-                pg.wait_for_timeout(3000)
-                dump(pg, f"em{step}")
-                continue
-            el = pg.get_by_text(re.compile(r"(correo|e-?mail)", re.I)).first
-            if el.count() and el.is_visible():
-                el.click()
-                pg.wait_for_timeout(2500)
-                dump(pg, f"opt{step}")
-                continue
-            break
-        for path in ["/", "/team", "/market", "/lineup", "/standings", "/feed"]:
-            try:
-                pg.goto(U + path, wait_until="domcontentloaded", timeout=45000)
-                pg.wait_for_timeout(3500)
-                dump(pg, "pg" + path)
-            except Exception as e:
-                note(f"pg{path}: {e}")
-        note("reqs: " + " | ".join(dict.fromkeys(reqs))[:3000])
-        try:
-            r = pg.evaluate("() => fetch('/api2/users/current').then(r => r.status + ' ' + r.headers.get('content-type'))")
-            note(f"api: {r}")
-        except Exception as e:
-            note(f"api: {e}")
+        login(pg)
+        note("login ok")
+        pg.goto(U + "/team", wait_until="domcontentloaded"); pg.wait_for_timeout(4000)
+        note("TEAM text: " + pg.inner_text("main" if pg.locator("main").count() else "body")[:2500].replace("\n", " / "))
+        note("TEAM html player: " + pg.evaluate("() => (document.querySelector('.player-row, .team__player, li.player, [class*=player-row]')||{}).outerHTML?.slice(0,2500) || 'cap'"))
+        note("TEAM classes: " + pg.evaluate("() => [...new Set([...document.querySelectorAll('[class]')].map(e=>e.className.toString().split(' ')[0]).filter(c=>/player|lineup|squad|team/i.test(c)))].join(', ')"))
+        note("LINEUP btn html: " + pg.evaluate("() => (document.querySelector('.lineup-player')||{}).outerHTML?.slice(0,1500) || 'cap'"))
+        note("TEAM els: " + pg.evaluate("() => [...document.querySelectorAll('button,a,select')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className.toString().split(' ').slice(0,3).join('.')+'«'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,25)+'»').slice(15,90).join(' | ')"))
+        pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(4000)
+        note("MARKET row html: " + pg.evaluate("() => { const b=document.querySelector('.btn-bid'); let c=b; for(let i=0;i<6&&c;i++){c=c.parentElement; if(c.tagName==='LI')break;} return (c||{}).outerHTML?.slice(0,3000)||'cap'; }"))
+        note("MARKET n rows: " + str(pg.locator(".btn-bid").count()))
+        note("SIDEBAR links: " + pg.evaluate("() => [...document.querySelectorAll('a')].filter(a=>/Fentaniños|Quique/.test(a.innerText)).map(a=>a.innerText.trim()+' -> '+a.getAttribute('href')+' '+(a.getAttribute('data-id')||'')+' '+a.outerHTML.slice(0,200)).join(' || ')"))
+        note("GLOBALS: " + pg.evaluate("() => Object.keys(window).filter(k=>/sw|mister|user|community|token|app/i.test(k)).slice(0,40).join(', ')"))
     except Exception:
         import traceback
-        note("ERR: " + traceback.format_exc().replace("\n", " | ")[-1500:])
-        dump(pg, "err")
-    note(f"secrets: MISTER_EMAIL={'sí' if os.getenv('MISTER_EMAIL') else 'no'} MISTER_PASSWORD={'sí' if os.getenv('MISTER_PASSWORD') else 'no'}")
+        note("ERR: " + traceback.format_exc()[-1500:])
+    note("REQS: " + " | ".join(dict.fromkeys(reqs))[:4000])
     flush()
     b.close()
