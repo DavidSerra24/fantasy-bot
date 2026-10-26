@@ -48,7 +48,7 @@ def league_info(page, comp):
 def build_entries(comp, sidata, slugs):
     teams = CFG["teams"].get(comp, {})
     alias = CFG["alias"]
-    out, missing = {}, []
+    out, missing, waiting = {}, [], []
     for t, rows in sidata.items():
         if t.startswith("_"):
             continue
@@ -60,15 +60,11 @@ def build_entries(comp, sidata, slugs):
         if not slug:
             missing.append(f"{t} (sense equip a Predicted11)")
             continue
-        if not isinstance(rows, list):
-            missing.append(f"{t} ({rows})")
-            continue
-        flat = sum(rows, [])
-        if len(flat) < 11:
-            missing.append(f"{t} (onze incomplet a SorareInside: {len(flat)})")
+        if not isinstance(rows, list) or len(sum(rows, [])) < 11:
+            waiting.append(t)  # els experts encara no han penjat l'onze
             continue
         out[slug] = {"team": t, "rows": [[{**p, "name": alias.get(p["name"], p["name"]), "row": i} for p in r] for i, r in enumerate(rows)]}
-    return out, missing
+    return out, missing, waiting
 
 
 def fill_team(page, comp, slug, entry, prev):
@@ -118,7 +114,7 @@ def run(comps, force=False, max_hours=30.0):
             day = info["first"] or dt.date.today()
             sidata = si.extract_league(spg, lg["si"][0], lg["si"][1], day)
             save_json(f"si_{comp}.json", sidata)
-            entries, missing = build_entries(comp, sidata, info["slugs"])
+            entries, missing, waiting = build_entries(comp, sidata, info["slugs"])
             prev_all = load_json(f"p11_{comp}.json")
             ok, bad, pending = 0, [], []
             skipped = 0
@@ -151,6 +147,8 @@ def run(comps, force=False, max_hours=30.0):
                     bad.append(f"{slug}: error {type(e).__name__} {str(e)[:80]}")
                 save_json(f"p11_{comp}.json", prev_all)
             line = f"✅ {comp} ({sidata.get('_gw')}): {ok}/{len(info['slugs'])} equips correctes ({skipped} sense canvis), tanca d'aquí a {info['hours']:.1f} h"
+            if waiting:
+                line += f"\n  ⏳ onze encara no disponible a SorareInside: {', '.join(waiting)}"
             if pending:
                 line += f"\n  ⏳ icones pendents (encara sense punts projectats): {', '.join(pending)}"
             if bad or missing:
