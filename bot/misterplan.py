@@ -88,7 +88,15 @@ def main():
             try:
                 pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
                 bal = balance(pg)
-                sidata = si.extract_league(spg, country, league, dt.date.today() + dt.timedelta(days=3), log=lambda *_: None)
+                sidata = None
+                for days in (4, 5, 6, 3, 7, 2, 1, 0):  # la gameweek de la propera jornada
+                    try:
+                        sidata = si.extract_league(spg, country, league, dt.date.today() + dt.timedelta(days=days), log=lambda *_: None)
+                        break
+                    except RuntimeError:
+                        continue
+                if not sidata:
+                    raise RuntimeError("SorareInside encara no té la propera jornada")
                 squad = enrich(read_squad(pg), sidata)
                 market = enrich([m for m in read_market(pg) if m["href"]], sidata)
                 lines = [f"🧢 Mister · {name} — saldo {bal/1e6:.1f}M" if bal is not None else f"🧢 Mister · {name}"]
