@@ -27,8 +27,12 @@ def full_name(href):
 def read_squad(pg):
     pg.goto(U + "/team", wait_until="domcontentloaded"); pg.wait_for_timeout(3500)
     return pg.evaluate("""() => [...document.querySelectorAll('.player-row')].map(r => { const a = r.querySelector('a.player');
+        const box = r.closest('li') || r.parentElement;
         return { href: a?.getAttribute('href'), short: r.querySelector('.name')?.innerText.trim(), pos: r.querySelector('.player-position')?.dataset.position,
-                 value: +(r.querySelector('.underName')?.innerText.replace(/[^0-9]/g, '') || 0) }; }).filter(p => p.href)""")
+                 pid: (a?.getAttribute('href') || '').split('/')[1],
+                 value: +(r.querySelector('.underName')?.innerText.replace(/[^0-9]/g, '') || 0),
+                 onsale: /en venda|en venta|a la venda/i.test(box?.innerText || ''),
+                 loaned: /cedit/i.test(box?.innerText || '') }; }).filter(p => p.href)""")
 
 
 def read_market(pg):
