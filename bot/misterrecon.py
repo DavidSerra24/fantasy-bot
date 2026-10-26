@@ -33,13 +33,34 @@ with sync_playwright() as p:
         btn.click()
         pg.wait_for_timeout(1500)
     dump(pg, "2")
-    for t in ["Ya tengo cuenta", "Iniciar sesión", "Entrar", "Inicia sesión", "Accede", "email", "Email", "correo"]:
-        el = pg.get_by_text(t, exact=False).first
+    pg.get_by_text("Empezar", exact=False).first.click()
+    pg.wait_for_timeout(3000)
+    dump(pg, "3")
+    import re
+    for step in range(6):
+        if pg.locator("input[type=password]:visible").count():
+            pg.locator("input[type=password]:visible").first.fill(os.environ["MISTER_PASSWORD"])
+            pg.locator("button[type=submit]:visible").last.click()
+            pg.wait_for_timeout(5000)
+            dump(pg, f"pw{step}")
+            break
+        if pg.locator("input[type=email]:visible, input[name*=mail]:visible").count():
+            pg.locator("input[type=email]:visible, input[name*=mail]:visible").first.fill(os.environ["MISTER_EMAIL"])
+            pg.locator("button[type=submit]:visible").last.click()
+            pg.wait_for_timeout(3000)
+            dump(pg, f"em{step}")
+            continue
+        el = pg.get_by_text(re.compile(r"(correo|e-?mail)", re.I)).first
         if el.count() and el.is_visible():
-            print(f"::notice title=found::{t}")
             el.click()
             pg.wait_for_timeout(2500)
-            dump(pg, "3")
-            break
+            dump(pg, f"opt{step}")
+            continue
+        break
+    try:
+        r = pg.evaluate("() => fetch('/api2/users/current').then(r => r.status + ' ' + r.headers.get('content-type'))")
+        print(f"::notice title=api::{r}")
+    except Exception as e:
+        print(f"::notice title=api::{e}")
     print(f"::notice title=secrets::MISTER_EMAIL={'sí' if os.getenv('MISTER_EMAIL') else 'no'} MISTER_PASSWORD={'sí' if os.getenv('MISTER_PASSWORD') else 'no'}")
     b.close()
