@@ -9,7 +9,7 @@ window.__si = (function () {
   async function openTeam(name) {
     const a = [...document.querySelectorAll('main a')].find(a => a.getAttribute('href') === null && a.textContent.trim() === name); if (!a) return 'noanchor';
     a.click();
-    for (let i = 0; i < 60; i++) { await sleep(400); const d = dlg(); if (d && d.innerText.split('\n')[0].trim() === name) { if (/Recent Lineups/.test(d.innerText.slice(0, 200))) return 'recent'; if (starters().length >= 11) return 'ok'; if (i > 20 && /Not enough starting players/.test(d.innerText)) return 'incomplete'; } }
+    for (let i = 0; i < 30; i++) { await sleep(400); const d = dlg(); if (d && d.innerText.split('\n')[0].trim() === name) { if (/Recent Lineups/.test(d.innerText.slice(0, 200))) return 'recent'; if (starters().length >= 11) return 'ok'; if (i > 20 && /Not enough starting players/.test(d.innerText)) return 'incomplete'; } }
     return 'timeout';
   }
   async function close() { for (let i = 0; i < 10; i++) { const d = dlg(); if (!d) return; const b = d.querySelector('button.mantine-Modal-close') || d.querySelector('button'); b && b.click(); await sleep(500); } }
