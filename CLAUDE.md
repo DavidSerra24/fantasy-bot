@@ -59,6 +59,13 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
   - **El dia que comença la jornada, abans de les 17:00**: posar en venda jugadors de menys a més PS fins que el bot calculi que es pot saldar el deute, **més un jugador de marge**. Saldo negatiu en començar la jornada = 0 punts.
   - **Mai vendre si la plantilla deixa de poder fer un onze vàlid**: com a mínim 1 porter, 1 davanter i prou defenses i migcampistes per completar l'onze.
 - Accés: correu + contrasenya als GitHub Secrets (MISTER_EMAIL, MISTER_PASSWORD). La web és accessible des de GitHub (API interna a /api2/). Galetes: el bot clica "Aceptar y continuar" (autoritzat pel David; "Rechazar" obliga a subscriure's).
+- Tècnic (`bot/mister.py`, `bot/misterplan.py`, `bot/misterrecon.py`):
+  - Entrada: /feed → galetes → Siguiente ×3 → Empezar → Continuar con Email → correu → Continuar con contraseña → contrasenya. Web en català.
+  - Canviar de lliga: `/action/change?id_community=2499621` (Quique Rules, LaLiga 2) i `2519290` (Fentaniños, LaLiga).
+  - Plantilla a `/team` (`.player-row`, `a.player[href=players/<id>/<slug>]`, `.player-position[data-position]` 1=POR 2=DEF 3=MIG 4=DAV). Alineació: `button.lineup-player.slot-N` (classe `lineup-player-<id>`).
+  - Mercat a `/market`: `li[data-position][data-price][data-owner]` (owner 0 = mercat; si no, un mànager), botó `.btn-bid`.
+  - Accions per AJAX: `/ajax/player-community-info` (popup=bid / sale), `/ajax/sw/substitution` (canviar jugador d'una casella), `/ajax/sw/subs`, `/ajax/balance`.
+  - Estat: fase 1 (informe només lectura) feta. Pendent: posar alineació, capità, pujes i vendes, i sincronitzar "Mis equipos" de FutbolFantasy.
 
 ## Avisos d'onzes
 - Quan el David demana si un jugador és titular, programar la comprovació cap a 1 hora abans del partit (a X solen publicar-se 1h15 abans) i avisar amb una notificació.
