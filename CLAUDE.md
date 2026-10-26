@@ -65,7 +65,7 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
   - Plantilla a `/team` (`.player-row`, `a.player[href=players/<id>/<slug>]`, `.player-position[data-position]` 1=POR 2=DEF 3=MIG 4=DAV). Alineació: `button.lineup-player.slot-N` (classe `lineup-player-<id>`).
   - Mercat a `/market`: `li[data-position][data-price][data-owner]` (owner 0 = mercat; si no, un mànager), botó `.btn-bid`.
   - Accions per AJAX: `/ajax/player-community-info` (popup=bid / sale), `/ajax/sw/substitution` (canviar jugador d'una casella), `/ajax/sw/subs`, `/ajax/balance`.
-  - Estat: fase 1 (informe només lectura) feta. Pendent: posar alineació, capità, pujes i vendes, i sincronitzar "Mis equipos" de FutbolFantasy.
+  - Estat: informe (`bot/misterplan.py`) i **pujes automàtiques** (`bot/mistermarket.py`, cada dia a les 6:00; botó `#btn-send` «Oferir» del formulari `#form-bid`; el màxim permès és `#input-range[max]`). Provisional: a Fentaniños el % surt de SorareInside (≥70%) fins que es llegeixi "Mis equipos" de FutbolFantasy. Pendent: alineació, capità, vendes i "Mis equipos".
 
 ## Avisos d'onzes
 - Quan el David demana si un jugador és titular, programar la comprovació cap a 1 hora abans del partit (a X solen publicar-se 1h15 abans) i avisar amb una notificació.
