@@ -13,14 +13,20 @@ with sync_playwright() as p:
     for g in cs[:1]:
         print(f"::notice title=t::joc {g['label']} buit={g['empty']} slots={ff.read_slots(pg, g['id'])}")
         pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500); inject(pg, "ff")
-        if g["empty"] == 0:
-            print("::notice title=t::joc ple: no es pot obrir el buscador sense treure ningú")
-            continue
-        ff.open_picker(pg, g["id"])
+        if g["empty"] == 0:  # obrir el selector des de la casella d'un migcampista (només mostra migcampistes); no se selecciona res
+            slot = next(s_["slot"] for s_ in ff.read_slots(pg, g["id"]) if s_["pos"] == "M")
+            pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500); inject(pg, "ff")
+            ff.click(pg, f'#juego-{g["id"]} a.fantasy-slot[data-posicion="{slot}"]')
+            pg.locator(".modal.show").wait_for(timeout=10000); pg.wait_for_timeout(800)
+        else:
+            ff.open_picker(pg, g["id"])
         for q in ["Martin Ødegaard", "Martin Odegaard", "Ødegaard", "Odegaard", "degaard"]:
             r = pg.evaluate("(q) => __ff.search(q)", q) or []
             print(f"::notice title=t::{q} -> {r[:5]}")
         ff.close_modal(pg)
+        print(f"::notice title=t::després: slots={ff.read_slots(pg, g['id'])}")
+        if g["empty"] == 0:
+            continue
         f, m = ff.lookup(pg, g["id"], [{"si": "Martin Ødegaard", "team": "Arsenal", "opp": None, "ps": 99, "pct": 90, "idx": 0}])
         print(f"::notice title=t::lookup trobats={f} falten={m}")
     b.close()
