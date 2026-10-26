@@ -36,6 +36,8 @@ with sync_playwright() as p:
         # també el clic real, per veure els scripts/forms que s'hi enganxen
         pg.locator("li[data-owner='0'] .btn-bid").first.click(); pg.wait_for_timeout(3000)
         note("BID DOM forms: " + pg.evaluate("() => [...document.querySelectorAll('form')].filter(f=>f.offsetParent!==null).map(f=>f.outerHTML.replace(/\\s+/g,' ').slice(0,2500)).join(' ### ')"))
+        note("POPUP buttons: " + pg.evaluate("() => { let c=document.getElementById('form-bid'); for(let i=0;i<8&&c;i++){ c=c.parentElement; if(c.querySelectorAll('button').length>3 && /puja|Puja|Fichar|Ofertar|Enviar/i.test(c.innerText)) break; } return c ? c.className+' :: '+c.innerText.replace(/\\s+/g,' ').slice(0,600)+' :: '+[...c.querySelectorAll('button,a')].map(e=>e.tagName+'.'+e.className+'#'+e.id+' type='+e.type+' «'+(e.innerText||'').trim().slice(0,30)+'» '+(e.getAttribute('onclick')||'')+' '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',')).join(' | ') : 'cap'; }"))
+        note("MARKET my bids: " + pg.evaluate("() => [...document.querySelectorAll('li[data-price]')].filter(l=>/teva|Tu puja|puja/i.test(l.innerText)).map(l=>l.innerText.replace(/\\s+/g,' ').slice(0,120)).slice(0,5).join(' || ')"))
         note("BID DOM inputs: " + pg.evaluate("() => [...document.querySelectorAll('input,button')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className+'['+e.name+'='+e.value+'] «'+(e.innerText||'').trim().slice(0,30)+'» '+(e.getAttribute('onclick')||'')+' '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',')).slice(-25).join(' | ')"))
     except Exception:
         import traceback
