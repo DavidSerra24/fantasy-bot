@@ -21,9 +21,11 @@ with sync_playwright() as p:
     try:
         ctx = web.new_context(b, "futbolfantasy"); fp = ctx.new_page(); web.login_futbolfantasy(fp)
         fp.goto("https://www.futbolfantasy.com/", wait_until="domcontentloaded"); fp.wait_for_timeout(3000)
-        note("FF candidates: " + fp.evaluate("() => [...document.querySelectorAll('a,button')].filter(e=>/mis equipos/i.test(e.innerText||e.title||'')).map(e=>e.tagName+' '+(e.href||'')+' «'+e.innerText.trim()+'» '+e.className).join(' | ')"))
-        el = fp.get_by_text("Mis Equipos", exact=False).first
-        el.click(); fp.wait_for_timeout(4000)
+        note("FF candidates: " + fp.evaluate("() => [...document.querySelectorAll('a,button,[onclick],[data-href]')].filter(e=>/mis\\s*equipos/i.test((e.textContent||'')+' '+(e.title||'')+' '+(e.getAttribute('href')||''))).map(e=>e.tagName+' '+(e.getAttribute('href')||e.getAttribute('data-href')||e.getAttribute('onclick')||'')+' «'+e.textContent.trim().replace(/\\s+/g,' ').slice(0,40)+'» '+e.className).slice(0,10).join(' | ')"))
+        href = fp.evaluate("() => { const a=[...document.querySelectorAll('a')].find(e=>/mis\\s*equipos/i.test(e.textContent)); return a ? a.href : null; }")
+        if href:
+            fp.goto(href, wait_until="domcontentloaded")
+        fp.wait_for_timeout(4000)
         note(f"FF mis equipos URL: {fp.url}")
         note("FF text: " + fp.inner_text("body")[:3000].replace("\n", " / "))
         note("FF els: " + fp.evaluate("() => [...document.querySelectorAll('a,button,select,input')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className.toString().split(' ').slice(0,3).join('.')+'['+(e.name||'')+']«'+(e.innerText||e.value||'').trim().replace(/\\s+/g,' ').slice(0,30)+'» '+(e.getAttribute('href')||'')).slice(0,80).join(' | ')"))
@@ -33,6 +35,7 @@ with sync_playwright() as p:
     try:
         pg = new_context(b).new_page(); login(pg)
         pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
+        note("JUTGLA li: " + pg.evaluate("() => { const l=[...document.querySelectorAll('li[data-price]')].find(l=>/Jutgl/.test(l.innerText)); return l ? l.outerHTML.replace(/<svg.*?<\\/svg>/g,'').replace(/<img[^>]*>/g,'').replace(/\\s+/g,' ').slice(0,3000) : 'cap'; }"))
         note("MISTER offer buttons: " + pg.evaluate("() => [...document.querySelectorAll('[data-sw],[data-popup]')].map(e=>(e.dataset.sw||'')+'/'+(e.dataset.popup||'')+' «'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,30)+'»').filter((v,i,a)=>a.indexOf(v)===i).slice(0,40).join(' | ')"))
     except Exception:
         import traceback
