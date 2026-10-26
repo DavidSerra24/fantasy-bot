@@ -20,11 +20,14 @@ with sync_playwright() as p:
     b = p.chromium.launch()
     try:
         ctx = web.new_context(b, "futbolfantasy"); fp = ctx.new_page(); web.login_futbolfantasy(fp)
-        fp.goto("https://www.futbolfantasy.com/seguimiento", wait_until="domcontentloaded"); fp.wait_for_timeout(4000)
+        reqs = []
+        fp.on("request", lambda r: reqs.append(r.method + " " + r.url[:200] + " " + (r.post_data or "")[:200]) if "frpg" in r.url or "seguimiento" in r.url else None)
+        fp.goto("https://www.futbolfantasy.com/seguimiento/laliga/1", wait_until="domcontentloaded"); fp.wait_for_timeout(7000)
         note(f"FF seguimiento URL: {fp.url}")
         note("FF text: " + fp.inner_text("body")[:3500].replace("\n", " / "))
-        note("FF els: " + fp.evaluate("() => [...document.querySelectorAll('a,button,select,input,label')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className.toString().split(' ').slice(0,3).join('.')+'['+(e.name||'')+']«'+(e.innerText||e.value||'').trim().replace(/\\s+/g,' ').slice(0,30)+'» '+(e.getAttribute('href')||'')).slice(10,90).join(' | ')"))
-        note("FF player html: " + fp.evaluate("() => { const e=document.querySelector('[class*=jugador], .player, tr'); return e ? e.outerHTML.replace(/\\s+/g,' ').slice(0,2000) : 'cap'; }"))
+        note("FF els: " + fp.evaluate("() => [...document.querySelectorAll('a,button,select,input,label')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className.toString().split(' ').slice(0,3).join('.')+'['+(e.name||'')+']«'+(e.innerText||e.value||'').trim().replace(/\\s+/g,' ').slice(0,30)+'» '+(e.getAttribute('href')||'')).filter(e=>!/team-|link py-2|social/.test(e)).slice(0,70).join(' | ')"))
+        note("FF block html: " + fp.evaluate("() => { const e=document.querySelector('.load-seguimiento-jugadores-new'); return e ? e.outerHTML.replace(/<svg.*?<\\/svg>/g,'').replace(/<img[^>]*>/g,'').replace(/\\s+/g,' ').slice(0,6000) : 'cap'; }"))
+        note("FF reqs: " + " | ".join(reqs)[:2500])
     except Exception:
         import traceback
         note("ERR ff: " + traceback.format_exc()[-1200:])
