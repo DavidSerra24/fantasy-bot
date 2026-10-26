@@ -14,6 +14,7 @@ with sync_playwright() as p:
             if el.count() and el.is_visible():
                 el.click(); pg.wait_for_timeout(1500); break
         LOG.append("TEXT: " + pg.inner_text("body")[:1500].replace("\n", " / "))
+        LOG.append("J links: " + pg.evaluate("() => [...document.querySelectorAll('a,option')].filter(a=>/Jornada 1[12]$/.test(a.innerText.trim())).map(a=>a.tagName+' '+(a.href||a.value)).join(' | ')"))
         ver = pg.get_by_text("Ver 11").first
         LOG.append(f"ver11 count: {pg.get_by_text('Ver 11').count()}")
         LOG.append("VER html: " + pg.evaluate("() => { const e=[...document.querySelectorAll('a,button')].find(x=>/Ver 11/.test(x.innerText)); return e ? e.outerHTML.slice(0,600) : 'cap'; }"))
@@ -21,6 +22,8 @@ with sync_playwright() as p:
             ver.click(); pg.wait_for_timeout(4000)
             LOG.append(f"after click URL: {pg.url}")
             LOG.append("AFTER text: " + pg.inner_text("body")[:3000].replace("\n", " / "))
+            LOG.append("STRUCT: " + pg.evaluate("""() => { const el=[...document.querySelectorAll('*')].find(e=>e.childElementCount===0&&e.textContent.trim()==='Baïla Diallo'); if(!el) return 'cap'; let c=el; const chain=[]; for(let i=0;i<8;i++){ chain.push(c.tagName+'.'+c.className); c=c.parentElement; } return chain.join(' < ') + ' ### ' + c.outerHTML.replace(/<svg.*?<\/svg>/g,'').replace(/<img[^>]*>/g,'').replace(/\s+/g,' ').slice(0,4000); }"""))
+            LOG.append("J12 link: " + pg.evaluate("() => [...document.querySelectorAll('a')].filter(a=>/Jornada 12/.test(a.innerText)).map(a=>a.href).join(' | ')"))
             LOG.append("AFTER players html: " + pg.evaluate("() => { const e=document.querySelector('[class*=jugador], [class*=player], [class*=once]'); return e ? e.className + ' :: ' + e.outerHTML.replace(/<svg.*?<\\/svg>/g,'').replace(/<img[^>]*>/g,'').replace(/\\s+/g,' ').slice(0,2500) : 'cap'; }"))
     except Exception:
         import traceback
