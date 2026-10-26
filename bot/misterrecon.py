@@ -5,12 +5,26 @@ from playwright.sync_api import sync_playwright
 U = "https://mister.mundodeportivo.com"
 
 
+LOG = []
+
+
+def note(t):
+    LOG.append(t)
+
+
+def flush():
+    """GitHub només mostra 10 anotacions per pas: s'agrupa tot en blocs grans."""
+    txt = "\n".join(LOG)
+    for i in range(0, min(len(txt), 9 * 6000), 6000):
+        print("::notice title=log" + str(i // 6000) + "::" + txt[i:i + 6000].replace("\n", " ¶ "))
+
+
 def dump(pg, tag):
     txt = pg.inner_text("body")[:700].replace("\n", " / ")
     els = pg.evaluate("""() => [...document.querySelectorAll('input,button,a,[role=button]')].filter(e => e.offsetParent !== null).slice(0, 50)
         .map(e => e.tagName + '[' + (e.type||'') + '] ' + (e.className||'').toString().slice(0,30) + ' ' + (e.name||e.id||'') + ' «' + (e.innerText||e.placeholder||e.getAttribute('href')||'').trim().slice(0,30) + '»').join(' | ')""")
-    print(f"::notice title={tag}::{pg.url} | {txt}")
-    print(f"::notice title={tag} els::{els[:2500]}")
+    note(f"{tag}: {pg.url} | {txt}")
+    note(f"{tag} els: {els[:2500]}")
 
 
 with sync_playwright() as p:
@@ -24,7 +38,7 @@ with sync_playwright() as p:
         pg.locator("#didomi-notice-agree-button").click(timeout=8000)
         pg.wait_for_timeout(2000)
     except Exception as e:
-        print(f"::notice title=cookies::{e}")
+        note(f"cookies: {e}")
     dump(pg, "1")
     for i in range(4):
         btn = pg.get_by_text("Siguiente", exact=False).first
@@ -71,16 +85,17 @@ with sync_playwright() as p:
                 pg.wait_for_timeout(3500)
                 dump(pg, "pg" + path)
             except Exception as e:
-                print(f"::notice title=pg{path}::{e}")
-        print("::notice title=reqs::" + " | ".join(dict.fromkeys(reqs))[:3000])
+                note(f"pg{path}: {e}")
+        note("reqs: " + " | ".join(dict.fromkeys(reqs))[:3000])
         try:
             r = pg.evaluate("() => fetch('/api2/users/current').then(r => r.status + ' ' + r.headers.get('content-type'))")
-            print(f"::notice title=api::{r}")
+            note(f"api: {r}")
         except Exception as e:
-            print(f"::notice title=api::{e}")
+            note(f"api: {e}")
     except Exception:
         import traceback
-        print("::notice title=ERR::" + traceback.format_exc().replace("\n", " | ")[-1500:])
+        note("ERR: " + traceback.format_exc().replace("\n", " | ")[-1500:])
         dump(pg, "err")
-    print(f"::notice title=secrets::MISTER_EMAIL={'sí' if os.getenv('MISTER_EMAIL') else 'no'} MISTER_PASSWORD={'sí' if os.getenv('MISTER_PASSWORD') else 'no'}")
+    note(f"secrets: MISTER_EMAIL={'sí' if os.getenv('MISTER_EMAIL') else 'no'} MISTER_PASSWORD={'sí' if os.getenv('MISTER_PASSWORD') else 'no'}")
+    flush()
     b.close()
