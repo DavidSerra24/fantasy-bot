@@ -6,7 +6,7 @@ import re
 from playwright.sync_api import sync_playwright
 
 from bot import si
-from bot.consulta import find
+from bot.ff import name_score, norm
 from bot.mister import U, login, new_context as mister_context
 from bot.notify import telegram
 from bot.web import login_sorareinside, new_context, save_session
@@ -43,11 +43,33 @@ def balance(pg):
     return float(m.group(1).replace(".", "").replace(",", ".")) * 1e6 if m else None
 
 
+def match(sidata, full):
+    """Jugador de SorareInside (onze previst o suplents) amb el mateix nom. Exigeix nom complet o, si només
+    coincideix el cognom, la mateixa inicial del nom (evita confondre David Soria amb Mario Soriano)."""
+    best, bs = None, 0
+    nf = norm(full)
+    for t in sidata.get("_order", []):
+        rows = sidata.get(t)
+        if not isinstance(rows, list):
+            continue
+        for r in rows:
+            for q in r:
+                for cand, starter in [(q, True)] + [(x, False) for x in (q.get("subs") or [])]:
+                    nm = cand.get("name") or ""
+                    sc = name_score(full, nm)
+                    if sc == 60 and not (norm(nm) and nf and norm(nm)[0][0] == nf[0][0] and norm(nm)[-1] == nf[-1]):
+                        sc = 0
+                    if sc > bs:
+                        best, bs = {"name": nm, "pct": cand.get("pct"), "ps": cand.get("ps") if starter else None, "team": t}, sc
+    return best if bs >= 60 else None
+
+
 def enrich(players, sidata):
     for p in players:
         p["name"] = full_name(p["href"])
+        p["short"] = re.sub(r"[^\w .'-]", "", p.get("short") or "").strip()
         p["P"] = POS.get(str(p["pos"]), "?")
-        d = find(sidata, p["name"]) or find(sidata, p["short"] or "")
+        d = match(sidata, p["name"])
         p["pct"] = (d or {}).get("pct")
         p["ps"] = (d or {}).get("ps")
     return players
