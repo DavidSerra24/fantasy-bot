@@ -65,7 +65,9 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
   - Plantilla a `/team` (`.player-row`, `a.player[href=players/<id>/<slug>]`, `.player-position[data-position]` 1=POR 2=DEF 3=MIG 4=DAV). Alineació: `button.lineup-player.slot-N` (classe `lineup-player-<id>`).
   - Mercat a `/market`: `li[data-position][data-price][data-owner]` (owner 0 = mercat; si no, un mànager), botó `.btn-bid`.
   - Accions per AJAX: `/ajax/player-community-info` (popup=bid / sale), `/ajax/sw/substitution` (canviar jugador d'una casella), `/ajax/sw/subs`, `/ajax/balance`.
-  - Estat: informe (`bot/misterplan.py`) i **pujes automàtiques** (`bot/mistermarket.py`, cada dia a les 6:00; botó `#btn-send` «Oferir» del formulari `#form-bid`; el màxim permès és `#input-range[max]`). Provisional: a Fentaniños el % surt de SorareInside (≥70%) fins que es llegeixi "Mis equipos" de FutbolFantasy. Pendent: alineació, capità, vendes i "Mis equipos".
+  - Estat: informe (`bot/misterplan.py`) i **mercat automàtic** (`bot/mistermarket.py`, cada dia a les 6:00): vendes per sota del mínim (botó Gestionar → pestanya Vendre → `#btn-send`, preu mínim = valor) sense deixar la plantilla sense onze possible, i pujes pel preu mínim (`#form-bid` → `#btn-send` «Oferir»; el màxim permès és `#input-range[max]`; la meva puja = botó `.btn-bid.btn--accent`). Només jugadors lliures (owner 0).
+  - Fonts: Fentaniños = % de FutbolFantasy (alineacions probables de la jornada, `bot/sources.ff_probs`; és la mateixa dada que "Mis equipos" → `/seguimiento/laliga/1`). Quique = SorareInside i, si l'equip no hi és, **Jornada Perfecta** (`/segunda/onces-posibles/`; si surt a l'onze probable compta com a 70%).
+  - Pendent: acceptar sempre l'oferta del Mister pels jugadors posats en venda (17:00 i 5:00), tornant a comprovar abans el %; sincronitzar la llista de "Mis equipos" quan es compra/ven; vendes del dia de la jornada per saldar el deute; alineació i capità.
 
 ## Avisos d'onzes
 - Quan el David demana si un jugador és titular, programar la comprovació cap a 1 hora abans del partit (a X solen publicar-se 1h15 abans) i avisar amb una notificació.
