@@ -20,22 +20,18 @@ with sync_playwright() as p:
     b = p.chromium.launch()
     try:
         ctx = web.new_context(b, "futbolfantasy"); fp = ctx.new_page(); web.login_futbolfantasy(fp)
-        fp.goto("https://www.futbolfantasy.com/", wait_until="domcontentloaded"); fp.wait_for_timeout(3000)
-        note("FF candidates: " + fp.evaluate("() => [...document.querySelectorAll('a,button,[onclick],[data-href]')].filter(e=>/mis\\s*equipos/i.test((e.textContent||'')+' '+(e.title||'')+' '+(e.getAttribute('href')||''))).map(e=>e.tagName+' '+(e.getAttribute('href')||e.getAttribute('data-href')||e.getAttribute('onclick')||'')+' «'+e.textContent.trim().replace(/\\s+/g,' ').slice(0,40)+'» '+e.className).slice(0,10).join(' | ')"))
-        href = fp.evaluate("() => { const a=[...document.querySelectorAll('a')].find(e=>/mis\\s*equipos/i.test(e.textContent)); return a ? a.href : null; }")
-        if href:
-            fp.goto(href, wait_until="domcontentloaded")
-        fp.wait_for_timeout(4000)
-        note(f"FF mis equipos URL: {fp.url}")
-        note("FF text: " + fp.inner_text("body")[:3000].replace("\n", " / "))
-        note("FF els: " + fp.evaluate("() => [...document.querySelectorAll('a,button,select,input')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className.toString().split(' ').slice(0,3).join('.')+'['+(e.name||'')+']«'+(e.innerText||e.value||'').trim().replace(/\\s+/g,' ').slice(0,30)+'» '+(e.getAttribute('href')||'')).slice(0,80).join(' | ')"))
+        fp.goto("https://www.futbolfantasy.com/seguimiento", wait_until="domcontentloaded"); fp.wait_for_timeout(4000)
+        note(f"FF seguimiento URL: {fp.url}")
+        note("FF text: " + fp.inner_text("body")[:3500].replace("\n", " / "))
+        note("FF els: " + fp.evaluate("() => [...document.querySelectorAll('a,button,select,input,label')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className.toString().split(' ').slice(0,3).join('.')+'['+(e.name||'')+']«'+(e.innerText||e.value||'').trim().replace(/\\s+/g,' ').slice(0,30)+'» '+(e.getAttribute('href')||'')).slice(10,90).join(' | ')"))
+        note("FF player html: " + fp.evaluate("() => { const e=document.querySelector('[class*=jugador], .player, tr'); return e ? e.outerHTML.replace(/\\s+/g,' ').slice(0,2000) : 'cap'; }"))
     except Exception:
         import traceback
         note("ERR ff: " + traceback.format_exc()[-1200:])
     try:
         pg = new_context(b).new_page(); login(pg)
         pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
-        note("JUTGLA li: " + pg.evaluate("() => { const l=[...document.querySelectorAll('li[data-price]')].find(l=>/Jutgl/.test(l.innerText)); return l ? l.outerHTML.replace(/<svg.*?<\\/svg>/g,'').replace(/<img[^>]*>/g,'').replace(/\\s+/g,' ').slice(0,3000) : 'cap'; }"))
+        pass  # note("JUTGLA li: " + pg.evaluate("() => { const l=[...document.querySelectorAll('li[data-price]')].find(l=>/Jutgl/.test(l.innerText)); return l ? l.outerHTML.replace(/<svg.*?<\\/svg>/g,'').replace(/<img[^>]*>/g,'').replace(/\\s+/g,' ').slice(0,3000) : 'cap'; }"))
         note("MISTER offer buttons: " + pg.evaluate("() => [...document.querySelectorAll('[data-sw],[data-popup]')].map(e=>(e.dataset.sw||'')+'/'+(e.dataset.popup||'')+' «'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,30)+'»').filter((v,i,a)=>a.indexOf(v)===i).slice(0,40).join(' | ')"))
     except Exception:
         import traceback

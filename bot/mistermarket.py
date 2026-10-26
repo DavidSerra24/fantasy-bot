@@ -32,7 +32,7 @@ def read_free_market(pg):
     return pg.evaluate("""() => [...document.querySelectorAll('li[data-owner="0"]')].map(li => ({
         pos: li.dataset.position, price: +li.dataset.price, pid: li.querySelector('[data-id_player]')?.dataset.id_player,
         href: li.querySelector('a.player')?.getAttribute('href'), short: li.querySelector('.name')?.innerText.trim(),
-        mine: /(la teva|tu puja|has pujat|teva oferta)/i.test(li.innerText) }))""")
+        mine: !!li.querySelector(".btn-bid.btn--accent") }))""")  # botó verd = ja hi tinc una puja
 
 
 def squad_slots(pg):
