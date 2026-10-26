@@ -2,7 +2,7 @@ name: Automàtic (cada 30 min)
 on:
   schedule:
     # Cada 30 minuts, de 7:05 a 23:35 (hora de Madrid a l'estiu; una hora menys a l'hivern)
-    - cron: "5,35 5-21 * * *"
+    - cron: "5,35 4-21 * * *"
   workflow_dispatch:
 concurrency: fantasy
 jobs:
@@ -14,6 +14,8 @@ jobs:
       SI_PASSWORD: ${{ secrets.SI_PASSWORD }}
       FF_EMAIL: ${{ secrets.FF_EMAIL }}
       FF_PASSWORD: ${{ secrets.FF_PASSWORD }}
+      MISTER_EMAIL: ${{ secrets.MISTER_EMAIL }}
+      MISTER_PASSWORD: ${{ secrets.MISTER_PASSWORD }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:

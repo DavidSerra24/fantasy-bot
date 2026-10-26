@@ -85,6 +85,11 @@ def plan(now=None, done=None):
             k = f"ff-final:{comp}:{K.isoformat()}"
             if due(k, K - LEAD, K):
                 add(k, K - LEAD, "fffinal", comp, K)
+    # Mister: pujes cada dia després de la renovació del mercat (5:00)
+    mister_t = local.replace(hour=6, minute=0, second=0, microsecond=0).astimezone(UTC)
+    k = f"mister:{local.date()}"
+    if due(k, mister_t, mister_t + dt.timedelta(hours=12)):
+        add(k, mister_t, "mister", None, mister_t + dt.timedelta(hours=12))
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
