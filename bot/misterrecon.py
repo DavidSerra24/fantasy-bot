@@ -23,17 +23,28 @@ with sync_playwright() as p:
     try:
         login(pg)
         note("login ok")
+        def popup(tag):
+            pg.wait_for_timeout(2500)
+            h = pg.evaluate("() => { const m=[...document.querySelectorAll('.popup, .sw-popup, [class*=popup]')].filter(e=>e.offsetParent!==null&&e.innerText.trim()).pop(); return m ? m.className + ' :: ' + m.innerText.replace(/\\s+/g,' ').slice(0,700) + ' :: ' + [...m.querySelectorAll('button,input,select,a')].map(e=>e.tagName+'.'+e.className.toString().split(' ').slice(0,4).join('.')+'['+(e.name||'')+'='+(e.value||'')+']«'+(e.innerText||'').trim().slice(0,25)+'»').join(' | ').slice(0,1500) : 'cap popup'; }")
+            note(tag + ": " + h)
+            pg.keyboard.press("Escape"); pg.wait_for_timeout(800)
+            for sel in [".popup .btn-close", ".btn-close", "[class*=close]"]:
+                c = pg.locator(sel + ":visible").first
+                if c.count():
+                    try:
+                        c.click(timeout=2000)
+                    except Exception:
+                        pass
+                    break
+            pg.wait_for_timeout(800)
         pg.goto(U + "/team", wait_until="domcontentloaded"); pg.wait_for_timeout(4000)
-        note("TEAM text: " + pg.inner_text("main" if pg.locator("main").count() else "body")[:2500].replace("\n", " / "))
-        note("TEAM html player: " + pg.evaluate("() => (document.querySelector('.player-row, .team__player, li.player, [class*=player-row]')||{}).outerHTML?.slice(0,2500) || 'cap'"))
-        note("TEAM classes: " + pg.evaluate("() => [...new Set([...document.querySelectorAll('[class]')].map(e=>e.className.toString().split(' ')[0]).filter(c=>/player|lineup|squad|team/i.test(c)))].join(', ')"))
-        note("LINEUP btn html: " + pg.evaluate("() => (document.querySelector('.lineup-player')||{}).outerHTML?.slice(0,1500) || 'cap'"))
-        note("TEAM els: " + pg.evaluate("() => [...document.querySelectorAll('button,a,select')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className.toString().split(' ').slice(0,3).join('.')+'«'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,25)+'»').slice(15,90).join(' | ')"))
+        pg.locator("button.btn-popup:has-text('Gestionar')").first.click(); popup("GESTIONAR")
+        pg.locator("button.lineup-player").first.click(); popup("LINEUP-CLICK")
+        note("TEAM sel/tactic: " + pg.evaluate("() => [...document.querySelectorAll('[class*=formation], [class*=tactic], select')].map(e=>e.className+' «'+e.innerText.replace(/\\s+/g,' ').slice(0,80)+'»').slice(0,8).join(' | ')"))
         pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(4000)
-        note("MARKET row html: " + pg.evaluate("() => { const b=document.querySelector('.btn-bid'); let c=b; for(let i=0;i<6&&c;i++){c=c.parentElement; if(c.tagName==='LI')break;} return (c||{}).outerHTML?.slice(0,3000)||'cap'; }"))
-        note("MARKET n rows: " + str(pg.locator(".btn-bid").count()))
-        note("SIDEBAR links: " + pg.evaluate("() => [...document.querySelectorAll('a')].filter(a=>/Fentaniños|Quique/.test(a.innerText)).map(a=>a.innerText.trim()+' -> '+a.getAttribute('href')+' '+(a.getAttribute('data-id')||'')+' '+a.outerHTML.slice(0,200)).join(' || ')"))
-        note("GLOBALS: " + pg.evaluate("() => Object.keys(window).filter(k=>/sw|mister|user|community|token|app/i.test(k)).slice(0,40).join(', ')"))
+        pg.locator(".btn-bid").first.click(); popup("BID")
+        note("MARKET li attrs: " + pg.evaluate("() => [...document.querySelectorAll('li[data-price]')].slice(0,40).map(li=>[li.dataset.position, li.dataset.price, li.dataset.owner, li.querySelector('.name')?.innerText.trim(), li.querySelector('a.player')?.getAttribute('href')].join(',')).join(' | ')"))
+        note("SIDEBAR: " + pg.evaluate("() => [...document.querySelectorAll('a[href*=id_community]')].map(a=>a.innerText.trim()+' -> '+a.getAttribute('href')).join(' | ')"))
     except Exception:
         import traceback
         note("ERR: " + traceback.format_exc()[-1500:])
