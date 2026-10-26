@@ -15,7 +15,8 @@ from bot import si
 from bot.mister import U, login, new_context as mister_context
 from bot.misterplan import LEAGUES, TACTICS, band, balance, enrich, read_squad
 from bot.notify import telegram
-from bot.web import load_json, login_sorareinside, new_context, save_json, save_session
+from bot.web import load_json, login_futbolfantasy, login_sorareinside, new_context, save_json, save_session
+from bot import sources
 
 
 def si_next(spg, country, league):
@@ -79,6 +80,7 @@ def run(dry=False):
     report = []
     done = load_json("mister_bids.json", {})
     sold = load_json("mister_sales.json", {})
+    ffp = jp = None
     with sync_playwright() as p:
         b = p.chromium.launch()
         sctx = new_context(b, "sorareinside"); spg = sctx.new_page(); login_sorareinside(spg); save_session(sctx, "sorareinside")
@@ -91,6 +93,25 @@ def run(dry=False):
                 sidata = si_next(spg, country, league)
                 squad = enrich(read_squad(pg), sidata)
                 have, cap = squad_slots(pg)
+                market = enrich([m for m in read_free_market(pg) if m["href"] and m["pid"]], sidata)
+                if league == "Primera División":  # Fentaniños: el % de FutbolFantasy (alineacions probables / Mis equipos)
+                    if ffp is None:
+                        fpage = new_context(b, "futbolfantasy").new_page(); login_futbolfantasy(fpage)
+                        ffp = sources.ff_probs(fpage)
+                    for q in squad + market:
+                        n = sources.best_name(q["name"], ffp.keys())
+                        q["pct"] = ffp[n] if n else None
+                        q["src"] = "FF"
+                else:  # Quique: SorareInside i, si l'equip no hi és, Jornada Perfecta (si surt a l'onze, compta com a titular)
+                    if any(q["pct"] is None for q in market):
+                        if jp is None:
+                            try:
+                                jp = sources.jp_starters(new_context(b, "jp").new_page())
+                            except Exception as e:
+                                jp = set(); report.append(f"⚠️ Jornada Perfecta: {type(e).__name__}")
+                        for q in market:
+                            if q["pct"] is None and sources.best_name(q["name"], jp):
+                                q["pct"], q["src"] = 70, "JP"
                 # Vendes: per sota del mínim de titularitat, sense deixar la plantilla sense onze possible
                 keep = [q for q in squad if not q["onsale"] and f"{cid}:{q['pid']}" not in sold]
                 sales, nosale = [], []
@@ -107,7 +128,6 @@ def run(dry=False):
                     else:
                         nosale.append(f"{q['short']} (error en posar-lo a la venda)")
                 free = (cap - have) if have is not None else 3
-                market = enrich([m for m in read_free_market(pg) if m["href"] and m["pid"]], sidata)
                 cands = sorted([m for m in market if m["pct"] is not None and m["pct"] >= minimum and not m["mine"]
                                 and f"{cid}:{m['pid']}" not in done], key=lambda m: (band(m["pct"]), m["price"]))
                 placed, skipped, limit, spent = [], [], None, 0
@@ -131,7 +151,7 @@ def run(dry=False):
                     else:
                         skipped.append(f"{m['short']} (error en pujar)")
                 line = f"🧢 {name} (saldo {bal/1e6:.1f}M, plantilla {have}/{cap}): "
-                line += ("pujaria per " if dry else "pujes: ") + (", ".join(f"{m['short']} ({m['P']}, {m['pct']}%, {m['price']/1e6:.2f}M)" for m in placed) or "cap")
+                line += ("pujaria per " if dry else "pujes: ") + (", ".join(f"{m['short']} ({m['P']}, {m['pct']}%{' JP' if m.get('src') == 'JP' else ''}, {m['price']/1e6:.2f}M)" for m in placed) or "cap")
                 if skipped:
                     line += " | no: " + ", ".join(skipped[:6])
                 line += " | " + ("vendria: " if dry else "en venda: ") + (", ".join(f"{q['short']} ({q['pct']}%)" for q in sales) or "cap")

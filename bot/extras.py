@@ -28,7 +28,7 @@ def match_pages(page, jornada):
         page.wait_for_timeout(2500)
         head = page.inner_text("body")[:200]
         m = re.search(r"Jornada (\d+)", head)
-        if not m or int(m.group(1)) != jornada:
+        if jornada is not None and (not m or int(m.group(1)) != jornada):
             continue
         seen += 1
         players += page.evaluate("""(url) => [...document.querySelectorAll('[class*="jugador_"]')].map(e => {
