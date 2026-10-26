@@ -1,7 +1,8 @@
-"""Reconeixement de Mister (només lectura): finestra de puja i de venda (HTML de l'AJAX)."""
+"""Reconeixement (només lectura): finestra de venda del Mister, ofertes rebudes i "Mis equipos" de FutbolFantasy."""
 import re
 from playwright.sync_api import sync_playwright
 from bot.mister import U, new_context, login
+from bot import web
 
 LOG = []
 
@@ -16,31 +17,44 @@ def flush():
         print("::notice title=log" + str(i // 6000) + "::" + txt[i:i + 6000].replace("\n", " ¶ "))
 
 
-def compact(h):
-    h = re.sub(r"<svg.*?</svg>", "", h, flags=re.S)
-    h = re.sub(r"<(img|source|link)[^>]*>", "", h)
-    return re.sub(r"\s+", " ", h)
-
+VIS = """(sel) => [...document.querySelectorAll(sel)].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className.toString().split(' ').slice(0,4).join('.')+'#'+e.id+'['+(e.name||'')+'='+(e.value||'')+']«'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,30)+'» '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',')).slice(-30).join(' | ')"""
 
 with sync_playwright() as p:
     b = p.chromium.launch()
     pg = new_context(b).new_page()
     try:
         login(pg)
-        pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(3500)
-        li = pg.evaluate("() => { const l=[...document.querySelectorAll('li[data-owner=\"0\"]')][0]; return {pid: l.querySelector('[data-id_player]').dataset.id_player, price: l.dataset.price}; }")
-        note(f"player {li}")
-        r = pg.evaluate("""(pid) => fetch('/ajax/player-community-info', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8','X-Requested-With':'XMLHttpRequest'},
-             body:'id_owner=0&id_player='+pid+'&popup=bid&style=secondary&preload=player-community-info'}).then(r=>r.text())""", li["pid"])
-        note("BID AJAX: " + compact(r)[:9000])
-        # també el clic real, per veure els scripts/forms que s'hi enganxen
-        pg.locator("li[data-owner='0'] .btn-bid").first.click(); pg.wait_for_timeout(3000)
-        note("BID DOM forms: " + pg.evaluate("() => [...document.querySelectorAll('form')].filter(f=>f.offsetParent!==null).map(f=>f.outerHTML.replace(/\\s+/g,' ').slice(0,2500)).join(' ### ')"))
-        note("POPUP buttons: " + pg.evaluate("() => { const f=document.getElementById('form-bid'); const r=f.getBoundingClientRect(); return [...document.querySelectorAll('button')].filter(e=>e.offsetParent!==null&&!e.closest('form')).filter(e=>{const q=e.getBoundingClientRect(); return q.top>=r.top-400&&q.top<=r.bottom+400;}).map(e=>e.tagName+'.'+e.className+'#'+e.id+' type='+e.type+' «'+(e.innerText||'').trim().slice(0,30)+'» '+(e.getAttribute('onclick')||'')+' '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',')).slice(-12).join(' | '); }"))
-        note("MARKET my bids: " + pg.evaluate("() => [...document.querySelectorAll('li[data-price]')].filter(l=>/teva|Tu puja|puja/i.test(l.innerText)).map(l=>l.innerText.replace(/\\s+/g,' ').slice(0,120)).slice(0,5).join(' || ')"))
-        note("BID DOM inputs: " + pg.evaluate("() => [...document.querySelectorAll('input,button')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className+'['+e.name+'='+e.value+'] «'+(e.innerText||'').trim().slice(0,30)+'» '+(e.getAttribute('onclick')||'')+' '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',')).slice(-25).join(' | ')"))
+        pg.goto(f"{U}/action/change?id_community=2519290", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
+        pg.goto(U + "/team", wait_until="domcontentloaded"); pg.wait_for_timeout(3500)
+        pg.locator("button.btn-popup:has-text('Gestionar')").first.click(); pg.wait_for_timeout(3000)
+        note("GESTIONAR forms: " + pg.evaluate("() => [...document.querySelectorAll('form')].filter(f=>f.offsetParent!==null).map(f=>f.outerHTML.replace(/<svg.*?<\\/svg>/g,'').replace(/\\s+/g,' ').slice(0,2000)).join(' ### ')"))
+        note("GESTIONAR buttons: " + pg.evaluate(VIS, "button"))
+        # pestanyes de la finestra (Vendre / Clàusula...)
+        for t in ["Vendre", "Vender", "Venda", "Mercat"]:
+            el = pg.locator(f"button.tab:has-text('{t}'), .tab:has-text('{t}')").first
+            if el.count():
+                el.click(); pg.wait_for_timeout(2000)
+                note(f"TAB {t} forms: " + pg.evaluate("() => [...document.querySelectorAll('form')].filter(f=>f.offsetParent!==null).map(f=>f.outerHTML.replace(/<svg.*?<\\/svg>/g,'').replace(/\\s+/g,' ').slice(0,2000)).join(' ### ')"))
+                note(f"TAB {t} buttons: " + pg.evaluate(VIS, "button"))
+                break
+        pg.keyboard.press("Escape"); pg.wait_for_timeout(800)
+        pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
+        note("MARKET tabs: " + pg.evaluate(VIS, "a, button.tab, .tabs *"))
+        for path in ["/market/offers", "/market/sales", "/market/received"]:
+            pg.goto(U + path, wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
+            note(f"{path}: {pg.url} :: " + pg.inner_text("body")[300:1200].replace("\n", " / "))
     except Exception:
         import traceback
-        note("ERR: " + traceback.format_exc()[-1500:])
+        note("ERR mister: " + traceback.format_exc()[-1200:])
+    try:
+        ctx = web.new_context(b, "futbolfantasy"); fp = ctx.new_page(); web.login_futbolfantasy(fp)
+        fp.goto("https://www.futbolfantasy.com/", wait_until="domcontentloaded"); fp.wait_for_timeout(2500)
+        note("FF links equipos: " + fp.evaluate("() => [...new Set([...document.querySelectorAll('a')].filter(a=>/equipo/i.test(a.innerText+a.href)).map(a=>a.innerText.trim().slice(0,30)+' -> '+a.href))].slice(0,25).join(' | ')"))
+        for url in ["https://www.futbolfantasy.com/mis-equipos", "https://www.futbolfantasy.com/usuario/mis-equipos", "https://www.futbolfantasy.com/laliga/mis-equipos"]:
+            r = fp.goto(url, wait_until="domcontentloaded"); fp.wait_for_timeout(2500)
+            note(f"FF {url}: {r.status if r else None} {fp.url} :: " + fp.inner_text("body")[:900].replace("\n", " / "))
+    except Exception:
+        import traceback
+        note("ERR ff: " + traceback.format_exc()[-1200:])
     flush()
     b.close()
