@@ -22,7 +22,7 @@ BASE = "https://www.predicted11.com/es/"
 
 
 def norm(s):
-    s = unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode().lower()
+    s = unicodedata.normalize("NFD", s.translate(str.maketrans({"ø": "o", "Ø": "O", "æ": "ae", "ß": "ss", "ł": "l", "đ": "d", "ı": "i"}))).encode("ascii", "ignore").decode().lower()
     return re.sub(r"[^a-z0-9]+", " ", s).strip()
 
 

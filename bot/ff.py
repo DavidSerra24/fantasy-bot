@@ -32,8 +32,17 @@ DEFAULT_TACTICS = ["5-3-2", "5-4-1", "4-5-1", "4-4-2", "4-3-3", "3-5-2", "3-4-3"
 POS = {"POR": "G", "DEF": "D", "MED": "M", "DEL": "F"}
 
 
+# Lletres que no es descomponen amb NFD (sense això, "Ødegaard" quedava "degaard")
+TRANSLIT = str.maketrans({"ø": "o", "Ø": "O", "æ": "ae", "Æ": "Ae", "ß": "ss", "ł": "l", "Ł": "L", "đ": "d", "Đ": "D",
+                          "ı": "i", "œ": "oe", "Œ": "Oe", "þ": "th", "ð": "d"})
+
+
+def plain(s):
+    return unicodedata.normalize("NFD", (s or "").translate(TRANSLIT)).encode("ascii", "ignore").decode()
+
+
 def norm(s):
-    return re.sub(r"[^a-z0-9 ]+", " ", unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode().lower()).split()
+    return re.sub(r"[^a-z0-9 ]+", " ", plain(s).lower()).split()
 
 
 def name_score(a, b):
@@ -170,8 +179,11 @@ def lookup_open(page, cands, limit=60):
     for c in cands[:limit]:
         c["si"] = ALIAS.get(f"{c['team']}|{c['si']}", ALIAS.get(c["si"], c["si"]))
         res = page.evaluate("(q) => __ff.search(q)", c["si"]) or []
-        if not res and norm(c["si"]):
-            res = page.evaluate("(q) => __ff.search(q)", norm(c["si"])[-1]) or []
+        last = (c["si"].split() or [""])[-1]
+        for q in dict.fromkeys([plain(c["si"]), last, plain(last)]):  # nom sense accents, cognom tal qual i sense accents
+            if res or not q or q == c["si"]:
+                continue
+            res = page.evaluate("(q) => __ff.search(q)", q) or []
         raw.append((c, res))
     close_modal(page)
     votes = {}
