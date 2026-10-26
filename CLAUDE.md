@@ -43,8 +43,12 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - **Tauler d'equip**: filtre "Average score" (jugadors de tot el dia). Esperar els onzes del primer partit del dia; si no hi ha cap jugador a posar, esperar als següents partits i fer l'alineació quan toqui posar un titular.
 - Accés: el David entra amb Google + Authenticator. El bot no pot fer-ho sol; extreure la sessió des del navegador està bloquejat per seguretat. Pendent (25/10): investigar l'API oficial de Sorare (api.sorare.com/graphql). Alternativa: fer-ho des del navegador de l'app amb el PC engegat. El Set són les "series" (sorare.com/football/series/play; tauler d'equip a /series/squad).
 
-## Mister (LaLiga 2)
-- El David envia la llista de la plantilla. Ordenar-la per % de titularitat i, dins de cada %, per PS. Els jugadors sense dades van al final del seu grup.
+## Mister (LaLiga 2) — en preparació
+- Consulta manual: el David envia la llista de la plantilla. Ordenar-la per % de titularitat i, dins de cada %, per PS. Els jugadors sense dades van al final del seu grup.
+- **Alineació** (automàtica; tanca a l'inici del primer partit de la jornada): primer els jugadors amb 80–90% ordenats per PS de SorareInside; si no n'hi ha prou, després els de 70% i després els de 60%. Dins de cada franja, primer els que tenen PS i al final els que no. **Sí que es poden posar jugadors d'equips que s'enfronten.** El Mister també mostra qui és titular (fer-ho servir a la revisió final).
+- **Tàctica**: la que convingui segons els jugadors triats. **Capità**: el bot el tria.
+- **Mercat** (sense confirmació, és diners virtuals del joc): vendre els jugadors de la plantilla que a SorareInside tinguin <60% de titularitat; comprar jugadors amb ≥60%, pujant el mínim indicat.
+- Accés: correu + contrasenya als GitHub Secrets (MISTER_EMAIL, MISTER_PASSWORD). La web és accessible des de GitHub (té API interna a /api2/). Bàner de galetes: "Rechazar" obliga a subscriure's.
 
 ## Avisos d'onzes
 - Quan el David demana si un jugador és titular, programar la comprovació cap a 1 hora abans del partit (a X solen publicar-se 1h15 abans) i avisar amb una notificació.
