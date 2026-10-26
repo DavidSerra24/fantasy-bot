@@ -416,8 +416,6 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                 continue
             if h > max_hours:
                 continue
-            if not final and g["empty"] < 11:
-                continue  # ja fet: només el toca la revisió final
             try:
                 if spg is None:
                     sctx = new_context(b, "sorareinside")
