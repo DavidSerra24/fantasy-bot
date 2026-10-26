@@ -1,4 +1,5 @@
-"""Reconeixement de Mister (només lectura): equip, alineació, mercat i peticions internes."""
+"""Reconeixement de Mister (només lectura): finestra de puja i de venda (HTML de l'AJAX)."""
+import re
 from playwright.sync_api import sync_playwright
 from bot.mister import U, new_context, login
 
@@ -15,35 +16,29 @@ def flush():
         print("::notice title=log" + str(i // 6000) + "::" + txt[i:i + 6000].replace("\n", " ¶ "))
 
 
+def compact(h):
+    h = re.sub(r"<svg.*?</svg>", "", h, flags=re.S)
+    h = re.sub(r"<(img|source|link)[^>]*>", "", h)
+    return re.sub(r"\s+", " ", h)
+
+
 with sync_playwright() as p:
     b = p.chromium.launch()
     pg = new_context(b).new_page()
-    reqs = []
-    pg.on("request", lambda r: reqs.append(r.method + " " + r.url + " " + (r.post_data or "")[:300]) if "mundodeportivo.com/ajax" in r.url or "mundodeportivo.com/api" in r.url else None)
     try:
         login(pg)
-        note("login ok")
-        def popup(tag):
-            pg.wait_for_timeout(3000)
-            h = pg.evaluate("""() => { const vis=[...document.querySelectorAll('body *')].filter(e=>{const st=getComputedStyle(e); return (st.position==='fixed'||st.position==='absolute') && e.offsetParent!==null && e.innerText && e.innerText.trim().length>20 && e.getBoundingClientRect().height>200;});
-                const m = vis.sort((a,b)=>b.innerText.length-a.innerText.length)[0];
-                return m ? m.tagName+'.'+m.className+' #'+m.id+' :: ' + m.innerText.replace(/\\s+/g,' ').slice(0,900) + ' :: ' + [...m.querySelectorAll('button,input,select,a')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className.toString().split(' ').slice(0,4).join('.')+'['+(e.name||'')+'='+(e.value||'')+(e.dataset.id?' did='+e.dataset.id:'')+']«'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,30)+'»').join(' | ').slice(0,2500) : 'cap'; }""")
-            note(tag + ": " + h)
-            pg.keyboard.press("Escape"); pg.wait_for_timeout(1000)
-        pg.goto(U + "/team", wait_until="domcontentloaded"); pg.wait_for_timeout(4000)
-        pg.locator("button.btn-popup:has-text('Gestionar')").nth(2).click(); popup("GESTIONAR")
-        pg.goto(U + "/team", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
-        pg.locator("button.lineup-player").nth(3).click(); popup("LINEUP-CLICK")
-        pg.goto(U + "/team", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
-        pg.locator(".lineup-formation-subs, [class*=formation]").first.click(); popup("FORMATION")
-        note("TEAM sel/tactic: " + pg.evaluate("() => [...document.querySelectorAll('[class*=formation], [class*=tactic], select')].map(e=>e.className+' «'+e.innerText.replace(/\\s+/g,' ').slice(0,80)+'»').slice(0,8).join(' | ')"))
-        pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(4000)
-        pg.locator("li[data-owner='0'] .btn-bid").first.click(); popup("BID")
-        note("MARKET li attrs: " + pg.evaluate("() => [...document.querySelectorAll('li[data-price]')].slice(0,40).map(li=>[li.dataset.position, li.dataset.price, li.dataset.owner, li.querySelector('.name')?.innerText.trim(), li.querySelector('a.player')?.getAttribute('href')].join(',')).join(' | ')"))
-        note("SIDEBAR: " + pg.evaluate("() => [...document.querySelectorAll('a[href*=id_community]')].map(a=>a.innerText.trim()+' -> '+a.getAttribute('href')).join(' | ')"))
+        pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(3500)
+        li = pg.evaluate("() => { const l=[...document.querySelectorAll('li[data-owner=\"0\"]')][0]; return {pid: l.querySelector('[data-id_player]').dataset.id_player, price: l.dataset.price}; }")
+        note(f"player {li}")
+        r = pg.evaluate("""(pid) => fetch('/ajax/player-community-info', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8','X-Requested-With':'XMLHttpRequest'},
+             body:'id_owner=0&id_player='+pid+'&popup=bid&style=secondary&preload=player-community-info'}).then(r=>r.text())""", li["pid"])
+        note("BID AJAX: " + compact(r)[:9000])
+        # també el clic real, per veure els scripts/forms que s'hi enganxen
+        pg.locator("li[data-owner='0'] .btn-bid").first.click(); pg.wait_for_timeout(3000)
+        note("BID DOM forms: " + pg.evaluate("() => [...document.querySelectorAll('form')].filter(f=>f.offsetParent!==null).map(f=>f.outerHTML.replace(/\\s+/g,' ').slice(0,2500)).join(' ### ')"))
+        note("BID DOM inputs: " + pg.evaluate("() => [...document.querySelectorAll('input,button')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className+'['+e.name+'='+e.value+'] «'+(e.innerText||'').trim().slice(0,30)+'» '+(e.getAttribute('onclick')||'')+' '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',')).slice(-25).join(' | ')"))
     except Exception:
         import traceback
         note("ERR: " + traceback.format_exc()[-1500:])
-    note("REQS: " + " | ".join(dict.fromkeys(reqs))[:4000])
     flush()
     b.close()
