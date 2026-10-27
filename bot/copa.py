@@ -117,4 +117,9 @@ if __name__ == "__main__":
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--joc", default="1051")
     a = ap.parse_args()
-    run(a.dry, a.joc)
+    try:
+        run(a.dry, a.joc)
+    except Exception:
+        import traceback
+        print("::notice title=tb::" + traceback.format_exc().replace("\n", " | ")[-1500:])
+        raise
