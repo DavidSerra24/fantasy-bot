@@ -32,7 +32,15 @@ with sync_playwright() as p:
         LOG.append("CONTROLS: " + pg.evaluate("() => [...document.querySelectorAll('button,select,a.btn')].filter(e=>e.offsetParent!==null && !e.closest('.player-row') && !/lineup-player|btn-match/.test(e.className)).map(e=>e.tagName+'.'+e.className.toString().slice(0,50)+' «'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,25)+'» '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',').slice(0,120)).slice(0,45).join(' | ')"))
         reqs = []
         pg.on("request", lambda r: reqs.append(r.method + " " + r.url.split("mundodeportivo.com")[-1] + " " + (r.post_data or "")[:200]) if "/ajax/" in r.url or "/api" in r.url else None)
+        resp = []
+        pg.on("response", lambda r: resp.append(r) if "/ajax/sw/substitution" in r.url or "substitution.twig" in r.url else None)
         pg.locator("#slot-7").click(); pg.wait_for_timeout(3000)
+        for r in resp:
+            try:
+                LOG.append("RESP " + r.url.split("mundodeportivo.com")[-1] + ": " + re.sub(r"\s+", " ", r.text())[:5000])
+            except Exception as e:
+                LOG.append(f"RESP err {e}")
+        LOG.append("SW DOM: " + pg.evaluate("() => { const c=[...document.querySelectorAll('.sw, [class*=sw-], #sw, .switch-view, .side-view')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className+'#'+e.id+' n='+e.querySelectorAll('button').length); return c.join(' | '); }"))
         LOG.append("SUB BUTTONS: " + pg.evaluate("() => [...document.querySelectorAll('button,a')].filter(e=>e.offsetParent!==null && e.dataset.event && !/lineup-player|gameweek|credits|formation/.test(e.className+e.dataset.event)).map(e=>e.tagName+'.'+e.className.toString().slice(0,60)+' «'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,30)+'» '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',').slice(0,180)).slice(0,30).join(' | ')"))
         LOG.append("SUB TEXT: " + pg.evaluate("() => { const e=[...document.querySelectorAll('[class*=sw], [id*=substitution], .panel')].filter(e=>e.offsetParent!==null && /substitu/i.test(e.className+e.id+e.innerHTML.slice(0,500))).pop(); return e ? e.className+' :: '+e.innerText.replace(/\\s+/g,' ').slice(0,700) : 'cap'; }"))
         pg.keyboard.press("Escape"); pg.wait_for_timeout(1000)
