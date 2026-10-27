@@ -42,7 +42,7 @@ def matches(full, short):
     f, s = plain(full).lower().split(), plain(short).lower().split()
     if not s:
         return False
-    return name_score(full, short) >= 60 or (len(s) == 1 and s[0] in f) or all(w in f for w in s)
+    return name_score(full, short) >= 80 or all(w in f for w in s)
 
 
 def sync(b, squad, dry=False):
