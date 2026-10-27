@@ -139,7 +139,7 @@ def apply(pg, squad, dry=False):
         except Exception as e:
             problems.append(f"capità ({type(e).__name__})")
     cur = slots(pg)
-    ok = {s["pid"] for s in cur} == {q["pid"] for q in pick} and formation(pg) == tac
+    ok = {s["pid"] for s in cur if s["pid"] not in ("0", None)} == {q["pid"] for q in pick} and formation(pg) == tac
     capok = any(s["cap"] and s["pid"] == cap["pid"] for s in cur)
     line = ("✅ " if ok and capok else "⚠️ ") + desc
     if not ok:
