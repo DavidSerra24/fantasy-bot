@@ -40,11 +40,12 @@ def si_entries(sidata):
         rows = sidata.get(t)
         if not isinstance(rows, list):
             continue
-        for r in rows:
+        for i, r in enumerate(rows):
+            line = "G" if i == 0 else "X"  # la primera fila de SorareInside és la del porter
             for q in r:
-                out.append({"name": q.get("name") or "", "key": t, "pct": q.get("pct"), "ps": q.get("ps")})
+                out.append({"name": q.get("name") or "", "key": t, "pct": q.get("pct"), "ps": q.get("ps"), "line": line, "starter": True})
                 for sub in q.get("subs") or []:
-                    out.append({"name": sub.get("name") or "", "key": t, "pct": sub.get("pct"), "ps": None})
+                    out.append({"name": sub.get("name") or "", "key": t, "pct": sub.get("pct"), "ps": None, "line": line, "starter": False})
     return out
 
 
@@ -71,6 +72,10 @@ def assign(players, entries, field="src"):
     for p in players:
         slug = p.get("team")
         pool = [e for e in entries if team_ok(slug, e["key"])] if slug else entries
+        # porter només amb porter (no confondre Higinio Marín, davanter, amb el porter suplent «Marín»)
+        if p.get("P") in ("G", "D", "M", "F"):
+            pool = [e for e in pool if "line" not in e or (e["line"] == "G") == (p["P"] == "G")]
+        pool = sorted(pool, key=lambda e: not e.get("starter", True))  # a igualtat de nom, primer el titular
         n = best_name(p["name"], [e["name"] for e in pool])
         cand = [e for e in pool if e["name"] == n] if n else []
         if not slug and not (len(cand) == 1 and name_score(p["name"], n) == 100):
