@@ -113,7 +113,6 @@ def sell(pg, pid):
 
 
 COMP = {"Quique": "laliga2", "Fentaniños": "laliga"}
-URGENT_X = 1.5  # puja urgent a l'última ocasió: preu mínim × 1,5 (sense entrar en negatiu)
 MADRID = ZoneInfo("Europe/Madrid")
 
 
@@ -245,24 +244,23 @@ def run(dry=False, retira=()):
                         elif withdraw(pg, m["pid"]):
                             gone.append(m["short"]); done.pop(f"{cid}:{m['pid']}", None)
                 # Si amb la plantilla (sense els que estan en venda) i les pujes pendents no surt l'onze, es puja per jugadors
-                # de les posicions que falten encara que no arribin al mínim. A l'última ocasió abans de la jornada, fort.
+                # de les posicions que falten (primer que la resta), però també amb el mínim de % i pel preu mínim:
+                # els que falten el David els aconsegueix amb cessions el divendres al matí.
                 urgent_done = load_json("mister_urgent.json", {})
                 team = keep + [m for m in market if m["mine"]]
                 short = shortage(team)
                 urgent, uplaced = [], []
                 for P, k in short.items():
-                    pool = sorted([m for m in market if m["P"] == P and not m["mine"]],
+                    pool = sorted([m for m in market if m["P"] == P and not m["mine"] and m["pct"] is not None and m["pct"] >= minimum],
                                   key=lambda m: (band(m["pct"]), -(m["pct"] or 0), m["price"]))
                     urgent += pool[:k]
                 ulimit = max(0, projected) if early else None
                 for m in urgent:
-                    amount = None
+                    amount = None  # sempre el preu mínim
                     if early:
-                        amount = min(m["price"] * URGENT_X, ulimit)
-                        if amount < m["price"]:
-                            skipped_u = f"{m['short']} (sense diners per a la puja urgent)"
-                            uplaced.append(skipped_u); continue
-                        ulimit -= amount
+                        if m["price"] > ulimit:
+                            uplaced.append(f"{m['short']} (sense diners)"); continue
+                        ulimit -= m["price"]
                     if dry:
                         uplaced.append(f"{m['short']} ({m['P']}, {m['pct'] if m['pct'] is not None else '?'}%, {(amount or m['price'])/1e6:.2f}M)")
                         continue
@@ -307,7 +305,7 @@ def run(dry=False, retira=()):
                 line = f"🧢 {name} (saldo {bal/1e6:.1f}M, plantilla {have}/{cap}): "
                 line += ("pujaria per " if dry else "pujes: ") + (", ".join(f"{m['short']} ({m['P']}, {m['pct']}%{' JP' if m.get('src') == 'JP' else ''}, {m['price']/1e6:.2f}M)" for m in placed) or "cap")
                 if short:
-                    line += " | ⚠️ falten per fer l'onze: " + ", ".join(f"{k} {v}" for k, v in short.items()) + " → " + ("pujaria per " if dry else "pujes urgents: ") + (", ".join(uplaced) or "cap disponible")
+                    line += " | ⚠️ falten per fer l'onze: " + ", ".join(f"{k} {v}" for k, v in short.items()) + " → " + ("pujaria per " if dry else "pujes urgents: ") + (", ".join(uplaced) or "cap amb el % mínim; caldrà una cessió")
                 if skipped:
                     line += " | no: " + ", ".join(skipped[:6])
                 if kept:
