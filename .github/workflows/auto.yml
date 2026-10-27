@@ -1,8 +1,8 @@
 name: Automàtic (cada 30 min)
 on:
   schedule:
-    # Cada 30 minuts, de 7:05 a 23:35 (hora de Madrid a l'estiu; una hora menys a l'hivern)
-    - cron: "5,35 4-21 * * *"
+    # Cada 30 minuts, de 5:05 a 23:35 (hora de Madrid a l'estiu; una hora menys a l'hivern)
+    - cron: "5,35 2-21 * * *"
   workflow_dispatch:
 concurrency: fantasy
 jobs:

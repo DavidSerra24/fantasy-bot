@@ -90,6 +90,11 @@ def plan(now=None, done=None):
             k = f"ff-final:{comp}:{K.isoformat()}"
             if due(k, K - LEAD, K):
                 add(k, K - LEAD, "fffinal", comp, K)
+    # Mister: revisió abans de la resolució del mercat (5:00): retira pujes i ven els que han baixat de %
+    pre_t = local.replace(hour=4, minute=15, second=0, microsecond=0).astimezone(UTC)
+    k = f"mister-pre:{local.date()}"
+    if due(k, pre_t, pre_t + dt.timedelta(minutes=40)):
+        add(k, pre_t, "mister", "pre", pre_t + dt.timedelta(minutes=40))
     # Mister: pujes cada dia després de la renovació del mercat (5:00)
     mister_t = local.replace(hour=6, minute=0, second=0, microsecond=0).astimezone(UTC)
     k = f"mister:{local.date()}"

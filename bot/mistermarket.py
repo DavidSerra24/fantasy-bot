@@ -91,6 +91,14 @@ def shortage(squad):
     return {k: v for k, v in best.items() if v}
 
 
+def can_sell(keep, rest):
+    """Es pot vendre si, sense el jugador, encara surt una formació completa; o si a la plantilla ja li falta algú
+    en una altra posició (p. ex. el porter, que arribarà amb una cessió) i el jugador sobra a la seva."""
+    if can_field(rest):
+        return True
+    return sum(shortage(rest).values()) <= sum(shortage(keep).values())
+
+
 def can_field(squad):
     """Hi ha alguna tàctica del Mister que es pugui completar amb aquesta plantilla?"""
     n = {k: sum(1 for p in squad if p["P"] == k) for k in "GDMF"}
@@ -194,7 +202,7 @@ def run(dry=False, retira=()):
                 for q in sorted([q for q in keep if q["pct"] is not None and q["pct"] < minimum and not q["loaned"]],
                                 key=lambda q: (q["pct"], q["ps"] or 0)):
                     rest = [x for x in keep if x is not q]
-                    if not can_field(rest):
+                    if not can_sell(keep, rest):
                         nosale.append(f"{q['short']} (cal per fer l'onze)")
                         continue
                     if dry or sell(pg, q["pid"]):
@@ -220,7 +228,7 @@ def run(dry=False, retira=()):
                                 break
                             extra = 1  # un jugador de marge
                         rest = [x for x in keep if x is not q]
-                        if not can_field(rest):
+                        if not can_sell(keep, rest):
                             continue
                         if dry or sell(pg, q["pid"]):
                             debt.append(q); keep = rest; projected += q["value"]
