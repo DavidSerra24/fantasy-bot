@@ -16,7 +16,7 @@ from bot.mister import U, login, new_context as mister_context
 from bot.misterplan import LEAGUES
 from bot.mistermarket import league_data
 from bot.notify import telegram
-from bot.web import login_sorareinside, new_context, save_session
+from bot.web import load_json, login_sorareinside, new_context, save_session
 
 ACCEPT = re.compile(r"^\s*(acceptar|aceptar)(\s+oferta)?\s*$", re.I)
 REMOVE = re.compile(r"^\s*(eliminar|retirar)\s*$", re.I)  # finestra de venda: «Eliminar» (#btn-send)
@@ -78,7 +78,8 @@ def run(dry=False):
                     label = f"{q['short']} ({q['pct'] if q['pct'] is not None else '?'}%)"
                     open_sale(pg, q["pid"])
                     txt = snap(pg, f"[{name}] {q['short']}")
-                    if q["pct"] is not None and q["pct"] >= minimum:  # ha tornat a ser titular: es queda
+                    debt = f"{cid}:{q['pid']}" in load_json("mister_debt_sales.json", {})  # venda per saldar el deute: sempre
+                    if q["pct"] is not None and q["pct"] >= minimum and not debt:  # ha tornat a ser titular: es queda
                         if dry:
                             done.append(f"{label}: el trauria de la venda"); continue
                         n = click_text(pg, REMOVE)

@@ -205,6 +205,9 @@ def run(dry=False, retira=()):
                             debt.append(q); keep = rest; projected += q["value"]
                             if not dry:
                                 sold[f"{cid}:{q['pid']}"] = dt.date.today().isoformat()
+                                dsold = load_json("mister_debt_sales.json", {})
+                                dsold[f"{cid}:{q['pid']}"] = dt.date.today().isoformat()
+                                save_json("mister_debt_sales.json", dsold)
                 free = (cap - have) if have is not None else 3
                 # Pujes que el bot ja havia fet: si el jugador ja no compleix el mínim (o el bot l'havia confós), es retiren
                 gone, kept = [], []
