@@ -28,6 +28,7 @@ for a in acts:
             "ff": "Fantasy de FutbolFantasy (matí: omplir i revisar els jocs oberts, ítems i extres del dia)",
             "mister": "Mister: pujes al mercat",
             "misteroff": "Mister: ofertes dels jugadors en venda",
+            "misterxi": "Mister: alineació i capità" + (f" ({names.get(a['comp'], a['comp'])}, revisió final)" if a["comp"] else ""),
             "fffinal": f"revisió final del Fantasy {names.get(a['comp'], a['comp'])} (onzes oficials)"}[a["do"]]
     telegram(f"▶️ Començo: {what}")
     try:
@@ -35,6 +36,9 @@ for a in acts:
             p11.run([a["comp"]], force=False, max_hours=99)
         elif a["do"] == "ff":
             ff.run(max_hours=24 * 8, extras_hours=20)
+        elif a["do"] == "misterxi":
+            from bot import misterlineup
+            misterlineup.run(only={"laliga": "Fentaniños", "laliga2": "Quique"}.get(a["comp"]))
         elif a["do"] == "misteroff":
             from bot import misteroffers
             misteroffers.run()

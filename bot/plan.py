@@ -101,6 +101,16 @@ def plan(now=None, done=None):
         k = f"misteroff:{local.date()}:{hh}"
         if due(k, off_t, off_t + dt.timedelta(hours=10)):
             add(k, off_t, "misteroff", None, off_t + dt.timedelta(hours=10))
+    # Mister: alineació cada matí (6:40) i revisió final 45 min abans del primer partit de cada lliga
+    xi_t = local.replace(hour=6, minute=40, second=0, microsecond=0).astimezone(UTC)
+    k = f"misterxi:{local.date()}"
+    if due(k, xi_t, xi_t + dt.timedelta(hours=12)):
+        add(k, xi_t, "misterxi", None, xi_t + dt.timedelta(hours=12))
+    for comp, iso in KICK.items():
+        kt = dt.datetime.fromisoformat(iso)
+        k = f"misterxi-final:{comp}:{iso}"
+        if due(k, kt - dt.timedelta(minutes=45), kt):
+            add(k, kt - dt.timedelta(minutes=45), "misterxi", comp, kt)
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
