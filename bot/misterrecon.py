@@ -12,7 +12,7 @@ with sync_playwright() as p:
         cs = ff.cards(pg)
         LOG.append("CARDS: " + " | ".join(f"{c['id']}:{c['label']}:{c['title']}:{c['end']}:buides={c['empty']}" for c in cs))
         for c in cs:
-            if "copa" in (c["label"] + c["title"]).lower():
+            if c["id"] == "1051":
                 LOG.append("COPA TEXT: " + pg.evaluate("(id) => document.getElementById('juego-'+id).innerText.replace(/\\s+/g,' ').slice(0,1500)", c["id"]))
                 LOG.append("COPA LINKS: " + pg.evaluate("(id) => [...document.getElementById('juego-'+id).querySelectorAll('a,button')].map(e=>(e.innerText||'').trim().slice(0,30)+' '+(e.getAttribute('href')||'')+' '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',').slice(0,100)).slice(0,25).join(' | ')", c["id"]))
                 # regles: botó d'informació del joc
