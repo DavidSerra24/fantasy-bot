@@ -113,7 +113,7 @@ if __name__ == "__main__":
         squad = read_squad(pg)
         for q in squad:
             q["name"] = full_name(q["href"])
-        print("::notice title=squad::" + ", ".join(f"{q['short']}={q['name']}{' (cedit)' if q.get('loaned') else ''}" for q in squad))
+        print("::notice title=squad::" + ", ".join(f"{q['href']}={q['name']}{' (cedit)' if q.get('loaned') else ''}" for q in squad))
         line = sync(b, squad, dry)
         b.close()
     print("::notice title=misterff::" + line)
