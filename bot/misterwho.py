@@ -21,10 +21,12 @@ with sync_playwright() as p:
         if only and only != name:
             continue
         bal, squad, market, have, cap = league_data(b, pg, spg, cid, country, league, rep, cache)
+        lines = []
         for q in squad:
             src = q.get("si") or q.get("ff") or q.get("jp") or {}
-            print(f"::notice title={name}::{q['short']} | {q['name']} | equip Mister: {q.get('team')} | {q.get('src')}: "
-                  f"{src.get('name')} ({str(src.get('key', '')).split('/')[-1]}) {q.get('pct')}%")
+            lines.append(f"{q['short']} | {q['name']} | {q.get('P')} | equip Mister: {q.get('team')} | {q.get('src')}: "
+                         f"{src.get('name')} ({str(src.get('key', '')).split('/')[-1]}) {q.get('pct')}%")
+        print(f"::notice title={name}::" + " ¶ ".join(lines))
     for r in rep:
         print("::notice title=rep::" + r)
     b.close()
