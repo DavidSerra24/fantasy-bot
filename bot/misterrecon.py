@@ -37,9 +37,11 @@ with sync_playwright() as p:
         pg.locator("#slot-7").click(); pg.wait_for_timeout(3000)
         for r in resp:
             try:
+                if "twig" in r.url: continue
                 LOG.append("RESP " + r.url.split("mundodeportivo.com")[-1] + ": " + re.sub(r"\s+", " ", r.text())[:5000])
             except Exception as e:
                 LOG.append(f"RESP err {e}")
+        LOG.append("SW CONTENT: " + re.sub(r"\s+", " ", re.sub(r"<svg.*?</svg>", "", pg.evaluate("() => (document.querySelector('.sw-content')||{}).outerHTML || 'cap'"), flags=re.S))[:7000])
         LOG.append("SW DOM: " + pg.evaluate("() => { const c=[...document.querySelectorAll('.sw, [class*=sw-], #sw, .switch-view, .side-view')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className+'#'+e.id+' n='+e.querySelectorAll('button').length); return c.join(' | '); }"))
         LOG.append("SUB BUTTONS: " + pg.evaluate("() => [...document.querySelectorAll('button,a')].filter(e=>e.offsetParent!==null && e.dataset.event && !/lineup-player|gameweek|credits|formation/.test(e.className+e.dataset.event)).map(e=>e.tagName+'.'+e.className.toString().slice(0,60)+' «'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,30)+'» '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',').slice(0,180)).slice(0,30).join(' | ')"))
         LOG.append("SUB TEXT: " + pg.evaluate("() => { const e=[...document.querySelectorAll('[class*=sw], [id*=substitution], .panel')].filter(e=>e.offsetParent!==null && /substitu/i.test(e.className+e.id+e.innerHTML.slice(0,500))).pop(); return e ? e.className+' :: '+e.innerText.replace(/\\s+/g,' ').slice(0,700) : 'cap'; }"))
