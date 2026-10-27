@@ -56,6 +56,19 @@ def bid(pg, pid):
     return ok, mx
 
 
+def withdraw(pg, pid):
+    """Retira una puja meva (la finestra mostra «Eliminar»)."""
+    pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
+    pg.locator(f'li[data-owner="0"] button.btn-bid.btn--accent[data-id_player="{pid}"]').first.click()
+    pg.locator("#form-bid input[name=action][value=remove]").wait_for(state="attached", timeout=10000)
+    pg.locator("#btn-send").click()
+    pg.wait_for_timeout(2500)
+    ok = not pg.locator("#form-bid").is_visible()
+    if not ok:
+        pg.keyboard.press("Escape")
+    return ok
+
+
 def can_field(squad):
     """Hi ha alguna tàctica del Mister que es pugui completar amb aquesta plantilla?"""
     n = {k: sum(1 for p in squad if p["P"] == k) for k in "GDMF"}
@@ -131,6 +144,12 @@ def run(dry=False):
                     else:
                         nosale.append(f"{q['short']} (error en posar-lo a la venda)")
                 free = (cap - have) if have is not None else 3
+                # Pujes que el bot ja havia fet: si el jugador ja no compleix el mínim (o el bot l'havia confós), es retiren
+                gone = []
+                for m in [m for m in market if m["mine"] and f"{cid}:{m['pid']}" in done]:
+                    if m["pct"] is None or m["pct"] < minimum:
+                        if dry or withdraw(pg, m["pid"]):
+                            gone.append(m["short"]); done.pop(f"{cid}:{m['pid']}", None)
                 cands = sorted([m for m in market if m["pct"] is not None and m["pct"] >= minimum and not m["mine"]
                                 and f"{cid}:{m['pid']}" not in done], key=lambda m: (band(m["pct"]), m["price"]))
                 placed, skipped, limit, spent = [], [], None, 0
@@ -157,6 +176,8 @@ def run(dry=False):
                 line += ("pujaria per " if dry else "pujes: ") + (", ".join(f"{m['short']} ({m['P']}, {m['pct']}%{' JP' if m.get('src') == 'JP' else ''}, {m['price']/1e6:.2f}M)" for m in placed) or "cap")
                 if skipped:
                     line += " | no: " + ", ".join(skipped[:6])
+                if gone:
+                    line += " | " + ("retiraria" if dry else "pujes retirades") + ": " + ", ".join(gone)
                 line += " | " + ("vendria: " if dry else "en venda: ") + (", ".join(f"{q['short']} ({q['pct']}%)" for q in sales) or "cap")
                 if nosale:
                     line += " | no venc: " + ", ".join(nosale)

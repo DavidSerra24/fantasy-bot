@@ -1,0 +1,44 @@
+name: Mister (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      args:
+        description: "Opcions (p. ex. --dry)"
+        default: ""
+concurrency: mister
+jobs:
+  mister:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      SI_EMAIL: ${{ secrets.SI_EMAIL }}
+      SI_PASSWORD: ${{ secrets.SI_PASSWORD }}
+      FF_EMAIL: ${{ secrets.FF_EMAIL }}
+      FF_PASSWORD: ${{ secrets.FF_PASSWORD }}
+      MISTER_EMAIL: ${{ secrets.MISTER_EMAIL }}
+      MISTER_PASSWORD: ${{ secrets.MISTER_PASSWORD }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m playwright install --with-deps chromium
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            state
+            !state/session_*.json
+          key: state-${{ github.run_id }}
+          restore-keys: state-
+      - run: python -m bot.mistermarket ${{ github.event.inputs.args }}
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            state
+            !state/session_*.json
+          key: state-${{ github.run_id }}
