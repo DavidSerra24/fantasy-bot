@@ -14,7 +14,8 @@ with sync_playwright() as p:
         LOG.append(f"MINE: {mine}")
         for name, href, logo in mine:
             pg.goto(U + "/" + href, wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
-            LOG.append(f"{name} {href}: " + pg.inner_text("body")[300:700].replace("\n", " / "))
+            LOG.append(f"{name} {href}: " + pg.inner_text("body")[150:420].replace("\n", " / "))
+            LOG.append("  team els: " + pg.evaluate("() => [...document.querySelectorAll('[class*=team], a[href*=teams]')].slice(0,8).map(e=>e.tagName+'.'+e.className+' «'+(e.innerText||e.alt||'').trim().slice(0,40)+'» '+(e.getAttribute('href')||'')).join(' | ')"))
     except Exception:
         import traceback
         LOG.append("ERR: " + traceback.format_exc()[-1200:])
