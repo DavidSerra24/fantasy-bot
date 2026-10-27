@@ -59,6 +59,46 @@ def click_text(pg, rx, near=None):
     return 1
 
 
+OFFERS_JS = """() => { const c = document.querySelector('.sw-content'); if (!c) return [];
+    return [...c.querySelectorAll('button[data-popup="market/offers-received/direct-transfer-confirmation"]')].map(b => {
+        let box = b; while (box && !box.querySelector('.player-avatar[data-id_player]')) box = box.parentElement;
+        return { pid: box ? box.querySelector('.player-avatar[data-id_player]').dataset.id_player : null, bid: +b.dataset.bid,
+                 id_bid: b.dataset.id_bid, user: b.dataset.username }; }); }"""
+
+
+def offers(pg):
+    """Ofertes rebudes (Mercat → «N ofertas recibidas»): {id_jugador: {bid, id_bid, user}} (la millor de cada jugador)."""
+    pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(3500)
+    btn = pg.locator(".offers-received[data-sw]").first
+    if not btn.count():
+        return {}
+    btn.click()
+    pg.locator(".sw-content").first.wait_for(state="visible", timeout=10000)
+    pg.wait_for_timeout(2500)
+    out = {}
+    for o in pg.evaluate(OFFERS_JS):
+        if o["pid"] and (o["pid"] not in out or o["bid"] > out[o["pid"]]["bid"]):
+            out[o["pid"]] = o
+    return out
+
+
+def accept(pg, pid):
+    """Accepta la millor oferta pel jugador (botó de l'oferta → finestra «El traspaso se efectuará…» → «Vendre»)."""
+    o = offers(pg).get(pid)
+    if not o:
+        return False
+    pg.locator(f'.sw-content button[data-popup="market/offers-received/direct-transfer-confirmation"][data-id_bid="{o["id_bid"]}"]').first.click()
+    pop = pg.locator("#popup-content")
+    pop.locator("input[name=type][value=accept]").wait_for(state="attached", timeout=10000)
+    pg.wait_for_timeout(800)
+    btn = pop.locator("#btn-send")
+    if not btn.count():
+        btn = pop.locator("button").filter(has_text=re.compile(r"^\s*(Vendre|Vender)\s*$"))
+    btn.first.click()
+    pg.wait_for_timeout(3000)
+    return pid not in offers(pg)
+
+
 def run(dry=False):
     report = []
     cache = {}
@@ -85,32 +125,14 @@ def run(dry=False):
                         n = click_text(pg, REMOVE)
                         done.append(f"{label}: tret de la venda" if n == 1 else f"{label}: ⚠️ volia treure'l de la venda però no he trobat el botó ({n})")
                         continue
-                    n = click_text(pg, ACCEPT)
-                    if n == 0:  # potser l'oferta surt al feed o al mercat
-                        for path in ("/feed", "/market"):
-                            pg.goto(U + path, wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
-                            if dry:
-                                n = sum(1 for x in pg.evaluate(BUTTONS, None) if ACCEPT.search(x["t"]))
-                                if n:
-                                    snap(pg, f"[{name}] {path}")
-                                    break
-                                continue
-                            n = click_text(pg, ACCEPT, near=q["short"])
-                            if n:
-                                break
-                    elif dry:
-                        pg.keyboard.press("Escape")
-                    if n == 0:
-                        done.append(f"{label}: encara sense oferta" + (" (oferta? " + re.sub(r"\s+", " ", txt)[:80] + ")" if re.search(r"oferta", txt, re.I) else ""))
-                    elif n > 1:
-                        done.append(f"{label}: ⚠️ hi ha {n} botons d'acceptar i no sé quin és; accepta-la tu")
-                    elif dry:
-                        done.append(f"{label}: acceptaria l'oferta")
-                    else:
-                        if click_text(pg, re.compile(r"^\s*(acceptar|aceptar|confirmar|sí|si)\s*$", re.I)) == 1:
-                            pass  # confirmació, si n'hi ha
-                        snap(pg, f"[{name}] {q['short']} després")
-                        done.append(f"{label}: oferta acceptada ✅")
+                    pg.keyboard.press("Escape")
+                    offer = offers(pg).get(q["pid"])
+                    if not offer:
+                        done.append(f"{label}: encara sense oferta"); continue
+                    if dry:
+                        done.append(f"{label}: acceptaria l'oferta del {offer['user']} de {offer['bid']/1e6:.2f}M"); continue
+                    ok = accept(pg, q["pid"])
+                    done.append(f"{label}: venut al {offer['user']} per {offer['bid']/1e6:.2f}M ✅" if ok else f"{label}: ⚠️ no he pogut acceptar l'oferta; fes-ho tu")
                 report.append(f"💰 {name}: " + "; ".join(done))
             except Exception as e:
                 report.append(f"❌ Mister · ofertes · {name}: {type(e).__name__}: {str(e)[:200]}")
