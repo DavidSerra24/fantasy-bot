@@ -31,15 +31,18 @@ def copa_players(pg):
     teams = ("espanyol", "elche", "villarreal", "rayo", "malaga", "alaves", "levante", "betis", "celta", "valencia",
              "getafe", "osasuna", "athletic", "sevilla", "racing", "deportivo")
     links = [u for u in links if u.rstrip("/").split("-")[-1] in teams]
-    out = []
-    for url in links[:20]:
+    out, copa = [], []
+    for url in links[:40]:
         pg.goto(url, wait_until="domcontentloaded", timeout=60000)
         pg.wait_for_timeout(2500)
+        if "copa" not in pg.inner_text("body")[:600].lower():
+            continue  # partit de LaLiga, no de Copa
+        copa.append(url)
         rows = pg.evaluate(PLAYERS_JS, url)
         for i, r in enumerate(rows):
             r["idx"] = len(out) + i  # ordre a la pàgina (la Copa no té %)
         out += rows
-    return links, out
+    return copa, out
 
 
 def run(dry=False, jid="1051"):
