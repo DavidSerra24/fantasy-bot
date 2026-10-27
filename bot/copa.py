@@ -28,11 +28,17 @@ def copa_players(pg):
     pg.goto(f"{FF}/copa-del-rey/posibles-alineaciones", wait_until="domcontentloaded", timeout=60000)
     pg.wait_for_timeout(3000)
     links = pg.evaluate("() => [...new Set([...document.querySelectorAll('a[href*=\"/partidos/\"]')].map(a => a.href.split('#')[0]))]")
+    teams = ("espanyol", "elche", "villarreal", "rayo", "malaga", "alaves", "levante", "betis", "celta", "valencia",
+             "getafe", "osasuna", "athletic", "sevilla", "racing", "deportivo")
+    links = [u for u in links if u.rstrip("/").split("-")[-1] in teams]
     out = []
     for url in links[:20]:
         pg.goto(url, wait_until="domcontentloaded", timeout=60000)
         pg.wait_for_timeout(2500)
-        out += pg.evaluate(PLAYERS_JS, url)
+        rows = pg.evaluate(PLAYERS_JS, url)
+        for i, r in enumerate(rows):
+            r["idx"] = len(out) + i  # ordre a la pàgina (la Copa no té %)
+        out += rows
     return links, out
 
 
@@ -45,15 +51,14 @@ def run(dry=False, jid="1051"):
         login_futbolfantasy(pg)
         links, players = copa_players(pg)
         report.append(f"Partits llegits: {len(links)}, jugadors: {len(players)}")
-        print("::notice title=links::" + " | ".join(links[:40]))
-        print("::notice title=players::" + " | ".join(f"{q['name']} {q['pct']} {'S' if q['suplente'] else ''} {q['lesion']}" for q in players[:60]))
+        print("::notice title=links::" + " | ".join(links))
         # posició i equip de cada jugador al selector del joc
         pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
         inject(pg, "ff")
         ff.open_picker(pg, jid)
         cands = []
-        for q in sorted([q for q in players if not q["suplente"] and q["pct"] >= 50 and str(q["lesion"]) in ("-1", "", "None")],
-                        key=lambda q: -q["pct"]):
+        for q in sorted([q for q in players if not q["suplente"] and str(q["lesion"]) in ("-1", "", "None")],
+                        key=lambda q: (-q["pct"], q["idx"])):
             res = pg.evaluate("(s) => __ff.search(s)", q["name"]) or []
             if not res:
                 res = pg.evaluate("(s) => __ff.search(s)", ff.plain(q["name"]).split()[-1]) or []
@@ -64,10 +69,12 @@ def run(dry=False, jid="1051"):
         best = {}
         for c in cands:
             k = c["team"]
-            if k not in best or (c["pct"], c["media"]) > (best[k]["pct"], best[k]["media"]):
+            if k not in best or (c["pct"], c["media"], -c["idx"]) > (best[k]["pct"], best[k]["media"], -best[k]["idx"]):
                 best[k] = c
         pick = sorted(best.values(), key=lambda c: (-c["pct"], -c["media"]))[:16]
-        names = ", ".join(f"{c['ff']} {c['pct']}%" for c in pick)
+        names = ", ".join(f"{c['ff']} ({c['url'].rstrip('/').split('-')[-1]})" for c in pick)
+        got = {c['url'] for c in pick}
+        report.append("Sense davanter a l'onze probable: " + (", ".join(u.rstrip('/').split('-')[-1] for u in links if u not in got) or "cap"))
         report.append(f"Davanters ({len(pick)} equips): {names}")
         if not dry and pick:
             card = next((c for c in ff.cards(pg) if c["id"] == jid), None)
