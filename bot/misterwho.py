@@ -27,6 +27,13 @@ with sync_playwright() as p:
             lines.append(f"{q['short']} | {q['name']} | {q.get('P')} | equip Mister: {q.get('team')} | {q.get('src')}: "
                          f"{src.get('name')} ({str(src.get('key', '')).split('/')[-1]}) {q.get('pct')}%")
         print(f"::notice title={name}::" + " ¶ ".join(lines))
+        from bot.mistermarket import si_next
+        from bot.sources import si_entries
+        sid = si_next(spg, country, league)
+        for t in sid.get("_order", []):
+            if any(k in t.lower() for k in (sys.argv[2:] or ["albacete"])):
+                rows = sid.get(t)
+                print(f"::notice title=SI {t}::" + str(rows)[:5000])
     for r in rep:
         print("::notice title=rep::" + r)
     b.close()
