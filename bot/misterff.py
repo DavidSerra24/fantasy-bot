@@ -52,13 +52,16 @@ def sync(b, squad, dry=False):
     cur = ff_list(pg)
     have = {}  # id FF → jugador del Mister
     missing = []
+    # 1) Relació segura per nom: el nom de la llista només encaixa amb un jugador del Mister i viceversa
+    #    («Mario» encaixa amb Mario Martín i Mario Soriano → es resol pel buscador).
     for q in squad:
-        hit = [x for x in cur if x["id"] not in have and matches(q["name"], x["n"])]
-        if len(hit) == 1:
+        hit = [x for x in cur if matches(q["name"], x["n"])]
+        if len(hit) == 1 and sum(1 for o in squad if matches(o["name"], hit[0]["n"])) == 1:
             have[hit[0]["id"]] = q
         else:
             missing.append(q)
     added, notfound = [], []
+    ids = {x["id"] for x in cur}
     for q in missing:
         res, used = [], None
         for term in dict.fromkeys([plain(q["name"]), plain(q["name"]).split()[-1]]):
@@ -67,6 +70,11 @@ def sync(b, squad, dry=False):
             if res:
                 used = term
                 break
+        best = [r for r in res if name_score(q["name"], r["n"]) == max(name_score(q["name"], x["n"]) for x in res)]
+        if len(best) == 1 and best[0]["id"] in ids:  # ja és a la llista (amb un nom curt dubtós)
+            have[best[0]["id"]] = q
+            continue
+        res = best
         if len(res) != 1:
             notfound.append(f"{q['short']} ({len(res)} resultats)")
             continue
@@ -76,7 +84,10 @@ def sync(b, squad, dry=False):
             pg.wait_for_timeout(2500)
             close(pg)
         added.append(res[0]["n"])
-    gone = [x for x in cur if x["id"] not in have]
+    gone = [x for x in cur if x["id"] not in have and not any(matches(q["name"], x["n"]) for q in squad)]
+    doubt = [x["n"] for x in cur if x["id"] not in have and x not in gone]
+    if doubt:
+        notfound.append("no sé si treure " + ", ".join(doubt))
     removed = []
     for x in gone:
         if not dry:
