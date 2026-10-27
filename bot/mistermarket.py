@@ -151,7 +151,9 @@ def run(dry=False):
                     if m["pct"] is not None and m["pct"] >= minimum:
                         kept.append(f"{m['short']} = {src.get('name')} ({str(src.get('key', '')).split('/')[-1][:25]}, {m['pct']}%)")
                     else:
-                        if dry or withdraw(pg, m["pid"]):
+                        if dry:
+                            gone.append(m["short"])
+                        elif withdraw(pg, m["pid"]):
                             gone.append(m["short"]); done.pop(f"{cid}:{m['pid']}", None)
                 cands = sorted([m for m in market if m["pct"] is not None and m["pct"] >= minimum and not m["mine"]
                                 and f"{cid}:{m['pid']}" not in done], key=lambda m: (band(m["pct"]), m["price"]))
