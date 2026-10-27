@@ -45,6 +45,8 @@ def run(dry=False, jid="1051"):
         login_futbolfantasy(pg)
         links, players = copa_players(pg)
         report.append(f"Partits llegits: {len(links)}, jugadors: {len(players)}")
+        print("::notice title=links::" + " | ".join(links[:40]))
+        print("::notice title=players::" + " | ".join(f"{q['name']} {q['pct']} {'S' if q['suplente'] else ''} {q['lesion']}" for q in players[:60]))
         # posició i equip de cada jugador al selector del joc
         pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
         inject(pg, "ff")
