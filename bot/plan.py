@@ -90,6 +90,12 @@ def plan(now=None, done=None):
     k = f"mister:{local.date()}"
     if due(k, mister_t, mister_t + dt.timedelta(hours=12)):
         add(k, mister_t, "mister", None, mister_t + dt.timedelta(hours=12))
+    # Mister: ofertes pels jugadors en venda (arriben a les 17:00 i a les 5:00)
+    for hh in (5, 17):
+        off_t = local.replace(hour=hh, minute=10, second=0, microsecond=0).astimezone(UTC)
+        k = f"misteroff:{local.date()}:{hh}"
+        if due(k, off_t, off_t + dt.timedelta(hours=10)):
+            add(k, off_t, "misteroff", None, off_t + dt.timedelta(hours=10))
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))

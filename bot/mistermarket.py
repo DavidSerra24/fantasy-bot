@@ -90,11 +90,44 @@ def sell(pg, pid):
     return ok
 
 
+def league_data(b, pg, spg, cid, country, league, report, cache):
+    """Saldo, plantilla i mercat lliure d'una lliga, amb el % de titularitat de la font que toca."""
+    pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
+    bal = balance(pg) or 0
+    sidata = si_next(spg, country, league)
+    squad = read_squad(pg)
+    have, cap = squad_slots(pg)
+    market = [m for m in read_free_market(pg) if m["href"] and m["pid"]]
+    team_slugs(pg, squad + market)
+    enrich(squad, sidata); enrich(market, sidata)
+    if league == "Primera División":  # Fentaniños: el % de FutbolFantasy (alineacions probables / Mis equipos)
+        if cache.get('ffp') is None:
+            fpage = new_context(b, "futbolfantasy").new_page(); login_futbolfantasy(fpage)
+            cache['ffp'] = sources.ff_probs(fpage)
+        sources.assign(squad + market, cache['ffp'], "ff")
+        for q in squad + market:
+            q["pct"] = q["ff"]["pct"] if q["ff"] else None
+            q["src"] = "FF"
+    else:  # Quique: SorareInside i, si l'equip no hi és, Jornada Perfecta (si surt a l'onze, compta com a titular)
+        if any(q["pct"] is None for q in market):
+            if cache.get('jp') is None:
+                try:
+                    cache['jp'] = sources.jp_starters(new_context(b, "jp").new_page())
+                except Exception as e:
+                    cache['jp'] = []; report.append(f"⚠️ Jornada Perfecta: {type(e).__name__}")
+            nodata = [q for q in market if q["pct"] is None]
+            sources.assign(nodata, cache['jp'], "jp")
+            for q in nodata:
+                if q["jp"]:
+                    q["pct"], q["src"] = 70, "JP"
+    return bal, squad, market, have, cap
+
+
 def run(dry=False, retira=()):
     report = []
     done = load_json("mister_bids.json", {})
     sold = load_json("mister_sales.json", {})
-    ffp = jp = None
+    cache = {}
     with sync_playwright() as p:
         b = p.chromium.launch()
         sctx = new_context(b, "sorareinside"); spg = sctx.new_page(); login_sorareinside(spg); save_session(sctx, "sorareinside")
@@ -102,34 +135,7 @@ def run(dry=False, retira=()):
         login(pg)
         for name, cid, (country, league), minimum in LEAGUES:
             try:
-                pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
-                bal = balance(pg) or 0
-                sidata = si_next(spg, country, league)
-                squad = read_squad(pg)
-                have, cap = squad_slots(pg)
-                market = [m for m in read_free_market(pg) if m["href"] and m["pid"]]
-                team_slugs(pg, squad + market)
-                enrich(squad, sidata); enrich(market, sidata)
-                if league == "Primera División":  # Fentaniños: el % de FutbolFantasy (alineacions probables / Mis equipos)
-                    if ffp is None:
-                        fpage = new_context(b, "futbolfantasy").new_page(); login_futbolfantasy(fpage)
-                        ffp = sources.ff_probs(fpage)
-                    sources.assign(squad + market, ffp, "ff")
-                    for q in squad + market:
-                        q["pct"] = q["ff"]["pct"] if q["ff"] else None
-                        q["src"] = "FF"
-                else:  # Quique: SorareInside i, si l'equip no hi és, Jornada Perfecta (si surt a l'onze, compta com a titular)
-                    if any(q["pct"] is None for q in market):
-                        if jp is None:
-                            try:
-                                jp = sources.jp_starters(new_context(b, "jp").new_page())
-                            except Exception as e:
-                                jp = []; report.append(f"⚠️ Jornada Perfecta: {type(e).__name__}")
-                        nodata = [q for q in market if q["pct"] is None]
-                        sources.assign(nodata, jp, "jp")
-                        for q in nodata:
-                            if q["jp"]:
-                                q["pct"], q["src"] = 70, "JP"
+                bal, squad, market, have, cap = league_data(b, pg, spg, cid, country, league, report, cache)
                 # Vendes: per sota del mínim de titularitat, sense deixar la plantilla sense onze possible
                 keep = [q for q in squad if not q["onsale"] and f"{cid}:{q['pid']}" not in sold]
                 sales, nosale = [], []

@@ -27,6 +27,7 @@ for a in acts:
     what = {"p11": f"Predicted11 {names.get(a['comp'], a['comp'])}" + (" (última revisió)" if "final" in a.get("key", "") else " (matí)"),
             "ff": "Fantasy de FutbolFantasy (matí: omplir i revisar els jocs oberts, ítems i extres del dia)",
             "mister": "Mister: pujes al mercat",
+            "misteroff": "Mister: ofertes dels jugadors en venda",
             "fffinal": f"revisió final del Fantasy {names.get(a['comp'], a['comp'])} (onzes oficials)"}[a["do"]]
     telegram(f"▶️ Començo: {what}")
     try:
@@ -34,6 +35,9 @@ for a in acts:
             p11.run([a["comp"]], force=False, max_hours=99)
         elif a["do"] == "ff":
             ff.run(max_hours=24 * 8, extras_hours=20)
+        elif a["do"] == "misteroff":
+            from bot import misteroffers
+            misteroffers.run()
         elif a["do"] == "mister":
             from bot import mistermarket
             mistermarket.run()

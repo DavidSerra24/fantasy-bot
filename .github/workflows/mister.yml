@@ -2,6 +2,9 @@ name: Mister (manual)
 on:
   workflow_dispatch:
     inputs:
+      modul:
+        description: "bot.mistermarket o bot.misteroffers"
+        default: "bot.mistermarket"
       args:
         description: "Opcions (p. ex. --dry)"
         default: ""
@@ -34,7 +37,7 @@ jobs:
             !state/session_*.json
           key: state-${{ github.run_id }}
           restore-keys: state-
-      - run: python -m bot.mistermarket ${{ github.event.inputs.args }}
+      - run: python -m ${{ github.event.inputs.modul }} ${{ github.event.inputs.args }}
       - uses: actions/cache/save@v4
         if: always()
         with:
