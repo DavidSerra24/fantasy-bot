@@ -31,6 +31,7 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - **Empats de PS: el que surti primer a la llista de punts projectats. El % NO compta.**
 - Ítems: fer clic a l'ítem, veure a qui es pot assignar i posar-lo a l'elegible amb més PS.
 - Especials de partit: els N jugadors amb més PS (≥80%) dels dos equips.
+- Extra de gols de Copa del Rey (`bot/copa.py`, manual: `debug.yml` amb `bot.copa [--joc ID]`): un davanter per equip, el de l'onze probable de FutbolFantasy (`/copa-del-rey/posibles-alineaciones`; a la Copa no hi ha %, s'agafa el primer davanter titular).
 
 ## Sorare Set (mode gratuït; en preparació, encara no automatitzat)
 - Obre sobres cada dia. Dos taulers: el **personal** i el **d'equip** (amb 9 persones més, cal arribar a uns punts per avançar).
