@@ -145,9 +145,12 @@ def run(dry=False):
                         nosale.append(f"{q['short']} (error en posar-lo a la venda)")
                 free = (cap - have) if have is not None else 3
                 # Pujes que el bot ja havia fet: si el jugador ja no compleix el mínim (o el bot l'havia confós), es retiren
-                gone = []
+                gone, kept = [], []
                 for m in [m for m in market if m["mine"] and f"{cid}:{m['pid']}" in done]:
-                    if m["pct"] is None or m["pct"] < minimum:
+                    src = m.get("si") or m.get("ff") or m.get("jp") or {}
+                    if m["pct"] is not None and m["pct"] >= minimum:
+                        kept.append(f"{m['short']} = {src.get('name')} ({str(src.get('key', '')).split('/')[-1][:25]}, {m['pct']}%)")
+                    else:
                         if dry or withdraw(pg, m["pid"]):
                             gone.append(m["short"]); done.pop(f"{cid}:{m['pid']}", None)
                 cands = sorted([m for m in market if m["pct"] is not None and m["pct"] >= minimum and not m["mine"]
@@ -176,6 +179,8 @@ def run(dry=False):
                 line += ("pujaria per " if dry else "pujes: ") + (", ".join(f"{m['short']} ({m['P']}, {m['pct']}%{' JP' if m.get('src') == 'JP' else ''}, {m['price']/1e6:.2f}M)" for m in placed) or "cap")
                 if skipped:
                     line += " | no: " + ", ".join(skipped[:6])
+                if kept:
+                    line += " | pujes que mantinc: " + ", ".join(kept)
                 if gone:
                     line += " | " + ("retiraria" if dry else "pujes retirades") + ": " + ", ".join(gone)
                 line += " | " + ("vendria: " if dry else "en venda: ") + (", ".join(f"{q['short']} ({q['pct']}%)" for q in sales) or "cap")
