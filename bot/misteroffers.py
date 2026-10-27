@@ -19,7 +19,7 @@ from bot.notify import telegram
 from bot.web import login_sorareinside, new_context, save_session
 
 ACCEPT = re.compile(r"^\s*(acceptar|aceptar)(\s+oferta)?\s*$", re.I)
-REMOVE = re.compile(r"retirar|treure|quitar|cancel", re.I)
+REMOVE = re.compile(r"^\s*(eliminar|retirar)\s*$", re.I)  # finestra de venda: «Eliminar» (#btn-send)
 LOG = []
 
 BUTTONS = """(root) => [...(root || document).querySelectorAll('button, a.btn')].filter(e => e.offsetParent !== null).map(e => ({
