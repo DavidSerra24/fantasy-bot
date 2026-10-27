@@ -13,8 +13,8 @@ from bot.web import login_futbolfantasy, new_context
 
 URL = "https://www.futbolfantasy.com/seguimiento/laliga/1"
 
-LIST = """() => { const seen = {}; return [...document.querySelectorAll('a.juggador')].map(a => ({
-    n: (a.innerText.split('\\n')[0] || '').trim(), id: ((a.getAttribute('onclick') || '').match(/jugador_seleccionado = (\\d+)/) || [])[1] }))
+LIST = """() => { const seen = {}; return [...document.querySelectorAll('a.juggador')].sort((a, b) => (b.offsetParent !== null) - (a.offsetParent !== null)).map(a => ({
+    n: (a.innerText.trim().split(/\\n|\\s{2,}|🕘/)[0] || '').trim(), id: ((a.getAttribute('onclick') || '').match(/jugador_seleccionado = (\\d+)/) || [])[1] }))
     .filter(x => x.id && !seen[x.id] && (seen[x.id] = 1)); }"""
 
 
