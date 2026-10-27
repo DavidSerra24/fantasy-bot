@@ -128,6 +128,7 @@ def run(dry=False, retira=()):
     done = load_json("mister_bids.json", {})
     sold = load_json("mister_sales.json", {})
     cache = {}
+    fent_squad = None
     with sync_playwright() as p:
         b = p.chromium.launch()
         sctx = new_context(b, "sorareinside"); spg = sctx.new_page(); login_sorareinside(spg); save_session(sctx, "sorareinside")
@@ -136,6 +137,8 @@ def run(dry=False, retira=()):
         for name, cid, (country, league), minimum in LEAGUES:
             try:
                 bal, squad, market, have, cap = league_data(b, pg, spg, cid, country, league, report, cache)
+                if league == "Primera División":
+                    fent_squad = squad
                 # Vendes: per sota del mínim de titularitat, sense deixar la plantilla sense onze possible
                 keep = [q for q in squad if not q["onsale"] and f"{cid}:{q['pid']}" not in sold]
                 sales, nosale = [], []
@@ -199,6 +202,12 @@ def run(dry=False, retira=()):
                 report.append(line)
             except Exception as e:
                 report.append(f"❌ Mister · {name}: {type(e).__name__}: {str(e)[:200]}")
+        if fent_squad:  # "Mis equipos" de FutbolFantasy = plantilla de Fentaniños
+            try:
+                from bot import misterff
+                report.append(misterff.sync(b, fent_squad, dry))
+            except Exception as e:
+                report.append(f"❌ Mis equipos: {type(e).__name__}: {str(e)[:200]}")
         save_json("mister_sales.json", {k: v for k, v in sold.items() if v >= (dt.date.today() - dt.timedelta(days=2)).isoformat()})
         save_json("mister_bids.json", {k: v for k, v in done.items() if v >= (dt.date.today() - dt.timedelta(days=3)).isoformat()})
         b.close()
