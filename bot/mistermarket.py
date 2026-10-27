@@ -148,9 +148,9 @@ def run(dry=False, retira=()):
                 free = (cap - have) if have is not None else 3
                 # Pujes que el bot ja havia fet: si el jugador ja no compleix el mínim (o el bot l'havia confós), es retiren
                 gone, kept = [], []
-                for m in [m for m in market if m["mine"] and (f"{cid}:{m['pid']}" in done or m["short"] in retira)]:
+                for m in [m for m in market if m["mine"] and (f"{cid}:{m['pid']}" in done or m["short"].replace(" ", "") in retira)]:
                     src = m.get("si") or m.get("ff") or m.get("jp") or {}
-                    if m["pct"] is not None and m["pct"] >= minimum and m["short"] not in retira:
+                    if m["pct"] is not None and m["pct"] >= minimum and m["short"].replace(" ", "") not in retira:
                         kept.append(f"{m['short']} = {src.get('name')} ({str(src.get('key', '')).split('/')[-1][:25]}, {m['pct']}%)")
                     else:
                         if dry:
@@ -208,4 +208,4 @@ if __name__ == "__main__":
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--retira", default="", help="pujes meves a retirar sí o sí (noms curts separats per comes)")
     a = ap.parse_args()
-    run(a.dry, tuple(x.strip() for x in a.retira.split(",") if x.strip()))
+    run(a.dry, tuple(x.replace(" ", "") for x in a.retira.split(",") if x.strip()))
