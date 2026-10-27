@@ -64,7 +64,16 @@ def run(dry=False, jid="1051"):
         # posició i equip de cada jugador al selector del joc
         pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
         inject(pg, "ff")
-        ff.open_picker(pg, jid)
+        cards0 = ff.cards(pg)
+        me = next((c for c in cards0 if c["id"] == jid), None)
+        look = jid
+        if not me or not me["empty"]:  # joc ple (revisió): es busca amb el selector d'un altre joc de LaLiga amb places lliures
+            look = next((c["id"] for c in cards0 if c["empty"] and re.search(r"Trío|revulsivo|antagonista", c["label"] + c["title"], re.I)), None)
+            if not look:
+                raise RuntimeError("no hi ha cap joc amb places lliures per buscar jugadors")
+            pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
+            inject(pg, "ff")
+        ff.open_picker(pg, look)
         cands = []
         for q in sorted([q for q in players if not q["suplente"] and str(q["lesion"]) in ("-1", "", "None")],
                         key=lambda q: (-q["pct"], q["idx"])):
