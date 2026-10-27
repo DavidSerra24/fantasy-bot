@@ -69,6 +69,32 @@ def match(sidata, full):
     return best if bs >= 60 else None
 
 
+TEAMS = {}  # id d'equip del Mister → slug (p. ex. 505 → 'mallorca'); es desa a state/mister_teams.json
+
+
+def team_slugs(pg, players):
+    """Omple p['team'] (slug de l'equip) a partir de l'id del logo; per als ids nous mira la fitxa d'un jugador."""
+    from bot.web import load_json, save_json
+    if not TEAMS:
+        TEAMS.update(load_json("mister_teams.json", {}))
+    new = False
+    for p in players:
+        tid = p.get("tid")
+        if tid and tid not in TEAMS and p.get("href"):
+            try:
+                pg.goto(U + "/" + p["href"], wait_until="domcontentloaded"); pg.wait_for_timeout(1500)
+                h = pg.evaluate("() => { const a = document.querySelector('a[href*=teams]'); return a ? a.getAttribute('href') : ''; }")
+                m = re.search(r"teams/(\d+)/([\w-]+)", h or "")
+                if m:
+                    TEAMS[m.group(1)] = m.group(2); new = True
+            except Exception:
+                pass
+        p["team"] = TEAMS.get(tid)
+    if new:
+        save_json("mister_teams.json", TEAMS)
+    return players
+
+
 def enrich(players, sidata):
     from bot.sources import assign, si_entries
     for p in players:

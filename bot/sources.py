@@ -48,25 +48,33 @@ def si_entries(sidata):
     return out
 
 
+STOP = {"real", "club", "deportivo", "sporting", "union", "athletic", "atletico", "cd", "cf", "ud", "sd", "fc", "rcd", "ca"}
+
+
+def team_ok(slug, key):
+    """L'equip del Mister (slug, p. ex. 'real-valladolid') correspon a la clau de la font?
+    La clau és el nom de l'equip (SorareInside) o l'URL del partit (Jornada Perfecta / FutbolFantasy)."""
+    from bot.ff import team_score
+    if not slug or not key:
+        return False
+    if "/" in key:  # URL del partit: el slug ha d'aparèixer a l'últim tros
+        last = key.rstrip("/").split("/")[-1]
+        toks = [t for t in slug.split("-") if len(t) >= 4 and t not in STOP] or [t for t in slug.split("-") if len(t) >= 3]
+        return any(t in last.split("-") for t in toks)
+    return team_score(key, slug.replace("-", " ")) > 0
+
+
 def assign(players, entries, field="src"):
-    """Relaciona cada jugador del Mister (name, tid = id d'equip del Mister) amb una entrada de la font.
-    1) Coincidències de nom exactes i úniques → cada tid "vota" la clau (equip/partit) de la font.
-    2) Només s'accepta una coincidència si la clau és la que ha votat el seu equip; si l'equip no té vot,
-       només s'accepta un nom exacte i únic. Així no es confon David López (Girona) amb el del Mallorca."""
-    from collections import Counter
-    votes = {}
+    """Relaciona cada jugador del Mister (name, team = slug de l'equip al Mister) amb una entrada de la font,
+    només dins del seu equip. Així no es confon David López (Girona) amb el del Mallorca.
+    Si no se sap l'equip, només s'accepta un nom exacte i únic."""
     for p in players:
-        exact = [e for e in entries if name_score(p["name"], e["name"]) == 100]
-        if len({e["key"] for e in exact}) == 1 and p.get("tid"):
-            votes.setdefault(p["tid"], Counter())[exact[0]["key"]] += 1
-    team_key = {t: c.most_common(1)[0][0] for t, c in votes.items()}
-    for p in players:
-        key = team_key.get(p.get("tid"))
-        pool = [e for e in entries if e["key"] == key] if key else entries
+        slug = p.get("team")
+        pool = [e for e in entries if team_ok(slug, e["key"])] if slug else entries
         n = best_name(p["name"], [e["name"] for e in pool])
         cand = [e for e in pool if e["name"] == n] if n else []
-        if not key and not (len(cand) == 1 and name_score(p["name"], n) == 100):
-            cand = []  # sense equip conegut: només nom exacte i únic
+        if not slug and not (len(cand) == 1 and name_score(p["name"], n) == 100):
+            cand = []
         p[field] = cand[0] if cand else None
     return players
 

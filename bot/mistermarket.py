@@ -13,7 +13,7 @@ from playwright.sync_api import sync_playwright
 
 from bot import si
 from bot.mister import U, login, new_context as mister_context
-from bot.misterplan import LEAGUES, TACTICS, band, balance, enrich, read_squad
+from bot.misterplan import LEAGUES, TACTICS, band, balance, enrich, read_squad, team_slugs
 from bot.notify import telegram
 from bot.web import load_json, login_futbolfantasy, login_sorareinside, new_context, save_json, save_session
 from bot import sources
@@ -90,7 +90,7 @@ def sell(pg, pid):
     return ok
 
 
-def run(dry=False):
+def run(dry=False, retira=()):
     report = []
     done = load_json("mister_bids.json", {})
     sold = load_json("mister_sales.json", {})
@@ -105,9 +105,11 @@ def run(dry=False):
                 pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
                 bal = balance(pg) or 0
                 sidata = si_next(spg, country, league)
-                squad = enrich(read_squad(pg), sidata)
+                squad = read_squad(pg)
                 have, cap = squad_slots(pg)
-                market = enrich([m for m in read_free_market(pg) if m["href"] and m["pid"]], sidata)
+                market = [m for m in read_free_market(pg) if m["href"] and m["pid"]]
+                team_slugs(pg, squad + market)
+                enrich(squad, sidata); enrich(market, sidata)
                 if league == "Primera División":  # Fentaniños: el % de FutbolFantasy (alineacions probables / Mis equipos)
                     if ffp is None:
                         fpage = new_context(b, "futbolfantasy").new_page(); login_futbolfantasy(fpage)
@@ -146,9 +148,9 @@ def run(dry=False):
                 free = (cap - have) if have is not None else 3
                 # Pujes que el bot ja havia fet: si el jugador ja no compleix el mínim (o el bot l'havia confós), es retiren
                 gone, kept = [], []
-                for m in [m for m in market if m["mine"] and f"{cid}:{m['pid']}" in done]:
+                for m in [m for m in market if m["mine"] and (f"{cid}:{m['pid']}" in done or m["short"] in retira)]:
                     src = m.get("si") or m.get("ff") or m.get("jp") or {}
-                    if m["pct"] is not None and m["pct"] >= minimum:
+                    if m["pct"] is not None and m["pct"] >= minimum and m["short"] not in retira:
                         kept.append(f"{m['short']} = {src.get('name')} ({str(src.get('key', '')).split('/')[-1][:25]}, {m['pct']}%)")
                     else:
                         if dry:
@@ -204,4 +206,6 @@ def run(dry=False):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry", action="store_true")
-    run(ap.parse_args().dry)
+    ap.add_argument("--retira", default="", help="pujes meves a retirar sí o sí (noms curts separats per comes)")
+    a = ap.parse_args()
+    run(a.dry, tuple(x.strip() for x in a.retira.split(",") if x.strip()))
