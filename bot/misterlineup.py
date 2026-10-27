@@ -35,9 +35,7 @@ def best_lineup(squad):
         for q in order:
             if need.get(q["P"], 0):
                 pick.append(q); need[q["P"]] -= 1
-        if any(need.values()):
-            continue
-        key = (-sum(q["onsale"] for q in pick), -sum(band(q["xpct"]) for q in pick), sum(q["xps"] or 0 for q in pick))
+        key = (-sum(need.values()), -sum(q["onsale"] for q in pick), -sum(band(q["xpct"]) for q in pick), sum(q["xps"] or 0 for q in pick))
         if best is None or key > best[0]:
             best = (key, tac, pick)
     if not best:
@@ -102,12 +100,13 @@ def set_captain(pg, url, slot):
 def apply(pg, squad, dry=False):
     """Posa l'onze i el capità. Retorna una línia de resum."""
     res = best_lineup(squad)
-    if not res:
-        return "⚠️ no surt cap onze vàlid amb la plantilla"
     tac, pick, cap = res
+    gaps = 11 - len(pick)
     o = {"G": 0, "D": 1, "M": 2, "F": 3}
     desc = f"{tac}: " + ", ".join(f"{q['short']}{' ©' if q is cap else ''} ({q['xpct'] if q['xpct'] is not None else '?'}%/{q['xps'] if q['xps'] is not None else '-'})"
                                   for q in sorted(pick, key=lambda q: o[q["P"]]))
+    if gaps:
+        desc += f" | ⚠️ falten {gaps} jugadors per completar l'onze"
     url = open_next(pg)
     if not url:
         return "⏸️ la jornada ja ha començat (no es pot canviar) · volia " + desc

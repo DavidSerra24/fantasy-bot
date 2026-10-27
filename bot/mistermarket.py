@@ -44,11 +44,20 @@ def squad_slots(pg):
     return (int(m.group(1)), int(m.group(2))) if m else (None, None)
 
 
-def bid(pg, pid):
-    """Obre la finestra de puja i envia el preu mínim. Retorna (ok, màxim permès)."""
+def bid(pg, pid, amount=None):
+    """Obre la finestra de puja i envia el preu mínim (o `amount`, si es dona). Retorna (ok, màxim permès)."""
     pg.locator(f'li[data-owner="0"] button.btn-bid[data-id_player="{pid}"]').first.click()
     pg.locator("#form-bid").wait_for(timeout=10000)
     mx = pg.evaluate("() => +document.getElementById('input-range')?.max || null")
+    if amount:
+        amount = int(min(amount, mx or amount))
+        pg.evaluate("""(v) => { const r = document.getElementById('input-range'); r.value = v;
+            r.dispatchEvent(new Event('input', {bubbles: true})); r.dispatchEvent(new Event('change', {bubbles: true})); }""", amount)
+        pg.wait_for_timeout(500)
+        got = int(re.sub(r"[^0-9]", "", pg.input_value("#input-tel")) or 0)
+        if abs(got - amount) > max(20000, amount * 0.02):
+            pg.keyboard.press("Escape")
+            raise RuntimeError(f"la puja no ha quedat a {amount} (surt {got})")
     pg.locator("#btn-send").click()
     pg.wait_for_timeout(2500)
     ok = not pg.locator("#form-bid").is_visible()
@@ -68,6 +77,18 @@ def withdraw(pg, pid):
     if not ok:
         pg.keyboard.press("Escape")
     return ok
+
+
+def shortage(squad):
+    """Jugadors que falten per posició per poder fer l'onze amb la tàctica que en necessiti menys ({} si en sobren)."""
+    n = {k: sum(1 for p in squad if p["P"] == k) for k in "GDMF"}
+    best = None
+    for t in TACTICS:
+        d, m, f = map(int, t.split("-"))
+        miss = {k: max(0, v - n[k]) for k, v in {"G": 1, "D": d, "M": m, "F": f}.items()}
+        if best is None or sum(miss.values()) < sum(best.values()):
+            best = miss
+    return {k: v for k, v in best.items() if v}
 
 
 def can_field(squad):
@@ -92,6 +113,7 @@ def sell(pg, pid):
 
 
 COMP = {"Quique": "laliga2", "Fentaniños": "laliga"}
+URGENT_X = 1.5  # puja urgent a l'última ocasió: preu mínim × 1,5 (sense entrar en negatiu)
 MADRID = ZoneInfo("Europe/Madrid")
 
 
@@ -213,13 +235,51 @@ def run(dry=False, retira=()):
                 gone, kept = [], []
                 for m in [m for m in market if m["mine"] and (f"{cid}:{m['pid']}" in done or m["short"].replace(" ", "") in retira)]:
                     src = m.get("si") or m.get("ff") or m.get("jp") or {}
-                    if m["pct"] is not None and m["pct"] >= minimum and m["short"].replace(" ", "") not in retira:
+                    if f"{cid}:{m['pid']}" in load_json("mister_urgent.json", {}) and m["short"].replace(" ", "") not in retira:
+                        kept.append(f"{m['short']} (urgent, per completar l'onze)")
+                    elif m["pct"] is not None and m["pct"] >= minimum and m["short"].replace(" ", "") not in retira:
                         kept.append(f"{m['short']} = {src.get('name')} ({str(src.get('key', '')).split('/')[-1][:25]}, {m['pct']}%)")
                     else:
                         if dry:
                             gone.append(m["short"])
                         elif withdraw(pg, m["pid"]):
                             gone.append(m["short"]); done.pop(f"{cid}:{m['pid']}", None)
+                # Si amb la plantilla (sense els que estan en venda) i les pujes pendents no surt l'onze, es puja per jugadors
+                # de les posicions que falten encara que no arribin al mínim. A l'última ocasió abans de la jornada, fort.
+                urgent_done = load_json("mister_urgent.json", {})
+                team = keep + [m for m in market if m["mine"]]
+                short = shortage(team)
+                urgent, uplaced = [], []
+                for P, k in short.items():
+                    pool = sorted([m for m in market if m["P"] == P and not m["mine"]],
+                                  key=lambda m: (band(m["pct"]), -(m["pct"] or 0), m["price"]))
+                    urgent += pool[:k]
+                ulimit = max(0, projected) if early else None
+                for m in urgent:
+                    amount = None
+                    if early:
+                        amount = min(m["price"] * URGENT_X, ulimit)
+                        if amount < m["price"]:
+                            skipped_u = f"{m['short']} (sense diners per a la puja urgent)"
+                            uplaced.append(skipped_u); continue
+                        ulimit -= amount
+                    if dry:
+                        uplaced.append(f"{m['short']} ({m['P']}, {m['pct'] if m['pct'] is not None else '?'}%, {(amount or m['price'])/1e6:.2f}M)")
+                        continue
+                    try:
+                        pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
+                        ok, mx = bid(pg, m["pid"], amount)
+                    except Exception as e:
+                        ok = False; uplaced.append(f"{m['short']} (error: {str(e)[:60]})"); continue
+                    if ok:
+                        m["mine"] = True
+                        uplaced.append(f"{m['short']} ({m['P']}, {m['pct'] if m['pct'] is not None else '?'}%, {(amount or m['price'])/1e6:.2f}M)")
+                        done[f"{cid}:{m['pid']}"] = dt.date.today().isoformat()
+                        urgent_done[f"{cid}:{m['pid']}"] = dt.date.today().isoformat()
+                if not dry:
+                    save_json("mister_urgent.json", {k: v for k, v in urgent_done.items() if v >= (dt.date.today() - dt.timedelta(days=3)).isoformat()})
+                if early and not dry:
+                    projected -= sum(m["price"] for m in urgent if m["mine"])
                 cands = sorted([m for m in market if m["pct"] is not None and m["pct"] >= minimum and not m["mine"]
                                 and f"{cid}:{m['pid']}" not in done], key=lambda m: (band(m["pct"]), m["price"]))
                 placed, skipped, limit, spent = [], [], None, 0
@@ -246,6 +306,8 @@ def run(dry=False, retira=()):
                         skipped.append(f"{m['short']} (error en pujar)")
                 line = f"🧢 {name} (saldo {bal/1e6:.1f}M, plantilla {have}/{cap}): "
                 line += ("pujaria per " if dry else "pujes: ") + (", ".join(f"{m['short']} ({m['P']}, {m['pct']}%{' JP' if m.get('src') == 'JP' else ''}, {m['price']/1e6:.2f}M)" for m in placed) or "cap")
+                if short:
+                    line += " | ⚠️ falten per fer l'onze: " + ", ".join(f"{k} {v}" for k, v in short.items()) + " → " + ("pujaria per " if dry else "pujes urgents: ") + (", ".join(uplaced) or "cap disponible")
                 if skipped:
                     line += " | no: " + ", ".join(skipped[:6])
                 if kept:
