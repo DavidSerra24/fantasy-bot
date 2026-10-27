@@ -43,7 +43,7 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - **Tauler d'equip**: filtre "Average score" (jugadors de tot el dia). Esperar els onzes del primer partit del dia; si no hi ha cap jugador a posar, esperar als següents partits i fer l'alineació quan toqui posar un titular.
 - Accés: el David entra amb Google + Authenticator. El bot no pot fer-ho sol; extreure la sessió des del navegador està bloquejat per seguretat. Pendent (25/10): investigar l'API oficial de Sorare (api.sorare.com/graphql). Alternativa: fer-ho des del navegador de l'app amb el PC engegat. El Set són les "series" (sorare.com/football/series/play; tauler d'equip a /series/squad).
 
-## Mister — en preparació
+## Mister (automàtic)
 - Dues lligues: **"Quique Carcel…"** (LaLiga 2) i **"Fentaniños"** (LaLiga).
 - Font del % de titularitat per al mercat:
   - LaLiga 2: SorareInside (Segunda División). Franges: 80–90% → 70% → 60%.
@@ -68,7 +68,12 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
   - Estat: informe (`bot/misterplan.py`) i **mercat automàtic** (`bot/mistermarket.py`, cada dia a les 6:00): vendes per sota del mínim (botó Gestionar → pestanya Vendre → `#btn-send`, preu mínim = valor) sense deixar la plantilla sense onze possible, i pujes pel preu mínim (`#form-bid` → `#btn-send` «Oferir»; el màxim permès és `#input-range[max]`; la meva puja = botó `.btn-bid.btn--accent`). Només jugadors lliures (owner 0).
   - Fonts: Fentaniños = % de FutbolFantasy (alineacions probables de la jornada, `bot/sources.ff_probs`; és la mateixa dada que "Mis equipos" → `/seguimiento/laliga/1`). Quique = SorareInside i, si l'equip no hi és, **Jornada Perfecta** (`/segunda/onces-posibles/`; si surt a l'onze probable compta com a 70%).
   - Relació de noms Mister ↔ font **sempre dins del mateix equip**: l'equip surt de la fitxa del jugador (`teams/<id>/<slug>`, desat a `state/mister_teams.json`); si no se sap l'equip, només nom exacte i únic. Cada dia es revisen les pujes del bot i es retiren («Eliminar») les que ja no compleixen. Workflow manual: `mister.yml` (`--dry`, `--retira=Nom`).
-  - Pendent: acceptar sempre l'oferta del Mister pels jugadors posats en venda (17:00 i 5:00), tornant a comprovar abans el %; sincronitzar la llista de "Mis equipos" quan es compra/ven; vendes del dia de la jornada per saldar el deute; alineació i capità.
+  - Ofertes (`bot/misteroffers.py`, 5:10 i 17:10): per a cada jugador en venda torna a mirar el %; si ara arriba al mínim, el treu de la venda (finestra de venda → «Eliminar» `#btn-send`); si no, accepta l'oferta **sempre, encara que el preu hagi variat**. Les vendes per saldar el deute (`state/mister_debt_sales.json`) s'accepten sempre. Encara no s'ha vist la pantalla d'una oferta real: si no troba un únic botó «Acceptar», avisa i desa el que veu a les anotacions.
+  - "Mis equipos" (`bot/misterff.py`, dins de la passada de les 6:00): afegeix/treu jugadors perquè coincideixi amb la plantilla de Fentaniños. Treure: `$('.once-actions .ls-unfollow').attr('data-jugador', id).click()`. Afegir: «Titular +» → `#seleccionar-respuesta-input` → `a.ls-follow[data-jugador]`. Si un nom és dubtós, no el toca.
+  - Deute (6:00): el dia del primer partit (o el dia abans si és abans de les 17:30) posa en venda de menys a més PS fins a saldo previst ≥ 0, més un de marge. Primer partit: `state/mister_kickoffs.json` (el desa `bot/plan.py`). Si les pujes es resolen (5:00) abans del primer partit, no se'n fan que deixin el saldo en negatiu.
+  - Posicions que falten per fer l'onze: pujes urgents per jugadors d'aquella posició encara que no arribin al mínim (no es retiren; `state/mister_urgent.json`). A l'última ocasió abans de la jornada, puja de preu mínim × 1,5 (`URGENT_X`) sense entrar en negatiu.
+  - Alineació (`bot/misterlineup.py`, 6:40 cada dia i 45 min abans del primer partit de cada lliga): `/team?gameweek=N` (la jornada «Comença en…»), formació `button[data-popup=formation]` → `button.btn-free[data-formation]` (mai `btn-credits`), casella `button.lineup-player[data-slot]` → `.sw-content .player[data-id_player][data-slot]`, capità `.sw-content input[data-captain-toggle]`. Per ordenar fa servir el % i el PS de SorareInside.
+  - Pendent: confirmar la pantalla de l'oferta real (primera: 27/10 17:10).
 
 ## Avisos d'onzes
 - Quan el David demana si un jugador és titular, programar la comprovació cap a 1 hora abans del partit (a X solen publicar-se 1h15 abans) i avisar amb una notificació.
