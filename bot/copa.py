@@ -94,19 +94,45 @@ def run(dry=False, jid="1051"):
         got = {c['url'] for c in pick}
         report.append("Sense davanter a l'onze probable: " + (", ".join(u.rstrip('/').split('-')[-1] for u in links if u not in got) or "cap"))
         report.append(f"Davanters ({len(pick)} equips): {names}")
+        if dry and pick:
+            card = next((c for c in ff.cards(pg) if c["id"] == jid), None)
+            names = load_json("copa_pick.json", {})
+            report.append("Canviaria: surten " + (", ".join(names.get(i, i) for i in card["ids"] if i not in {c["ffid"] for c in pick}) or "cap")
+                          + " | entren " + (", ".join(c["ff"] for c in pick if c["ffid"] not in set(card["ids"])) or "cap"))
         if not dry and pick:
             card = next((c for c in ff.cards(pg) if c["id"] == jid), None)
             have = set(card["ids"]) if card else set()
-            out_ids = have - {c["ffid"] for c in pick}
-            if out_ids:  # revisió: surten els que ja no són el davanter titular del seu equip
-                old = {i: n for i, n in load_json("copa_pick.json", {}).items()}
-                ff.remove_players(pg, jid, out_ids, report)
-                report.append("Canvis: surten " + ", ".join(old.get(i, i) for i in out_ids))
-            card = next((c for c in ff.cards(pg) if c["id"] == jid), None)
-            have = set(card["ids"]) if card else set()
+            out_ids = [i for i in card["ids"] if i not in {c["ffid"] for c in pick}] if card else []
             todo = [c for c in pick if c["ffid"] not in have]
-            if todo and out_ids:
-                report.append("entren " + ", ".join(c["ff"] for c in todo))
+            names = load_json("copa_pick.json", {})
+            if out_ids:  # revisió: es canvia directament a la casella (clic → buscador → nou jugador)
+                swaps = []
+                for oid, new in zip(out_ids, todo):
+                    pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
+                    inject(pg, "ff")
+                    cur = next(c for c in ff.cards(pg) if c["id"] == jid)
+                    slot = sorted(cur["slots"])[cur["ids"].index(oid)]
+                    ff.click(pg, f'#juego-{jid} a.fantasy-slot[data-posicion="{slot}"]')
+                    pg.locator(".modal.show").wait_for(timeout=10000); pg.wait_for_timeout(800)
+                    print("::notice title=slotmodal::" + pg.evaluate("() => document.querySelector('.modal.show').innerText.replace(/\\s+/g,' ').slice(0,400)"))
+                    if pg.locator(".modal.show input[type=text]").count():
+                        pg.evaluate("(q) => __ff.search(q)", new["ff"])
+                        item = pg.locator(".modal.show .sel-item:visible").filter(has=pg.locator(".sel-nombre", has_text=new["ff"])).first
+                        item.click()
+                        pg.wait_for_timeout(2000)
+                    else:
+                        q = pg.locator(".modal.show").get_by_text(re.compile("Quitar|Eliminar|Cambiar", re.I)).first
+                        q.click(); pg.wait_for_timeout(1500)
+                        if pg.locator(".modal.show input[type=text]").count():
+                            pg.evaluate("(q) => __ff.search(q)", new["ff"])
+                            pg.locator(".modal.show .sel-item:visible").filter(has=pg.locator(".sel-nombre", has_text=new["ff"])).first.click()
+                            pg.wait_for_timeout(2000)
+                    ff.close_modal(pg)
+                    swaps.append(f"{names.get(oid, oid)} → {new['ff']}")
+                report.append("Canvis: " + ", ".join(swaps))
+                card = next((c for c in ff.cards(pg) if c["id"] == jid), None)
+                have = set(card["ids"]) if card else set()
+                todo = [c for c in pick if c["ffid"] not in have]
             save_json("copa_pick.json", {c["ffid"]: c["ff"] for c in pick})
             pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
             inject(pg, "ff")
