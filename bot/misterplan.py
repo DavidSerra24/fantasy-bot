@@ -30,6 +30,7 @@ def read_squad(pg):
         const box = r.closest('li') || r.parentElement;
         return { href: a?.getAttribute('href'), short: r.querySelector('.name')?.innerText.trim(), pos: r.querySelector('.player-position')?.dataset.position,
                  pid: (a?.getAttribute('href') || '').split('/')[1],
+                 tid: ((r.querySelector('img.team-logo')?.getAttribute('src') || '').match(/teams[/]([0-9]+)/) || [])[1],
                  value: +(r.querySelector('.underName')?.innerText.replace(/[^0-9]/g, '') || 0),
                  onsale: /en venda|en venta|a la venda/i.test(box?.innerText || ''),
                  loaned: /cedit/i.test(box?.innerText || '') }; }).filter(p => p.href)""")
@@ -69,13 +70,16 @@ def match(sidata, full):
 
 
 def enrich(players, sidata):
+    from bot.sources import assign, si_entries
     for p in players:
         p["name"] = full_name(p["href"])
         p["short"] = re.sub(r"[^\w .'-]", "", p.get("short") or "").strip()
         p["P"] = POS.get(str(p["pos"]), "?")
-        d = match(sidata, p["name"])
-        p["pct"] = (d or {}).get("pct")
-        p["ps"] = (d or {}).get("ps")
+    assign(players, si_entries(sidata), "si")
+    for p in players:
+        p["pct"] = (p["si"] or {}).get("pct")
+        p["ps"] = (p["si"] or {}).get("ps")
+        p["src"] = "SI" if p["si"] else None
     return players
 
 

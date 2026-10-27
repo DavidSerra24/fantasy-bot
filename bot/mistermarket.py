@@ -33,6 +33,7 @@ def read_free_market(pg):
     return pg.evaluate("""() => [...document.querySelectorAll('li[data-owner="0"]')].map(li => ({
         pos: li.dataset.position, price: +li.dataset.price, pid: li.querySelector('[data-id_player]')?.dataset.id_player,
         href: li.querySelector('a.player')?.getAttribute('href'), short: li.querySelector('.name')?.innerText.trim(),
+        tid: ((li.querySelector('img.team-logo')?.getAttribute('src') || '').match(/teams[/]([0-9]+)/) || [])[1],
         mine: !!li.querySelector(".btn-bid.btn--accent") }))""")  # botó verd = ja hi tinc una puja
 
 
@@ -98,9 +99,9 @@ def run(dry=False):
                     if ffp is None:
                         fpage = new_context(b, "futbolfantasy").new_page(); login_futbolfantasy(fpage)
                         ffp = sources.ff_probs(fpage)
+                    sources.assign(squad + market, ffp, "ff")
                     for q in squad + market:
-                        n = sources.best_name(q["name"], ffp.keys())
-                        q["pct"] = ffp[n] if n else None
+                        q["pct"] = q["ff"]["pct"] if q["ff"] else None
                         q["src"] = "FF"
                 else:  # Quique: SorareInside i, si l'equip no hi és, Jornada Perfecta (si surt a l'onze, compta com a titular)
                     if any(q["pct"] is None for q in market):
@@ -108,9 +109,11 @@ def run(dry=False):
                             try:
                                 jp = sources.jp_starters(new_context(b, "jp").new_page())
                             except Exception as e:
-                                jp = set(); report.append(f"⚠️ Jornada Perfecta: {type(e).__name__}")
-                        for q in market:
-                            if q["pct"] is None and sources.best_name(q["name"], jp):
+                                jp = []; report.append(f"⚠️ Jornada Perfecta: {type(e).__name__}")
+                        nodata = [q for q in market if q["pct"] is None]
+                        sources.assign(nodata, jp, "jp")
+                        for q in nodata:
+                            if q["jp"]:
                                 q["pct"], q["src"] = 70, "JP"
                 # Vendes: per sota del mínim de titularitat, sense deixar la plantilla sense onze possible
                 keep = [q for q in squad if not q["onsale"] and f"{cid}:{q['pid']}" not in sold]
