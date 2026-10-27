@@ -11,13 +11,12 @@ with sync_playwright() as p:
     try:
         login_futbolfantasy(pg)
         pg.goto("https://www.futbolfantasy.com/seguimiento/laliga/1", wait_until="domcontentloaded"); pg.wait_for_timeout(4000)
-        LOG.append("PLAYERS: " + pg.evaluate("""() => [...document.querySelectorAll('a.juggador')].map(a => (a.innerText.trim()) + '=' + ((a.getAttribute('onclick')||'').match(/jugador_seleccionado = (\\d+)/)||[])[1] + '/' + (a.closest('[class*=pos-]')||a).className.toString().slice(0,60)).join(' | ')"""))
-        a = pg.locator("a.juggador").filter(has_text="Mario").first
-        a.evaluate("e => e.scrollIntoView({block:'center'})"); a.click(force=True); pg.wait_for_timeout(2500)
+        LOG.append("CLICK: " + str(pg.evaluate("""() => { const a=[...document.querySelectorAll('a.juggador')].find(a=>a.offsetParent!==null && a.innerText.trim().startsWith('Mario')); if(!a) return 'no'; a.click(); return 'ok'; }""")))
+        pg.wait_for_timeout(2500)
         LOG.append("PLAYER MODAL: " + pg.evaluate(MODAL))
         pg.keyboard.press("Escape"); pg.wait_for_timeout(1200)
-        s = pg.locator("a.select-option-link", has_text="Suplente").first
-        s.evaluate("e => e.scrollIntoView({block:'center'})"); s.click(force=True); pg.wait_for_timeout(2500)
+        pg.evaluate("""() => [...document.querySelectorAll('a.select-option-link')].find(a=>a.offsetParent!==null && /Suplente/.test(a.innerText)).click()""")
+        pg.wait_for_timeout(2500)
         LOG.append("ADD MODAL: " + pg.evaluate(MODAL))
         inp = pg.locator(".modal.show input[type=text], .modal.show input:not([type=hidden])").first
         inp.fill("Jutgla"); inp.dispatch_event("keyup"); pg.wait_for_timeout(2500)
