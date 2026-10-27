@@ -30,12 +30,21 @@ with sync_playwright() as p:
         LOG.append("URL " + pg.url)
         LOG.append("SLOTS: " + pg.evaluate("() => [...document.querySelectorAll('button.lineup-player')].map(e=>e.id+':'+(e.querySelector('.name')||{}).innerText+':'+e.dataset.position+':gw'+e.dataset.gwid+(e.disabled?':DIS':'')+(e.querySelector('.captain-badge')?':CAP':'')).join(' | ')"))
         LOG.append("CONTROLS: " + pg.evaluate("() => [...document.querySelectorAll('button,select,a.btn')].filter(e=>e.offsetParent!==null && !e.closest('.player-row') && !/lineup-player|btn-match/.test(e.className)).map(e=>e.tagName+'.'+e.className.toString().slice(0,50)+' «'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,25)+'» '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',').slice(0,120)).slice(0,45).join(' | ')"))
-        en = pg.locator("button.lineup-player:not([disabled])").first
-        if en.count():
-            en.click(); pg.wait_for_timeout(2500)
-            LOG.append("SLOT POPUP: " + pg.evaluate(VIS))
-            LOG.append("AFTER SLOT CLICK body: " + pg.inner_text("body")[:1200].replace("\n", " / "))
-            pg.keyboard.press("Escape"); pg.wait_for_timeout(1000)
+        reqs = []
+        pg.on("request", lambda r: reqs.append(r.method + " " + r.url.split("mundodeportivo.com")[-1] + " " + (r.post_data or "")[:200]) if "/ajax/" in r.url or "/api" in r.url else None)
+        pg.locator("#slot-7").click(); pg.wait_for_timeout(3000)
+        LOG.append("AFTER SLOT-7: " + pg.evaluate("() => [...document.querySelectorAll('button,a')].filter(e=>e.offsetParent!==null && /select|subst|change|swap|candidate|available/i.test(e.className+' '+Object.keys(e.dataset).join(' ')+' '+Object.values(e.dataset).join(' '))).map(e=>e.tagName+'.'+e.className.toString().slice(0,60)+' «'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,30)+'» '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',').slice(0,150)).slice(0,30).join(' | ')"))
+        LOG.append("POPUPS: " + pg.evaluate(VIS))
+        LOG.append("REQS: " + " || ".join(reqs[-8:]))
+        pg.keyboard.press("Escape"); pg.wait_for_timeout(1000)
+        pg.goto(U + "/team?gameweek=11", wait_until="domcontentloaded"); pg.wait_for_timeout(3500)
+        pg.locator("button[data-popup=formation]").click(); pg.wait_for_timeout(2500)
+        LOG.append("FORMATION: " + pg.evaluate(VIS))
+        LOG.append("REQS2: " + " || ".join(reqs[-5:]))
+        pg.keyboard.press("Escape"); pg.wait_for_timeout(1000)
+        pg.locator("button[data-popup=auto-lineup]").click(); pg.wait_for_timeout(2500)
+        LOG.append("AUTO: " + pg.evaluate(VIS))
+        pg.keyboard.press("Escape")
     except Exception:
         import traceback
         LOG.append("ERR: " + traceback.format_exc()[-1500:])
