@@ -8,6 +8,7 @@ que permet el Mister (saldo + negatiu permès) ni de les places lliures de la pl
 import argparse
 import datetime as dt
 import re
+from zoneinfo import ZoneInfo
 
 from playwright.sync_api import sync_playwright
 
@@ -90,6 +91,33 @@ def sell(pg, pid):
     return ok
 
 
+COMP = {"Quique": "laliga2", "Fentaniños": "laliga"}
+MADRID = ZoneInfo("Europe/Madrid")
+
+
+def kickoff(name):
+    """Primer partit de la propera jornada (el desa el planificador a partir de Predicted11/FutbolFantasy)."""
+    k = load_json("mister_kickoffs.json", {}).get(COMP.get(name))
+    t = dt.datetime.fromisoformat(k) if k else None
+    return t if t and t > dt.datetime.now(dt.timezone.utc) else None
+
+
+def next_resolution():
+    """Propera resolució del mercat (5:00 hora de Madrid)."""
+    now = dt.datetime.now(MADRID)
+    t = now.replace(hour=5, minute=0, second=0, microsecond=0)
+    return t if t > now else t + dt.timedelta(days=1)
+
+
+def debt_day(kick):
+    """Dia de vendre per saldar el deute: el dia del primer partit (si és a partir de les 17:30, per tenir l'oferta de
+    les 17:00) o el dia abans si el primer partit és abans de les 17:30."""
+    k = kick.astimezone(MADRID)
+    today = dt.datetime.now(MADRID).date()
+    late = (k.hour, k.minute) >= (17, 30)
+    return (k.date() == today and late) or (k.date() == today + dt.timedelta(days=1) and not late)
+
+
 def league_data(b, pg, spg, cid, country, league, report, cache):
     """Saldo, plantilla i mercat lliure d'una lliga, amb el % de titularitat de la font que toca."""
     pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
@@ -154,6 +182,29 @@ def run(dry=False, retira=()):
                             sold[f"{cid}:{q['pid']}"] = dt.date.today().isoformat()
                     else:
                         nosale.append(f"{q['short']} (error en posar-lo a la venda)")
+                # Dia de la jornada: el saldo no pot ser negatiu quan comença (0 punts). Les pujes es resolen a les 5:00;
+                # si la propera resolució és abans del primer partit, les pujes pendents també compten.
+                kick = kickoff(name)
+                early = bool(kick and next_resolution() < kick)  # les pujes d'avui es resolen abans de començar
+                onsale_val = sum(q["value"] for q in squad if q["onsale"]) + sum(q["value"] for q in sales)
+                bids_val = sum(m["price"] for m in market if m["mine"])
+                projected = bal + onsale_val - (bids_val if early else 0)
+                debt = []
+                if kick and debt_day(kick) and projected < 0:
+                    order = sorted([q for q in keep if not q["loaned"]], key=lambda q: (q["ps"] or 0, q["pct"] or 0))
+                    extra = 0
+                    for q in order:
+                        if projected >= 0:
+                            if extra:
+                                break
+                            extra = 1  # un jugador de marge
+                        rest = [x for x in keep if x is not q]
+                        if not can_field(rest):
+                            continue
+                        if dry or sell(pg, q["pid"]):
+                            debt.append(q); keep = rest; projected += q["value"]
+                            if not dry:
+                                sold[f"{cid}:{q['pid']}"] = dt.date.today().isoformat()
                 free = (cap - have) if have is not None else 3
                 # Pujes que el bot ja havia fet: si el jugador ja no compleix el mínim (o el bot l'havia confós), es retiren
                 gone, kept = [], []
@@ -169,6 +220,8 @@ def run(dry=False, retira=()):
                 cands = sorted([m for m in market if m["pct"] is not None and m["pct"] >= minimum and not m["mine"]
                                 and f"{cid}:{m['pid']}" not in done], key=lambda m: (band(m["pct"]), m["price"]))
                 placed, skipped, limit, spent = [], [], None, 0
+                if early:
+                    limit = max(0, projected)  # aquestes pujes es resolen abans del primer partit: sense deute
                 for m in cands:
                     if len(placed) >= free:
                         skipped.append(f"{m['short']} (plantilla plena)")
@@ -181,8 +234,8 @@ def run(dry=False, retira=()):
                         continue
                     pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
                     ok, mx = bid(pg, m["pid"])
-                    if mx and limit is None:
-                        limit = mx
+                    if mx:
+                        limit = mx if limit is None else min(limit, mx)
                     if ok:
                         placed.append(m); spent += m["price"]
                         done[f"{cid}:{m['pid']}"] = dt.date.today().isoformat()
@@ -199,6 +252,10 @@ def run(dry=False, retira=()):
                 line += " | " + ("vendria: " if dry else "en venda: ") + (", ".join(f"{q['short']} ({q['pct']}%)" for q in sales) or "cap")
                 if nosale:
                     line += " | no venc: " + ", ".join(nosale)
+                if debt:
+                    line += " | " + ("per saldar el deute vendria: " if dry else "en venda per saldar el deute: ") + ", ".join(f"{q['short']} ({q['value']/1e6:.2f}M)" for q in debt)
+                if kick and debt_day(kick):
+                    line += f" | saldo previst en començar: {projected/1e6:.1f}M"
                 report.append(line)
             except Exception as e:
                 report.append(f"❌ Mister · {name}: {type(e).__name__}: {str(e)[:200]}")

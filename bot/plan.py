@@ -41,6 +41,9 @@ def ff_deadline(comp, ffd):
     return None
 
 
+KICK = {}  # competició → primer partit de la propera jornada (es desa a state/mister_kickoffs.json)
+
+
 def plan(now=None, done=None):
     """Retorna les accions pendents. Una acció és pendent si la seva hora ja ha arribat (o arriba
     en els propers 30 min), el joc encara no ha tancat i no s'ha fet abans (done)."""
@@ -68,6 +71,8 @@ def plan(now=None, done=None):
             except Exception as e:
                 info.append(f"{comp}: error llegint Predicted11 ({e})")
         K = ff_deadline(comp, ffd) or (D + dt.timedelta(hours=2) if D else None)
+        if comp in ("laliga", "laliga2") and (D or K):
+            KICK[comp] = (D + dt.timedelta(hours=2) if D else K).isoformat()  # primer partit de la jornada (Mister)
         if D and D > now:
             info.append(f"{comp}: Predicted11 tanca {D.astimezone(MADRID):%a %d %H:%M}")
             # cada matí s'omple (o s'actualitza) tot el que és obert; la revisió final és sempre 50 min abans
@@ -106,6 +111,8 @@ if __name__ == "__main__":
     done = load_json("done.json", [])
     acts, info = plan(done=done)
     (STATE / "actions.json").write_text(json.dumps(acts), encoding="utf-8")
+    if KICK:
+        (STATE / "mister_kickoffs.json").write_text(json.dumps(KICK), encoding="utf-8")
     print("\n".join(info))
     print("Accions:", acts)
     if os.getenv("GITHUB_OUTPUT"):
