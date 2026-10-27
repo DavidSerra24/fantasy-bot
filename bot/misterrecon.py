@@ -34,7 +34,7 @@ with sync_playwright() as p:
         pg.on("request", lambda r: reqs.append(r.method + " " + r.url.split("mundodeportivo.com")[-1] + " " + (r.post_data or "")[:200]) if "/ajax/" in r.url or "/api" in r.url else None)
         resp = []
         pg.on("response", lambda r: resp.append(r) if "/ajax/sw/substitution" in r.url or "substitution.twig" in r.url else None)
-        pg.locator("#slot-7").click(); pg.wait_for_timeout(3000)
+        pg.locator("#slot-11").click(); pg.wait_for_timeout(3000)
         for r in resp:
             try:
                 if "twig" in r.url: continue
