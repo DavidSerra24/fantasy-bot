@@ -27,6 +27,7 @@ for a in acts:
     what = {"p11": f"Predicted11 {names.get(a['comp'], a['comp'])}" + (" (última revisió)" if "final" in a.get("key", "") else " (matí)"),
             "ff": "Fantasy de FutbolFantasy (matí: omplir i revisar els jocs oberts, ítems i extres del dia)",
             "mister": "Mister: pujes al mercat",
+            "copa": "revisió final de l'extra de la Copa del Rey (onzes oficials)",
             "misteroff": "Mister: ofertes dels jugadors en venda",
             "misterxi": "Mister: alineació i capità" + (f" ({names.get(a['comp'], a['comp'])}, revisió final)" if a["comp"] else ""),
             "fffinal": f"revisió final del Fantasy {names.get(a['comp'], a['comp'])} (onzes oficials)"}[a["do"]]
@@ -39,6 +40,9 @@ for a in acts:
         elif a["do"] == "misterxi":
             from bot import misterlineup
             misterlineup.run(only={"laliga": "Fentaniños", "laliga2": "Quique"}.get(a["comp"]))
+        elif a["do"] == "copa":
+            from bot import copa
+            copa.run()
         elif a["do"] == "misteroff":
             from bot import misteroffers
             misteroffers.run()

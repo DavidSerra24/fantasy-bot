@@ -111,6 +111,12 @@ def plan(now=None, done=None):
         k = f"misterxi-final:{comp}:{iso}"
         if due(k, kt - dt.timedelta(minutes=45), kt):
             add(k, kt - dt.timedelta(minutes=45), "misterxi", comp, kt)
+    # Extra de la Copa del Rey: revisió 40 min abans que tanqui (onzes oficials dels primers partits)
+    if ffd.get("Extras"):
+        CT = dt.datetime.strptime(ffd["Extras"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=MADRID).astimezone(UTC)
+        k = f"copa-final:{CT.isoformat()}"
+        if due(k, CT - dt.timedelta(minutes=40), CT):
+            add(k, CT - dt.timedelta(minutes=40), "copa", None, CT)
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))

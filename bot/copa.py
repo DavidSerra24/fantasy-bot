@@ -12,7 +12,7 @@ from playwright.sync_api import sync_playwright
 from bot import ff
 from bot.ff import FF, name_score
 from bot.notify import telegram
-from bot.web import inject, login_futbolfantasy, new_context, save_session
+from bot.web import inject, load_json, login_futbolfantasy, new_context, save_json, save_session
 
 PLAYERS_JS = """(url) => [...document.querySelectorAll('[class*="jugador_"]')].map(e => {
     const a = e.querySelector('a[data-probabilidad]'); if (!a) return null;
@@ -24,6 +24,9 @@ PLAYERS_JS = """(url) => [...document.querySelectorAll('[class*="jugador_"]')].m
 }).filter(Boolean)"""
 
 
+confirmed = []  # equips amb l'onze oficial ja publicat
+
+
 def copa_players(pg):
     pg.goto(f"{FF}/copa-del-rey/posibles-alineaciones", wait_until="domcontentloaded", timeout=60000)
     pg.wait_for_timeout(3000)
@@ -32,12 +35,15 @@ def copa_players(pg):
              "getafe", "osasuna", "athletic", "sevilla", "racing", "deportivo")
     links = [u for u in links if u.rstrip("/").split("-")[-1] in teams]
     out, copa = [], []
+    confirmed.clear()
     for url in links[:40]:
         pg.goto(url, wait_until="domcontentloaded", timeout=60000)
         pg.wait_for_timeout(2500)
         if "copa" not in pg.inner_text("body")[:600].lower():
             continue  # partit de LaLiga, no de Copa
         copa.append(url)
+        if re.search(r"alineaci[oó]n (oficial|confirmada)", pg.inner_text("body")[:3000], re.I):
+            confirmed.append(url.rstrip("/").split("-")[-1])
         rows = pg.evaluate(PLAYERS_JS, url)
         for i, r in enumerate(rows):
             r["idx"] = len(out) + i  # ordre a la pàgina (la Copa no té %)
@@ -53,7 +59,7 @@ def run(dry=False, jid="1051"):
         pg = ctx.new_page()
         login_futbolfantasy(pg)
         links, players = copa_players(pg)
-        report.append(f"Partits llegits: {len(links)}, jugadors: {len(players)}")
+        report.append(f"Partits llegits: {len(links)}, jugadors: {len(players)}; onzes oficials: {', '.join(confirmed) or 'cap encara'}")
         print("::notice title=links::" + " | ".join(links))
         # posició i equip de cada jugador al selector del joc
         pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
@@ -82,7 +88,17 @@ def run(dry=False, jid="1051"):
         if not dry and pick:
             card = next((c for c in ff.cards(pg) if c["id"] == jid), None)
             have = set(card["ids"]) if card else set()
+            out_ids = have - {c["ffid"] for c in pick}
+            if out_ids:  # revisió: surten els que ja no són el davanter titular del seu equip
+                old = {i: n for i, n in load_json("copa_pick.json", {}).items()}
+                ff.remove_players(pg, jid, out_ids, report)
+                report.append("Canvis: surten " + ", ".join(old.get(i, i) for i in out_ids))
+            card = next((c for c in ff.cards(pg) if c["id"] == jid), None)
+            have = set(card["ids"]) if card else set()
             todo = [c for c in pick if c["ffid"] not in have]
+            if todo and out_ids:
+                report.append("entren " + ", ".join(c["ff"] for c in todo))
+            save_json("copa_pick.json", {c["ffid"]: c["ff"] for c in pick})
             pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
             inject(pg, "ff")
             ff.fill(pg, jid, todo)
