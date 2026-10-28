@@ -495,7 +495,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
             if not final:
                 extras.run(pg, b, report, max_hours=extras_hours or max_hours, dry=dry)
             elif not only or "laliga" in only:
-                extras.final_extras(pg, report, dry=True)  # extres: només informa fins que es provi amb un joc real
+                extras.final_extras(pg, report, dry=dry)
         except Exception as e:
             import traceback
             print("::notice title=tb::" + traceback.format_exc().replace("\n", " | ")[-1500:])

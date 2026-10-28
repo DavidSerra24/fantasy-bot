@@ -115,9 +115,12 @@ def run(page, b, report, max_hours=20.0, dry=False):
     """page: sessió de FutbolFantasy ja iniciada. Omple els extres de LaLiga que estiguin buits i tanquin aviat."""
     from bot.web import inject
     cards = ff.cards(page)
-    games = [c for c in cards if c["hours"] and 0 < c["hours"] <= max_hours and c["empty"] == 3 and kind_of(c)]
-    if not games:
+    allg = [c for c in cards if c["hours"] and 0 < c["hours"] <= max_hours and kind_of(c)]
+    games = [c for c in allg if c["empty"] == 3]  # buits: s'omplen
+    filled = [c for c in allg if c["empty"] < 3]  # ja omplerts: es revisen amb les dades del dia
+    if not allg:
         return
+    games = games or filled
     m = re.search(r"J(\d+)", games[0]["label"] + " " + games[0]["title"])
     jornada = int(m.group(1)) if m else None
     sctx = new_context(b, "sorareinside")
@@ -130,7 +133,7 @@ def run(page, b, report, max_hours=20.0, dry=False):
     players = match_pages(page, jornada) if jornada else []
     save_json("extras_players.json", players)
     ords = orders(sidata, players)
-    for g in games:
+    for g in [g for g in games if g["empty"] == 3]:
         kind = kind_of(g)
         names = [x["n"] for x in ords[kind]]
         if dry:
@@ -141,6 +144,8 @@ def run(page, b, report, max_hours=20.0, dry=False):
         inject(page, "ff")
         placed = fill_names(page, g["id"], names, report, KINDS[kind])
         save_json(f"extra_{kind}.json", {"jid": g["id"], "picked": placed})
+    if filled:  # revisió diària dels ja omplerts (com els Fantasy i Predicted11)
+        final_extras(page, report, dry=dry)
 
 
 def final_extras(page, report, dry=False):

@@ -36,7 +36,7 @@ for a in acts:
         if a["do"] == "p11":
             p11.run([a["comp"]], force=False, max_hours=99)
         elif a["do"] == "ff":
-            ff.run(max_hours=24 * 8, extras_hours=20)
+            ff.run(max_hours=24 * 8, extras_hours=24 * 8)
         elif a["do"] == "misterxi":
             from bot import misterlineup
             misterlineup.run(only={"laliga": "Fentaniños", "laliga2": "Quique"}.get(a["comp"]))
