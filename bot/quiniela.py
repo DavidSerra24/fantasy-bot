@@ -53,7 +53,10 @@ def parse_grok(text):
     """Taula del Grok enganxada («Torino – Monza12-0…», amb capçaleres «🇮🇹 Serie A – Jornada 8»).
     Retorna {competició: [[local, visitant, gols local, gols visitant], ...]}. El pronòstic 1/X/2 es descarta."""
     out, comp = {}, None
+    text = re.sub(r"\*+", "", text).replace("|", " ")  # taula en Markdown: «| **Torino – Monza** | **1** | **2-0** |»
     for line in text.splitlines():
+        if re.search(r"\d{1,2}-\d{1,2}\s+d[’']", line) or line.strip().startswith(("Aquí", "Resum")):
+            continue  # «(23-26 d’octubre)», resum 1·X·2
         if "–" in line and not re.search(r"\d-\d", line) and len(line) < 80:  # capçalera de competició
             for rx, c in HEADERS:
                 if re.search(rx, line, re.I):
