@@ -42,7 +42,7 @@ for a in acts:
             ff.run(max_hours=24 * 8, extras_hours=24 * 8)
         elif a["do"] == "misterxi":
             from bot import misterlineup
-            misterlineup.run(only={"laliga": "Fentaniños", "laliga2": "Quique"}.get(a["comp"]))
+            misterlineup.run(only={"laliga": "Fentaniños", "laliga2": "Quique"}.get(a["comp"]), final=bool(a["comp"]))
         elif a["do"] == "quinrem":
             from bot import quiniela
             save_json("quinrem_last.json", {"comp": a["comp"]})

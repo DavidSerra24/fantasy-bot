@@ -184,7 +184,37 @@ def apply(pg, squad, dry=False):
     return line
 
 
-def run(dry=False, only=None):
+SLUG = {"Fentaniños": "laliga", "Quique": "laliga2"}
+
+
+def apply_official(squad, sidata, comp, report, name, wait=True):
+    """Revisió final: amb els onzes oficials (ESPN) dels partits del primer horari de la jornada, els jugadors
+    d'aquells equips que no surten de titulars passen a 0% (i els titulars a 100%). Espera fins 10 min abans si cal."""
+    import datetime as dt
+    from bot.ff import name_score, official_lineups
+    from bot.web import load_json
+    k = load_json("mister_kickoffs.json", {}).get(comp)
+    if not k:
+        return
+    kick = dt.datetime.fromisoformat(k)
+    log = []
+    off = official_lineups(comp, kick, sidata or {}, wait_until=(kick - dt.timedelta(minutes=10)) if wait else None, log=log)
+    out, inn = [], []
+    for q in squad:
+        team = (q.get("si") or {}).get("key")
+        if team not in off:
+            continue
+        if any(name_score(q["name"], s_) >= 80 or name_score((q.get("si") or {}).get("name") or "", s_) >= 80 for s_ in off[team]):
+            q["pct"] = 100; inn.append(q["short"])
+        else:
+            q["pct"] = 0; out.append(q["short"])
+    line = f"📋 {name} · onzes oficials: " + ("; ".join(log) or "cap partit a l'hora del primer")
+    if inn or out:
+        line += f" | titulars: {', '.join(inn) or 'cap'} | NO titulars: {', '.join(out) or 'cap'}"
+    report.append(line)
+
+
+def run(dry=False, only=None, final=False):
     report, cache = [], {}
     with sync_playwright() as p:
         b = p.chromium.launch()
@@ -197,6 +227,8 @@ def run(dry=False, only=None):
             try:
                 bal, squad, market, have, cap = league_data(b, pg, spg, cid, country, league, report, cache)
                 match_keys(squad, cache.get("sid:" + league))
+                if final:
+                    apply_official(squad, cache.get("sid:" + league), SLUG[name], report, name, wait=not dry)
                 report.append(f"🧢 {name} · alineació: " + apply(pg, squad, dry))
             except Exception as e:
                 report.append(f"❌ Mister · alineació · {name}: {type(e).__name__}: {str(e)[:200]}")
@@ -210,5 +242,6 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--lliga", default=None)
+    ap.add_argument("--final", action="store_true", help="revisió final amb els onzes oficials del primer partit")
     a = ap.parse_args()
-    run(a.dry, a.lliga)
+    run(a.dry, a.lliga, a.final)
