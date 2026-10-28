@@ -25,6 +25,7 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - Correccions de noms: Córdoba: Rubén Alves → Rubén González. Sabadell: Urri → Albert Orriols. Bologna: Darmian, si no hi és, el següent més probable. Girona: el Goleador és Vanat.
 - Quiniela: quan el David envia resultats, posar-los a la Quiniela de la competició.
   - Recordatori automàtic (`quinrem`): 26 h i 5 h abans del tancament de Predicted11, si la quiniela està buida, el bot envia per Telegram els partits i com respondre.
+  - També es pot enganxar directament al xat del bot la resposta del Grok (taula amb capçaleres «Serie A – Jornada N», «Premier League», «LaLiga EA Sports», «LaLiga Hypermotion»…, en Markdown o sense format): `parse_grok` en treu els resultats de cada competició i el pronòstic 1/X/2 es descarta.
   - Ordre de Telegram: `/quiniela [laliga|laliga2|premier|serie a|champions]` + un partit per línia («Local 2-1 Visitant»). Sense competició, la de l'últim recordatori. El planificador llegeix els missatges a cada execució (`getUpdates`, `state/tg_offset.json`).
 
 ## FutbolFantasy (Fantasy✨)
