@@ -16,13 +16,10 @@ from bot.mister import U, login, new_context
 POOLS = {"laliga": [(2519290, "pool-public", "Oficial"), (2519290, "pool-private", "Fentaniños")],
          "laliga2": [(2499621, "pool-private", "Quique")]}
 
-ROWS = """() => { const by = {};
-  for (const b of document.querySelectorAll('.sw-content button.btn-pools')) (by[b.dataset.id_match] = by[b.dataset.id_match] || []).push(b);
-  return Object.entries(by).map(([id, bs]) => { let row = bs[0];
-    while (row && row.querySelectorAll('button.btn-pools').length < 3) row = row.parentElement;
-    const parts = row.innerText.split('\\n').map(s => s.trim()).filter(s => s && !/^[1X2]$/.test(s) && !/^\\w{2,4}\\.? \\d{1,2}:\\d{2}$/.test(s) && !/^\\d{1,2}:\\d{2}$/.test(s));
-    return { id, home: parts[0] || '', away: parts[parts.length - 1] || '', sel: bs.filter(b => /active|accent|selected|primary/.test(b.className)).map(b => b.dataset.prediction),
-             cls: bs.map(b => b.className).join(' / '), locked: bs.every(b => b.disabled) }; }); }"""
+ROWS = """() => [...document.querySelectorAll('.sw-content ul.pool-games > li')].map(li => { const bs = [...li.querySelectorAll('button.btn-pools')];
+    return { id: bs[0]?.dataset.id_match, home: li.querySelector('.left .name')?.innerText.trim() || '', away: li.querySelector('.right .name')?.innerText.trim() || '',
+             sel: bs.filter(b => !/btn--tertiary/.test(b.className) || /active|selected|accent/.test(b.className)).map(b => b.dataset.prediction),
+             cls: bs.map(b => b.className.trim()).join(' / '), locked: !bs.length || bs.every(b => b.disabled) || !/pending/.test(li.className) }; }).filter(r => r.id)"""
 
 
 def sign(a, b):
@@ -59,8 +56,6 @@ def run(comp, picks, dry=False):
         for cid, sw, label in POOLS[comp]:
             try:
                 rows = open_pool(pg, cid, sw)
-                print("::notice title=rows " + label + "::" + str(rows)[:3000])
-                print("::notice title=rowhtml " + label + "::" + pg.evaluate("() => { const b=document.querySelector('.sw-content button.btn-pools'); let r=b; for(let i=0;i<4&&r;i++) r=r.parentElement; return r ? r.outerHTML.replace(/<svg.*?<\\/svg>/gs,'').replace(/<img[^>]*>/g,'').replace(/\\s+/g,' ').slice(0,2500) : 'cap'; }"))
                 done, miss, locked = [], [], 0
                 for h, a, gh, ga in picks:
                     r = match(rows, h, a)
