@@ -50,7 +50,7 @@ def best_lineup(squad):
     for q in squad:
         q.pop("rule_skip", None)
         si = q.get("si") or {}
-        q["xpct"] = si.get("pct") if si.get("pct") is not None else q.get("pct")
+        q["xpct"] = q.get("pct")  # el % de la font de la lliga: FutbolFantasy (Fentaniños) o SorareInside/Jornada Perfecta (Quique)
         q["xps"] = si.get("ps")
     order = sorted([q for q in squad if not q.get("loaned")],
                    key=lambda q: (q["onsale"], band(q["xpct"]), q["xps"] is None, -(q["xps"] or 0)))
