@@ -137,6 +137,9 @@ def run(comps, force=False, max_hours=30.0):
                     if c["n"] == 11 and c["icons"] != 3 and c["tactic"] != "Manual" and nops:
                         pending.append(slug)  # onze posat; falten punts projectats per a les icones
                         ok += 1
+                    un = re.search(r"UN:([^()]*?)(?: AMB:| SUBSTITUT:| \(|$)", res.get("msg", ""))
+                    if un:
+                        bad.append(f"{slug}: ❓ no trobo a Predicted11: {un.group(1).strip()} — digues-me com es diu allà i ho corregeixo")
                     elif c["n"] != 11 or c["icons"] != 3 or c["tactic"] == "Manual":
                         bad.append(f"{slug}: {c['n']} jug, {c['icons']} icones, {c['tactic']} {res.get('msg','')[:200]}")
                     elif "UN:" in res.get("msg", "") or "AMB:" in res.get("msg", ""):

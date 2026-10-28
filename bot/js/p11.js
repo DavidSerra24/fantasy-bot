@@ -65,8 +65,7 @@ window.__p11 = (function () {
       if (!btn) { log.unmatched.push(p.name + ' (no slot)'); continue; }
       btn.click(); await sleep(700);
       const list = items(); let m = match(p.name, list, used, posFor(k, sizes));
-      if (!m.x && (p.subs || []).length) { // no és a Predicted11: posar el suplent que indica SorareInside
-         const m2 = match(p.subs[0].name, list, used, posFor(k, sizes)); if (m2.x) { log.subbed = (log.subbed || []).concat(p.name + '→' + m2.x.nombre); m = m2; } }
+      // si no és a Predicted11 no es posa cap suplent: es deixa buit i s'avisa el David (UN:) per corregir el nom
       if (m.x) { used.add(m.x.id); m.x.el.click(); placed.push({ si: p.name, p11: m.x.nombre, id: m.x.id, s: m.s }); await sleep(900); }
       else { if (m.amb) log.amb.push(p.name + ' → ' + m.amb.join(' / ')); else log.unmatched.push(p.name);
         document.getElementById('closePlayerSelector')?.click();
