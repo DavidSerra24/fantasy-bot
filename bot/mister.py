@@ -14,6 +14,18 @@ def logged(pg):
 
 
 def login(pg):
+    """Entra al Mister; si alguna pantalla no apareix (la web va lenta), ho torna a provar fins a 3 vegades."""
+    for i in range(3):
+        try:
+            return _login(pg)
+        except Exception:
+            if i == 2:
+                raise
+            pg.context.clear_cookies()
+            pg.wait_for_timeout(20000)
+
+
+def _login(pg):
     """Entra amb correu i contrasenya (secrets MISTER_EMAIL / MISTER_PASSWORD). Accepta les galetes (autoritzat pel David)."""
     for i in range(4):  # el Mister de vegades no respon a primera hora: fins a 4 intents en ~6 minuts
         try:
