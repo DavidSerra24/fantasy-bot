@@ -1,29 +1,28 @@
-"""Reconeixement (només lectura): on surt l'oferta del Mister (feed, mercat, notificacions)."""
+"""Reconeixement (només lectura): Quiniela del Mister."""
 import re
 from playwright.sync_api import sync_playwright
 from bot.mister import U, new_context, login
 
 LOG = []
+DUMP = """() => { const c=[...document.querySelectorAll('.sw-content')].filter(e=>e.offsetParent!==null).pop() || document.body;
+  return c.innerText.replace(/\\s+/g,' ').slice(0,1500) + ' ## ' + [...c.querySelectorAll('button,a,input,select,[data-sw],[data-popup]')].filter(e=>e.offsetParent!==null).map(e=>e.tagName+'.'+e.className.toString().slice(0,50)+'#'+e.id+'['+(e.name||'')+'='+(e.value||'')+'] «'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,25)+'» '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',').slice(0,140)).slice(0,60).join(' | '); }"""
 with sync_playwright() as p:
     b = p.chromium.launch()
     pg = new_context(b).new_page()
+    reqs = []
+    pg.on("request", lambda r: reqs.append(r.method + " " + r.url.split("mundodeportivo.com")[-1] + " " + (r.post_data or "")[:200]) if "mundodeportivo.com/ajax" in r.url or "twig" in r.url else None)
     try:
         login(pg)
-        pg.goto(f"{U}/action/change?id_community=2519290", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
-        pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(4000)
-        LOG.append("OFFERS EL: " + pg.evaluate("""() => [...document.querySelectorAll('*')].filter(e => /ofertas recibidas/i.test(e.innerText||'') && e.children.length < 4).slice(-3)
-            .map(e => e.tagName + '.' + e.className + '#' + e.id + ' href=' + (e.getAttribute('href')||'') + ' ' + Object.keys(e.dataset).map(k => k + '=' + e.dataset[k]).join(',') + ' :: ' + e.outerHTML.replace(/\\s+/g, ' ').slice(0, 600)).join(' || ')"""))
-        reqs = []
-        pg.on("request", lambda r: reqs.append(r.method + " " + r.url.split("mundodeportivo.com")[-1] + " " + (r.post_data or "")[:200]) if "mundodeportivo.com/ajax" in r.url or "twig" in r.url else None)
-        pg.locator("text=ofertas recibidas").last.click(); pg.wait_for_timeout(3500)
-        LOG.append("REQS: " + " || ".join(reqs))
-        LOG.append("AJAX: " + re.sub(r"\s+", " ", pg.evaluate("() => fetch('/ajax/sw/offers-received', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8','X-Requested-With':'XMLHttpRequest'}, body:'post=offers-received'}).then(r=>r.text())"))[:3000])
-        LOG.append("SWDATA: " + pg.evaluate("() => { const c=document.querySelector('.sw-content'); if(!c) return 'cap'; return c.innerText.replace(/\\s+/g,' ').slice(0,600) + ' ## ' + [...c.querySelectorAll('*')].filter(e=>Object.keys(e.dataset).length || e.tagName=='BUTTON').map(e=>e.tagName+'.'+e.className.toString().slice(0,50)+' «'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,25)+'» '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',').slice(0,160)).slice(0,40).join(' | '); }"))
-        pg.locator('.sw-content button[data-popup="market/offers-received/direct-transfer-confirmation"][data-id_bid="841733588"]').click(); pg.wait_for_timeout(3000)
-        LOG.append("CONFIRM: " + pg.evaluate("() => { const f=[...document.querySelectorAll('form, .popup-content, [class*=popup]')].filter(e=>e.offsetParent!==null && /Mart/.test(e.innerText)).pop(); if(!f) return 'cap'; return f.className+' :: '+f.innerText.replace(/\\s+/g,' ').slice(0,500)+' ## '+f.outerHTML.replace(/<svg.*?<\\/svg>/gs,'').replace(/\\s+/g,' ').slice(0,2500); }"))
-        pg.keyboard.press("Escape")
-        LOG.append("AFTER: " + pg.evaluate("""() => { const c = [...document.querySelectorAll('.sw-content, .popup, [class*=popup]')].filter(e => e.offsetParent !== null).pop(); if (!c) return 'cap';
-            return c.className + ' :: ' + c.innerText.replace(/\\s+/g, ' ').slice(0, 900) + ' ## ' + [...c.querySelectorAll('button,a,[data-sku],[data-ajax]')].filter(e => e.offsetParent !== null).map(e => e.tagName + '.' + e.className.toString().slice(0, 50) + '#' + e.id + ' «' + (e.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 25) + '» ' + Object.keys(e.dataset).map(k => k + '=' + e.dataset[k]).join(',').slice(0, 160)).join(' | '); }"""))
+        for cid in (2519290, 2499621):
+            pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
+            pg.goto(U + "/feed", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
+            LOG.append(f"[{cid}] quiniela links: " + pg.evaluate("() => [...document.querySelectorAll('a,button,div')].filter(e=>/quiniela|pool/i.test((e.innerText||'')+' '+e.className+' '+Object.values(e.dataset).join(' ')) && e.children.length<5).slice(0,12).map(e=>e.tagName+'.'+e.className.toString().slice(0,40)+' «'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,40)+'» '+(e.getAttribute('href')||'')+' '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',')).join(' | ')"))
+            reqs.clear()
+            el = pg.locator("[data-sw='pool-public']").first
+            if el.count():
+                el.evaluate("e => e.click()"); pg.wait_for_timeout(4000)
+                LOG.append(f"[{cid}] REQS: " + " || ".join(reqs))
+                LOG.append(f"[{cid}] POOL: " + pg.evaluate(DUMP))
     except Exception:
         import traceback
         LOG.append("ERR: " + traceback.format_exc()[-1500:])
