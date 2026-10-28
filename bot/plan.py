@@ -80,6 +80,12 @@ def plan(now=None, done=None):
                 k = f"p11-mati:{comp}:{local.date()}"
                 if due(k, morning_t, D):
                     add(k, morning_t, "p11", comp, D)
+            # Quiniela: recordatori per Telegram el dia abans i 5 h abans del tancament (només si està buida)
+            for lead in (26, 5):
+                k = f"quinrem:{comp}:{D.isoformat()}:{lead}"
+                if due(k, D - dt.timedelta(hours=lead), D - dt.timedelta(hours=1)):
+                    acts.append({"key": k, "at": max(D - dt.timedelta(hours=lead), now).isoformat(), "do": "quinrem", "comp": comp,
+                                 "deadline": D.isoformat(), "text": f"{D.astimezone(MADRID):%a %d %H:%M}"})
             k = f"p11-final:{comp}:{D.isoformat()}"
             if due(k, D - LEAD_P11, D):
                 add(k, D - LEAD_P11, "p11", comp, D)
@@ -125,7 +131,43 @@ def plan(now=None, done=None):
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
+    acts += telegram_commands(now)
     return acts, info
+
+
+def telegram_commands(now):
+    """Llegeix els missatges nous del xat de Telegram. «/quiniela [competició] resultats» → acció immediata."""
+    token, chat = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat:
+        return []
+    from bot.quiniela import split_comp
+    st = load_json("tg_offset.json", {"offset": 0})
+    try:
+        r = requests.get(f"https://api.telegram.org/bot{token}/getUpdates", params={"offset": st["offset"], "timeout": 0}, timeout=20).json()
+    except Exception as e:
+        print("telegram getUpdates:", e)
+        return []
+    out = []
+    for u in r.get("result", []):
+        st["offset"] = u["update_id"] + 1
+        m = u.get("message") or {}
+        if str((m.get("chat") or {}).get("id")) != str(chat):
+            continue  # només el xat del David
+        t = (m.get("text") or "").strip()
+        if not t.lower().startswith("/quiniela"):
+            continue
+        comp, rest = split_comp(t[len("/quiniela"):].split("@", 1)[-1] if t[len("/quiniela"):].startswith("@") else t[len("/quiniela"):])
+        comp = comp or load_json("quinrem_last.json", {}).get("comp")
+        if not comp:
+            requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat, "text": "⚠️ Digues la competició: /quiniela serie-a ..."}, timeout=20)
+            continue
+        out.append({"key": f"quiniela:{u['update_id']}", "at": now.isoformat(), "do": "quiniela", "comp": comp,
+                    "deadline": (now + dt.timedelta(hours=6)).isoformat(), "text": rest})
+        requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                      json={"chat_id": chat, "text": f"👍 Rebuda la quiniela de {comp}. La poso ara."}, timeout=20)
+    from bot.web import save_json
+    save_json("tg_offset.json", st)
+    return out
 
 
 if __name__ == "__main__":

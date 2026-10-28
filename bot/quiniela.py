@@ -38,9 +38,23 @@ def state(page):
              + b.querySelector('.equipo-visitante .equipo-nombre').textContent.trim() + (ins.some(i => i.disabled) ? ' 🔒' : ''); })""")
 
 
-def main():
-    comp = sys.argv[1]
-    text = sys.argv[2] if len(sys.argv) > 2 else ""
+NAMES = {"laliga": "LaLiga", "laliga2": "LaLiga 2", "premier-league": "Premier", "serie-a": "Serie A", "champions": "Champions"}
+ALIASES = {"laliga": "laliga", "liga": "laliga", "laliga2": "laliga2", "laliga 2": "laliga2", "segunda": "laliga2", "hypermotion": "laliga2",
+           "premier": "premier-league", "premier-league": "premier-league", "seriea": "serie-a", "serie-a": "serie-a", "serie a": "serie-a",
+           "champions": "champions", "ucl": "champions"}
+
+
+def split_comp(text):
+    """«serie a Bologna 2-1 Monza; ...» → ('serie-a', 'Bologna 2-1 Monza; ...'). Sense competició → (None, text)."""
+    t = text.strip()
+    for k in sorted(ALIASES, key=len, reverse=True):
+        if t.lower().startswith(k) and (len(t) == len(k) or not t[len(k)].isalnum()):
+            return ALIASES[k], t[len(k):].strip(" :\n")
+    return None, t
+
+
+def run(comp, text="", remind=None):
+    """Omple (o només llegeix) la quiniela. remind = text del tancament: només avisa per Telegram si està buida."""
     picks = parse(text)
     with sync_playwright() as p:
         b = p.chromium.launch()
@@ -60,7 +74,16 @@ def main():
             pg.wait_for_timeout(2500)
         st = state(pg)
         b.close()
-    lines = [f"🎯 Quiniela {comp}" + (" (desada, comprovat recarregant)" if picks else "") + ":"] + st
+    if remind is not None:
+        empty = [l for l in st if "---" in l and "🔒" not in l]
+        if empty:
+            telegram(f"📝 Falta la Quiniela de {NAMES.get(comp, comp)} (tanca {remind}).\n\n"
+                     + "\n".join(l.replace(" --- ", " - ") for l in empty)
+                     + f"\n\nEnvia-me-la responent aquí, un partit per línia:\n/quiniela {comp}\n"
+                     + "\n".join(l.replace(" --- ", " 1-0 ").replace(" 1-0 ", " 1-0 ", 1) for l in empty[:2]) + "\n...")
+        print("::notice title=q::" + (" | ".join(empty) if empty else "quiniela ja feta"))
+        return
+    lines = [f"🎯 Quiniela {NAMES.get(comp, comp)}" + (" (desada, comprovat recarregant)" if picks else "") + ":"] + st
     bad = [l for l in log if l.startswith("NOMATCH")]
     if bad:
         lines.append("⚠️ No he trobat: " + ", ".join(x.replace("NOMATCH ", "") for x in bad))
@@ -70,6 +93,10 @@ def main():
     print(msg)
     print("::notice title=q::" + " | ".join(lines))
     telegram(msg)
+
+
+def main():
+    run(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "")
 
 
 if __name__ == "__main__":

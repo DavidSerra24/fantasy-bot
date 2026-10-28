@@ -27,11 +27,14 @@ for a in acts:
     what = {"p11": f"Predicted11 {names.get(a['comp'], a['comp'])}" + (" (última revisió)" if "final" in a.get("key", "") else " (matí)"),
             "ff": "Fantasy de FutbolFantasy (matí: omplir i revisar els jocs oberts, ítems i extres del dia)",
             "mister": "Mister: " + ("revisió abans de les 5:00 (pujes i vendes)" if a["comp"] == "pre" else "pujes al mercat"),
+            "quinrem": f"recordatori de la Quiniela {names.get(a['comp'], a['comp'])}",
+            "quiniela": f"Quiniela {names.get(a['comp'], a['comp'])} (la que m'has enviat)",
             "copa": "revisió final de l'extra de la Copa del Rey (onzes oficials)",
             "misteroff": "Mister: ofertes dels jugadors en venda",
             "misterxi": "Mister: alineació i capità" + (f" ({names.get(a['comp'], a['comp'])}, revisió final)" if a["comp"] else ""),
             "fffinal": f"revisió final del Fantasy {names.get(a['comp'], a['comp'])} (onzes oficials)"}[a["do"]]
-    telegram(f"▶️ Començo: {what}")
+    if a["do"] != "quinrem":  # el recordatori ja envia el seu missatge (només si cal)
+        telegram(f"▶️ Començo: {what}")
     try:
         if a["do"] == "p11":
             p11.run([a["comp"]], force=False, max_hours=99)
@@ -40,6 +43,13 @@ for a in acts:
         elif a["do"] == "misterxi":
             from bot import misterlineup
             misterlineup.run(only={"laliga": "Fentaniños", "laliga2": "Quique"}.get(a["comp"]))
+        elif a["do"] == "quinrem":
+            from bot import quiniela
+            save_json("quinrem_last.json", {"comp": a["comp"]})
+            quiniela.run(a["comp"], remind=a.get("text", ""))
+        elif a["do"] == "quiniela":
+            from bot import quiniela
+            quiniela.run(a["comp"], a.get("text", ""))
         elif a["do"] == "copa":
             from bot import copa
             copa.run()

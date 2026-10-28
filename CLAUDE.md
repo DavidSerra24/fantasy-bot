@@ -24,6 +24,8 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
   - **No recomendable**: el de menys PS. Desempat: menys %, després més suplents.
 - Correccions de noms: Córdoba: Rubén Alves → Rubén González. Sabadell: Urri → Albert Orriols. Bologna: Darmian, si no hi és, el següent més probable. Girona: el Goleador és Vanat.
 - Quiniela: quan el David envia resultats, posar-los a la Quiniela de la competició.
+  - Recordatori automàtic (`quinrem`): 26 h i 5 h abans del tancament de Predicted11, si la quiniela està buida, el bot envia per Telegram els partits i com respondre.
+  - Ordre de Telegram: `/quiniela [laliga|laliga2|premier|serie a|champions]` + un partit per línia («Local 2-1 Visitant»). Sense competició, la de l'últim recordatori. El planificador llegeix els missatges a cada execució (`getUpdates`, `state/tg_offset.json`).
 
 ## FutbolFantasy (Fantasy✨)
 - Jocs: LaLiga, LaLiga 2, Premier, Serie A, Champions, Europa League, extres (Trío revulsivo, Trío antagonista, Resiliencia de portero) i especials de partit ("Puntos en el X - Y").
