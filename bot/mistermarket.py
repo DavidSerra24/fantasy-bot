@@ -166,13 +166,13 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
             q["pct"] = q["ff"]["pct"] if q["ff"] else None
             q["src"] = "FF"
     else:  # Quique: SorareInside i, si l'equip no hi és, Jornada Perfecta (si surt a l'onze, compta com a titular)
-        if any(q["pct"] is None for q in market):
+        if any(q["pct"] is None for q in squad + market):
             if cache.get('jp') is None:
                 try:
                     cache['jp'] = sources.jp_starters(new_context(b, "jp").new_page())
                 except Exception as e:
                     cache['jp'] = []; report.append(f"⚠️ Jornada Perfecta: {type(e).__name__}")
-            nodata = [q for q in market if q["pct"] is None]
+            nodata = [q for q in squad + market if q["pct"] is None]
             sources.assign(nodata, cache['jp'], "jp")
             for q in nodata:
                 if q["jp"]:
