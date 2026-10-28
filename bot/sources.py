@@ -29,8 +29,11 @@ def best_name(full, names):
 def ff_probs(page):
     """Entrades {name, key (URL del partit), pct} de les alineacions probables de FutbolFantasy (LaLiga)."""
     from bot.extras import match_pages
+    ps = [p for p in match_pages(page, None) if p.get("name")]
+    js = [p["j"] for p in ps if p.get("j")]
+    j = min(js) if js else None  # la propera jornada (la pàgina també pot mostrar la següent)
     return [{"name": p["name"], "key": p["url"], "pct": p.get("pct") or 0, "ps": None}
-            for p in match_pages(page, None) if p.get("name")]
+            for p in ps if j is None or p.get("j") == j]
 
 
 def si_entries(sidata):

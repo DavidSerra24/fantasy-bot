@@ -96,7 +96,10 @@ def accept(pg, pid):
         btn = pop.locator("button").filter(has_text=re.compile(r"^\s*(Vendre|Vender)\s*$"))
     btn.first.click()
     pg.wait_for_timeout(3000)
-    return pid not in offers(pg)
+    if pid not in offers(pg):
+        return True
+    pg.goto(U + "/team", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)  # ja no és a la plantilla = venut
+    return not pg.locator(f'a.player[href^="players/{pid}/"]').count()
 
 
 def run(dry=False):

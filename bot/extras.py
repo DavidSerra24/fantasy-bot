@@ -31,7 +31,8 @@ def match_pages(page, jornada):
         if jornada is not None and (not m or int(m.group(1)) != jornada):
             continue
         seen += 1
-        players += page.evaluate("""(url) => [...document.querySelectorAll('[class*="jugador_"]')].map(e => {
+        jn = int(m.group(1)) if m else None
+        got = page.evaluate("""(url) => [...document.querySelectorAll('[class*="jugador_"]')].map(e => {
             const a = e.querySelector('a[data-probabilidad]'); if (!a) return null;
             const rv = e.querySelector('.ff-revulsivo');
             const name = e.querySelector('img[alt]')?.alt && e.querySelector('img[alt]').alt !== 'Más info' ? e.querySelector('img[alt]').alt
@@ -41,7 +42,10 @@ def match_pages(page, jornada):
                      pct: parseInt(a.getAttribute('data-probabilidad')) || 0, lesion: a.getAttribute('data-lesion'),
                      pj: num('totalpartidosjugados'), amarillas: num('totalamarillas'), media: num('totalpuntosfutmondostatspartido') };
         }).filter(Boolean)""", url)
-        if seen >= 10:
+        for g in got:
+            g["j"] = jn
+        players += got
+        if seen >= (10 if jornada is not None else 20):  # sense jornada: totes les pàgines (també la propera)
             break
     return players
 
