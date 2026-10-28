@@ -177,6 +177,13 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
             for q in nodata:
                 if q["jp"]:
                     q["pct"], q["src"] = 70, "JP"
+    # Jugadors de la plantilla que no surten a la font (ni titulars ni suplents) però el seu equip sí: compten com a 0%
+    # (p. ex. Solozábal a l'Andorra). Si no hi ha dades de l'equip, es queden sense % (no es venen).
+    keys = {e["key"] for e in (cache.get("ffp") or [])} if league == "Primera División" else \
+           {t for t in sidata.get("_order", []) if isinstance(sidata.get(t), list) and sidata.get(t)}
+    for q in squad:
+        if q["pct"] is None and q.get("team") and any(sources.team_ok(q["team"], k) for k in keys):
+            q["pct"], q["src"], q["absent"] = 0, (q.get("src") or "SI") + " (no hi surt)", True
     return bal, squad, market, have, cap
 
 
