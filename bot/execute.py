@@ -53,6 +53,7 @@ for a in acts:
             ff.run(max_hours=3, only=[a["comp"]], final=True)
     except Exception as e:
         traceback.print_exc()
+        print("::error title=" + a["do"] + "::" + traceback.format_exc().replace("\n", " | ")[-1500:])
         telegram(f"❌ Error a {a['do']} {a['comp'] or ''}: {type(e).__name__}: {str(e)[:300]}")
     done.add(key)
     d = load_json("done.json", [])
