@@ -55,6 +55,13 @@ def si_entries(sidata):
 STOP = {"real", "club", "deportivo", "sporting", "union", "athletic", "atletico", "cd", "cf", "ud", "sd", "fc", "rcd", "ca"}
 
 
+# Slug de l'equip al Mister → nom curt a les URL de partit de FutbolFantasy (quan el nom és una paraula «genèrica»)
+URL_TEAM = {"deportivo-da-coruna": "deportivo", "deportivo": "deportivo", "athletic-club": "athletic", "athletic": "athletic",
+            "atletico-madrid": "atletico", "atletico": "atletico", "real-madrid": "madrid", "real-sociedad": "sociedad",
+            "real-betis": "betis", "real-oviedo": "oviedo", "real-zaragoza": "zaragoza", "real-valladolid": "valladolid",
+            "real-racing-club": "racing", "racing-santander": "racing"}
+
+
 def team_ok(slug, key):
     """L'equip del Mister (slug, p. ex. 'real-valladolid') correspon a la clau de la font?
     La clau és el nom de l'equip (SorareInside) o l'URL del partit (Jornada Perfecta / FutbolFantasy)."""
@@ -63,6 +70,9 @@ def team_ok(slug, key):
         return False
     if "/" in key:  # URL del partit: el slug ha d'aparèixer a l'últim tros
         last = key.rstrip("/").split("/")[-1]
+        short = URL_TEAM.get(slug)
+        if short:
+            return short in last.split("-")
         toks = [t for t in slug.split("-") if len(t) >= 4 and t not in STOP] or [t for t in slug.split("-") if len(t) >= 3]
         return any(t in last.split("-") for t in toks)
     return team_score(key, slug.replace("-", " ")) > 0
