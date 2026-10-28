@@ -59,6 +59,8 @@ def run(comp, picks, dry=False):
         for cid, sw, label in POOLS[comp]:
             try:
                 rows = open_pool(pg, cid, sw)
+                print("::notice title=rows " + label + "::" + str(rows)[:3000])
+                print("::notice title=rowhtml " + label + "::" + pg.evaluate("() => { const b=document.querySelector('.sw-content button.btn-pools'); let r=b; for(let i=0;i<4&&r;i++) r=r.parentElement; return r ? r.outerHTML.replace(/<svg.*?<\\/svg>/gs,'').replace(/<img[^>]*>/g,'').replace(/\\s+/g,' ').slice(0,2500) : 'cap'; }"))
                 done, miss, locked = [], [], 0
                 for h, a, gh, ga in picks:
                     r = match(rows, h, a)
