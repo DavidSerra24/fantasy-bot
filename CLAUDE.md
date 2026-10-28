@@ -23,7 +23,7 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
   - **Recomendable**: el de més PS. Desempat: més %, després menys suplents llistats.
   - **No recomendable**: el de menys PS. Desempat: menys %, després més suplents.
 - Correccions de noms: Córdoba: Rubén Alves → Rubén González. Sabadell: Urri → Albert Orriols.
-- Si un jugador de SorareInside no surt a Predicted11, **no** es posa cap suplent: el bot avisa per Telegram («❓ no trobo a Predicted11: …») perquè el David digui com es diu i s'afegeixi l'equivalència a `config/predicted11.json` (decisió del David, 28/10).
+- Si un jugador de SorareInside no surt a Predicted11, es posa el seu suplent (el més probable segons SorareInside) perquè l'onze quedi complet, **i** el bot avisa per Telegram («❓ no trobo a Predicted11 i hi he posat el suplent…») perquè el David digui com es diu i s'afegeixi l'equivalència a `config/predicted11.json` (decisió del David, 28/10).
 - Sense excepcions de Goleador per equip: sempre la regla general (la de Vanat al Girona es va treure el 28/10).
 - Quiniela: quan el David envia resultats, posar-los a la Quiniela de la competició.
   - Recordatori automàtic (`quinrem`): 26 h i 5 h abans del tancament de Predicted11, si la quiniela està buida, el bot envia per Telegram els partits i com respondre.

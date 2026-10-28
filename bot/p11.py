@@ -138,6 +138,9 @@ def run(comps, force=False, max_hours=30.0):
                         pending.append(slug)  # onze posat; falten punts projectats per a les icones
                         ok += 1
                     un = re.search(r"UN:([^()]*?)(?: AMB:| SUBSTITUT:| \(|$)", res.get("msg", ""))
+                    sub = re.search(r"SUBSTITUT:([^()]*?)(?: AMB:| UN:| \(|$)", res.get("msg", ""))
+                    if sub:  # s'ha posat el suplent, però cal corregir el nom
+                        bad.append(f"{slug}: ❓ no trobo a Predicted11 i hi he posat el suplent ({sub.group(1).strip()}) — digues-me com es diu allà i ho corregeixo")
                     if un:
                         bad.append(f"{slug}: ❓ no trobo a Predicted11: {un.group(1).strip()} — digues-me com es diu allà i ho corregeixo")
                     elif c["n"] != 11 or c["icons"] != 3 or c["tactic"] == "Manual":
