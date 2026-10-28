@@ -11,7 +11,7 @@ import datetime as dt
 import re
 
 from bot import ff, si
-from bot.web import login_sorareinside, new_context, save_json, save_session
+from bot.web import load_json, login_sorareinside, new_context, save_json, save_session
 
 FF = "https://www.futbolfantasy.com"
 
@@ -80,6 +80,11 @@ def fill_names(page, jid, names, report, label, want=3):
         best = max(res, key=lambda r: ff.name_score(n, r["n"]), default=None)
         if not best or ff.name_score(n, best["n"]) < 80 or (best["u"] is not None and str(best["u"]) == "0"):
             ff.close_modal(page)
+            skip = load_json("extras_unusable.json", {})
+            skip.setdefault(label.split(" (")[0], [])
+            if n not in skip[label.split(" (")[0]]:
+                skip[label.split(" (")[0]].append(n)  # sense usos o no trobat: no s'ha de tornar a triar
+            save_json("extras_unusable.json", skip)
             continue
         page.locator(".modal.show .sel-item:visible").filter(has=page.locator(".sel-nombre", has_text=best["n"])).first.click()
         page.locator(".modal.show").wait_for(state="hidden", timeout=10000)
@@ -183,7 +188,8 @@ def final_extras(page, report, dry=False):
                 return is_starter(x["n"])
             return True
 
-        desired = [x["n"] for x in ords[kind] if valid(x)]
+        bad = set(load_json("extras_unusable.json", {}).get(KINDS[kind], []))
+        desired = [x["n"] for x in ords[kind] if valid(x) and x["n"] not in bad]
         slots = ff.read_slots(page, card["id"])
         top = desired[:3]
         keep = [s_ for s_ in slots if any(ff.name_score(s_["name"], d) >= 60 for d in top)]
