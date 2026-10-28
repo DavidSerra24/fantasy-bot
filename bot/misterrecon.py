@@ -13,7 +13,7 @@ with sync_playwright() as p:
     pg.on("request", lambda r: reqs.append(r.method + " " + r.url.split("mundodeportivo.com")[-1] + " " + (r.post_data or "")[:200]) if "mundodeportivo.com/ajax" in r.url or "twig" in r.url else None)
     try:
         login(pg)
-        for cid in (2519290, 2499621):
+        for cid in (2499621,):
             pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
             pg.goto(U + "/feed", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
             LOG.append(f"[{cid}] quiniela links: " + pg.evaluate("() => [...document.querySelectorAll('a,button,div')].filter(e=>/quiniela|pool/i.test((e.innerText||'')+' '+e.className+' '+Object.values(e.dataset).join(' ')) && e.children.length<5).slice(0,12).map(e=>e.tagName+'.'+e.className.toString().slice(0,40)+' «'+(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,40)+'» '+(e.getAttribute('href')||'')+' '+Object.keys(e.dataset).map(k=>k+'='+e.dataset[k]).join(',')).join(' | ')"))
@@ -22,11 +22,11 @@ with sync_playwright() as p:
             if el.count():
                 el.evaluate("e => e.click()"); pg.wait_for_timeout(4000)
                 LOG.append(f"[{cid}] REQS: " + " || ".join(reqs))
-                LOG.append(f"[{cid}] POOL: " + pg.evaluate(DUMP)[:700])
+                LOG.append(f"[{cid}] POOL: " + re.sub(r"Jornada \d+( • \d+ encerts)? ", "", pg.evaluate(DUMP))[:1500])
                 reqs.clear()
                 pg.locator("button[data-sw='pool-private']").first.evaluate("e => e.click()"); pg.wait_for_timeout(4000)
                 LOG.append(f"[{cid}] PRIV REQS: " + " || ".join(reqs))
-                LOG.append(f"[{cid}] PRIV: " + pg.evaluate(DUMP)[:2500])
+                LOG.append(f"[{cid}] PRIV: " + re.sub(r"Jornada \d+( • \d+ encerts)? ", "", pg.evaluate(DUMP))[:3500])
     except Exception:
         import traceback
         LOG.append("ERR: " + traceback.format_exc()[-1500:])
