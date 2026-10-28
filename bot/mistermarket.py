@@ -152,6 +152,7 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
     pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
     bal = balance(pg) or 0
     sidata = si_next(spg, country, league)
+    cache["sid:" + league] = sidata
     squad = read_squad(pg)
     have, cap = squad_slots(pg)
     market = [m for m in read_free_market(pg) if m["href"] and m["pid"]]

@@ -19,9 +19,36 @@ from bot.web import login_sorareinside, new_context, save_session
 POSN = {"G": "1", "D": "2", "M": "3", "F": "4"}
 
 
+def match_keys(squad, sidata):
+    """Posa q['match'] (partit que juga) i q['side'] (equip) quan la font ho diu: SorareInside → parella de l'_order,
+    FutbolFantasy/Jornada Perfecta → URL del partit."""
+    order = [t for t in (sidata or {}).get("_order", [])]
+    for q in squad:
+        src = q.get("si") or q.get("ff") or q.get("jp") or {}
+        k = str(src.get("key") or "")
+        if "/" in k:
+            q["match"] = k
+        elif k in order:
+            q["match"] = "si:" + str(order.index(k) // 2)
+        else:
+            q["match"] = None
+        q["side"] = q.get("team")
+
+
+def clash(q, pick):
+    """Norma de rivals al Mister (Sofascore): un porter o defensa no va amb cap jugador de l'equip rival."""
+    if not q.get("match"):
+        return False
+    for o in pick:
+        if o.get("match") == q["match"] and o.get("side") != q.get("side") and (q["P"] in "GD" or o["P"] in "GD"):
+            return True
+    return False
+
+
 def best_lineup(squad):
     """(tàctica, onze, capità). Ordre: no en venda, franja de %, amb PS, més PS."""
     for q in squad:
+        q.pop("rule_skip", None)
         si = q.get("si") or {}
         q["xpct"] = si.get("pct") if si.get("pct") is not None else q.get("pct")
         q["xps"] = si.get("ps")
@@ -32,9 +59,12 @@ def best_lineup(squad):
         d, m, f = map(int, tac.split("-"))
         need = {"G": 1, "D": d, "M": m, "F": f}
         pick = []
-        for q in order:
-            if need.get(q["P"], 0):
+        for q in order:  # primer per ordre (franja i PS), saltant els que xocarien amb un rival
+            if need.get(q["P"], 0) and not clash(q, pick):
                 pick.append(q); need[q["P"]] -= 1
+        for q in order:  # si no hi ha prou jugadors per completar l'onze, es salta la norma
+            if need.get(q["P"], 0) and q not in pick:
+                pick.append(q); need[q["P"]] -= 1; q["rule_skip"] = True
         key = (-sum(need.values()), -sum(q["onsale"] for q in pick), -sum(band(q["xpct"]) for q in pick), sum(q["xps"] or 0 for q in pick))
         if best is None or key > best[0]:
             best = (key, tac, pick)
@@ -105,6 +135,9 @@ def apply(pg, squad, dry=False):
     o = {"G": 0, "D": 1, "M": 2, "F": 3}
     desc = f"{tac}: " + ", ".join(f"{q['short']}{' ©' if q is cap else ''} ({q['xpct'] if q['xpct'] is not None else '?'}%/{q['xps'] if q['xps'] is not None else '-'})"
                                   for q in sorted(pick, key=lambda q: o[q["P"]]))
+    skips = [q["short"] for q in pick if q.get("rule_skip")]
+    if skips:
+        desc += " | ℹ️ sense alternativa, salto la norma de rivals amb: " + ", ".join(skips)
     if gaps:
         desc += f" | ⚠️ falten {gaps} jugadors per completar l'onze"
     url = open_next(pg)
@@ -163,6 +196,7 @@ def run(dry=False, only=None):
                 continue
             try:
                 bal, squad, market, have, cap = league_data(b, pg, spg, cid, country, league, report, cache)
+                match_keys(squad, cache.get("sid:" + league))
                 report.append(f"🧢 {name} · alineació: " + apply(pg, squad, dry))
             except Exception as e:
                 report.append(f"❌ Mister · alineació · {name}: {type(e).__name__}: {str(e)[:200]}")
