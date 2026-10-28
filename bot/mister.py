@@ -15,7 +15,14 @@ def logged(pg):
 
 def login(pg):
     """Entra amb correu i contrasenya (secrets MISTER_EMAIL / MISTER_PASSWORD). Accepta les galetes (autoritzat pel David)."""
-    pg.goto(U + "/feed", wait_until="domcontentloaded", timeout=45000)
+    for i in range(4):  # el Mister de vegades no respon a primera hora: fins a 4 intents en ~6 minuts
+        try:
+            pg.goto(U + "/feed", wait_until="domcontentloaded", timeout=60000)
+            break
+        except Exception:
+            if i == 3:
+                raise
+            pg.wait_for_timeout(45000)
     pg.wait_for_timeout(3500)
     try:
         pg.locator("#didomi-notice-agree-button").click(timeout=6000)

@@ -52,9 +52,17 @@ for a in acts:
         elif a["do"] == "fffinal":
             ff.run(max_hours=3, only=[a["comp"]], final=True)
     except Exception as e:
+        failed = True
         traceback.print_exc()
         print("::error title=" + a["do"] + "::" + traceback.format_exc().replace("\n", " | ")[-1500:])
-        telegram(f"❌ Error a {a['do']} {a['comp'] or ''}: {type(e).__name__}: {str(e)[:300]}")
+        tries = load_json("tries.json", {})
+        tries[a["key"]] = tries.get(a["key"], 0) + 1
+        save_json("tries.json", tries)
+        retry = a["do"].startswith("mister") and tries[a["key"]] < 3  # Mister: es torna a provar a la propera execució
+        telegram(f"❌ Error a {a['do']} {a['comp'] or ''}: {type(e).__name__}: {str(e)[:300]}" + (" · ho torno a provar d'aquí a una estona" if retry else ""))
+        if retry:
+            done.add(key)
+            continue
     done.add(key)
     d = load_json("done.json", [])
     d.append(a["key"])

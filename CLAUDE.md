@@ -88,6 +88,7 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
   - Predicted11: última revisió 50 min abans del tancament (tancament = 2 h abans del primer partit). Llegeix `data-countdown-end`. Només refà equips si canvien jugadors o posicions.
   - GitHub endarrereix les execucions programades (sovint 1 cop per hora): el planificador agafa les accions de la propera hora i s'espera fins a l'hora exacta; si en queda alguna pendent, la fa de seguida (primer la que tanca abans).
   - FutbolFantasy: revisió final 50 min abans del primer partit (dades fresques de SorareInside, amb onzes oficials d'ESPN) i canvis de jugadors si cal. Inclou els extres de LaLiga. Tancaments a `#juego-<id>[data-date-end]`.
+- Mister: l'entrada torna a provar fins a 4 vegades (la web de vegades no respon a les 6:00) i, si una acció del Mister falla, es repeteix a la propera execució (fins a 3 intents, `state/tries.json`). Els errors surten com a `::error` a les anotacions.
 - `fantasy.yml` (manual): proves (`--dry`), forçar competicions. `debug.yml` i `logintest.yml` per diagnosi.
 - Resultats: anotacions dels jobs (`::notice`) i Telegram (`bot/notify.py`).
 - Equivalències de noms: `config/predicted11.json` (alias) i `config/futbolfantasy.json`.
