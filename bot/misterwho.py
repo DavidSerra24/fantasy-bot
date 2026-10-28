@@ -27,6 +27,9 @@ with sync_playwright() as p:
             lines.append(f"{q['short']} | {q['name']} | {q.get('P')} | equip Mister: {q.get('team')} | {q.get('src')}: "
                          f"{src.get('name')} ({str(src.get('key', '')).split('/')[-1]}) {q.get('pct')}%")
         print(f"::notice title={name}::" + " ¶ ".join(lines))
+        if cache.get("ffp"):
+            for k in sys.argv[2:]:
+                print(f"::notice title=FF {k}::" + ", ".join(f"{e['name']} {e['pct']}% ({e['key'].split('/')[-1]})" for e in cache["ffp"] if k in e["key"])[:5000])
         from bot.mistermarket import si_next
         from bot.sources import si_entries
         sid = si_next(spg, country, league)
