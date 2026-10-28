@@ -7,10 +7,8 @@ Formats acceptats per partit: "Local 2-1 Visitant" o "Local - Visitant 2-1". Sep
 import re
 import sys
 
-from playwright.sync_api import sync_playwright
 
 from bot.notify import telegram
-from bot.web import inject, login_predicted11, new_context, save_session
 
 BASE = "https://www.predicted11.com/es/"
 
@@ -81,6 +79,8 @@ def split_comp(text):
 
 def run(comp, text="", remind=None):
     """Omple (o només llegeix) la quiniela. remind = text del tancament: només avisa per Telegram si està buida."""
+    from playwright.sync_api import sync_playwright  # aquí dins: el planificador importa aquest mòdul sense navegador
+    from bot.web import inject, login_predicted11, new_context, save_session
     picks = parse(text)
     with sync_playwright() as p:
         b = p.chromium.launch()

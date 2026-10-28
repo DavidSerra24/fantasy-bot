@@ -131,7 +131,10 @@ def plan(now=None, done=None):
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
-    acts += telegram_commands(now)
+    try:  # els missatges de Telegram mai han d'aturar el planificador
+        acts += telegram_commands(now)
+    except Exception as e:
+        info.append(f"Telegram: error llegint missatges ({type(e).__name__}: {e})")
     return acts, info
 
 
