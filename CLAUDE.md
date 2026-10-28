@@ -22,7 +22,9 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
   - **Goleador**: el jugador amb més gols (vista DA). Si n'hi ha dos d'empatats, el de més PS és Recomendable i l'altre Goleador. Si ningú té gols, el davanter centre.
   - **Recomendable**: el de més PS. Desempat: més %, després menys suplents llistats.
   - **No recomendable**: el de menys PS. Desempat: menys %, després més suplents.
-- Correccions de noms: Córdoba: Rubén Alves → Rubén González. Sabadell: Urri → Albert Orriols. Bologna: Darmian, si no hi és, el següent més probable. Girona: el Goleador és Vanat.
+- Correccions de noms: Córdoba: Rubén Alves → Rubén González. Sabadell: Urri → Albert Orriols.
+- Si un jugador de SorareInside no surt a Predicted11, es posa el seu suplent (el més probable segons SorareInside), per a tots els equips (abans era una norma només per a Darmian).
+- Sense excepcions de Goleador per equip: sempre la regla general (la de Vanat al Girona es va treure el 28/10).
 - Quiniela: quan el David envia resultats, posar-los a la Quiniela de la competició.
   - Recordatori automàtic (`quinrem`): 26 h i 5 h abans del tancament de Predicted11, si la quiniela està buida, el bot envia per Telegram els partits i com respondre.
   - També es pot enganxar directament al xat del bot la resposta del Grok (taula amb capçaleres «Serie A – Jornada N», «Premier League», «LaLiga EA Sports», «LaLiga Hypermotion»…, en Markdown o sense format): `parse_grok` en treu els resultats de cada competició i el pronòstic 1/X/2 es descarta.

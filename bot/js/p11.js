@@ -113,7 +113,7 @@ window.__p11 = (function () {
     const sig = entry.rows.map(r => r.map(p => p.name).join(',')).join('|');
     const st = state(); let res = prev && prev.placed ? prev : null; let msg = '';
     if (!res || prev.sig !== sig || st.tactic === 'Manual' || st.n < 11) {
-      const log = await fill(entry.rows, { subFallback: ['Matteo Darmian', 'Darmian'] });
+      const log = await fill(entry.rows, {});
       res = { sig, formation: log.formation, placed: log.placed }; msg = 'FILLED ' + log.formation + ' ' + log.placed.length + (log.unmatched.length ? ' UN:' + log.unmatched.join(',') : '') + (log.amb.length ? ' AMB:' + log.amb.join(',') : '') + (log.subbed ? ' SUBSTITUT:' + log.subbed.join(',') : '');
     }
     if (!res.placed || res.placed.length < 11) { res.msg = (msg || '') + ' (icones no tocades: onze incomplet)'; return res; }
