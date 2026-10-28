@@ -154,6 +154,16 @@ def telegram_commands(now):
         if str((m.get("chat") or {}).get("id")) != str(chat):
             continue  # només el xat del David
         t = (m.get("text") or "").strip()
+        from bot.quiniela import parse_grok
+        grok = parse_grok(t)
+        if grok:  # taula del Grok enganxada (amb o sense /quiniela): una acció per competició
+            for c, picks in grok.items():
+                out.append({"key": f"quiniela:{u['update_id']}:{c}", "at": now.isoformat(), "do": "quiniela", "comp": c,
+                            "deadline": (now + dt.timedelta(hours=6)).isoformat(),
+                            "text": "; ".join(f"{h} {a}-{b} {v}" for h, v, a, b in picks)})
+            requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                          json={"chat_id": chat, "text": "👍 Rebudes: " + ", ".join(f"{c} ({len(p)} partits)" for c, p in grok.items()) + ". Les poso ara."}, timeout=20)
+            continue
         if not t.lower().startswith("/quiniela"):
             continue
         comp, rest = split_comp(t[len("/quiniela"):].split("@", 1)[-1] if t[len("/quiniela"):].startswith("@") else t[len("/quiniela"):])

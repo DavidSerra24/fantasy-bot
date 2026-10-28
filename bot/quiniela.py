@@ -44,6 +44,29 @@ ALIASES = {"laliga": "laliga", "liga": "laliga", "laliga2": "laliga2", "laliga 2
            "champions": "champions", "ucl": "champions"}
 
 
+HEADERS = [(r"hypermotion|laliga\s*2|segunda", "laliga2"), (r"laliga|la liga|primera", "laliga"), (r"premier", "premier-league"),
+           (r"serie\s*a", "serie-a"), (r"champions", "champions")]
+GROK = re.compile(r"(?:previst|\n|\t|^|(?<=\d-\d))\s*([^\n\t–]+?)\s+–\s+([^\n\t]+?)\s*([12X])\s*(\d{1,2})\s*-\s*(\d{1,2})(?!\d)")
+
+
+def parse_grok(text):
+    """Taula del Grok enganxada («Torino – Monza12-0…», amb capçaleres «🇮🇹 Serie A – Jornada 8»).
+    Retorna {competició: [[local, visitant, gols local, gols visitant], ...]}. El pronòstic 1/X/2 es descarta."""
+    out, comp = {}, None
+    for line in text.splitlines():
+        if "–" in line and not re.search(r"\d-\d", line) and len(line) < 80:  # capçalera de competició
+            for rx, c in HEADERS:
+                if re.search(rx, line, re.I):
+                    comp = c
+                    break
+            continue
+        for m in GROK.finditer(line):
+            if comp:
+                home = re.sub(r"^.*(Resultado previsto|previsto|previst)\s*", "", m.group(1).strip()).strip()
+                out.setdefault(comp, []).append([home, m.group(2).strip(), int(m.group(4)), int(m.group(5))])
+    return out
+
+
 def split_comp(text):
     """«serie a Bologna 2-1 Monza; ...» → ('serie-a', 'Bologna 2-1 Monza; ...'). Sense competició → (None, text)."""
     t = text.strip()
