@@ -96,8 +96,8 @@ def run(comp, text="", remind=None):
 
 
 def main():
-    if len(sys.argv) > 2 and sys.argv[2] == "--recorda":
-        return run(sys.argv[1], remind=" ".join(sys.argv[3:]) or "aviat")
+    if len(sys.argv) > 2 and sys.argv[2].startswith("--recorda"):
+        return run(sys.argv[1], remind=(" ".join(sys.argv[2:])[len("--recorda"):].strip() or "aviat"))
     run(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "")
 
 
