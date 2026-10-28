@@ -212,13 +212,19 @@ def optimise(found, tactics):
     for tac in tactics:
         d, m, f = map(int, tac.split("-"))
         need = {"G": 1, "D": d, "M": m, "F": f}
-        pick, teams = [], set()
+        # Rivals: només resten punts els gols encajats als porters i defenses. Per tant, un porter o defensa no pot
+        # coincidir amb cap jugador de l'equip rival; migcampistes i davanters de dos rivals sí que poden anar junts.
+        pick, teams, back = [], set(), set()
         for c in sorted(found, key=lambda c: not c.get("lock")):  # primer els que s'han de mantenir; després per PS
-            if need[c["pos"]] and c["opp"] not in teams:
+            gd = c["pos"] in ("G", "D")
+            clash = c["opp"] is not None and (c["opp"] in back or (gd and c["opp"] in teams))
+            if need[c["pos"]] and not clash:
                 pick.append(c)
                 need[c["pos"]] -= 1
                 if c["team"]:
                     teams.add(c["team"])
+                    if gd:
+                        back.add(c["team"])
         if any(need.values()):
             continue
         key = (sum(c["ps"] for c in pick), -sum(c["idx"] for c in pick))
