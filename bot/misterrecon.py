@@ -22,7 +22,11 @@ with sync_playwright() as p:
             if el.count():
                 el.evaluate("e => e.click()"); pg.wait_for_timeout(4000)
                 LOG.append(f"[{cid}] REQS: " + " || ".join(reqs))
-                LOG.append(f"[{cid}] POOL: " + pg.evaluate(DUMP))
+                LOG.append(f"[{cid}] POOL: " + pg.evaluate(DUMP)[:700])
+                reqs.clear()
+                pg.locator("button[data-sw='pool-private']").first.evaluate("e => e.click()"); pg.wait_for_timeout(4000)
+                LOG.append(f"[{cid}] PRIV REQS: " + " || ".join(reqs))
+                LOG.append(f"[{cid}] PRIV: " + pg.evaluate(DUMP)[:2500])
     except Exception:
         import traceback
         LOG.append("ERR: " + traceback.format_exc()[-1500:])
