@@ -48,8 +48,14 @@ for a in acts:
             save_json("quinrem_last.json", {"comp": a["comp"]})
             quiniela.run(a["comp"], remind=a.get("text", ""))
         elif a["do"] == "quiniela":
-            from bot import quiniela
+            from bot import quiniela, misterpool
             quiniela.run(a["comp"], a.get("text", ""))
+            if a["comp"] in misterpool.POOLS:  # mateixos resultats a la quiniela del Mister (1 X 2)
+                lines = misterpool.run(a["comp"], quiniela.parse(a.get("text", "")))
+                for l in lines:
+                    print("::notice title=pool::" + l)
+                if lines:
+                    telegram("\n".join(lines))
         elif a["do"] == "copa":
             from bot import copa
             copa.run()
