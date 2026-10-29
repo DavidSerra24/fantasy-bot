@@ -189,23 +189,16 @@ def explore():
 
 
 def probe():
-    """Prova: Sofascore i FotMob es poden llegir des de GitHub? (onzes oficials)"""
-    H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36",
-         "Accept": "application/json", "Referer": "https://www.sofascore.com/"}
-    for u in ["https://api.sofascore.com/api/v1/sport/football/scheduled-events/2026-10-29",
-              "https://www.sofascore.com/api/v1/sport/football/scheduled-events/2026-10-29",
-              "https://www.fotmob.com/api/data/matches?date=20261029"]:
-        try:
+    """Prova: onze de FotMob (matchDetails) d'un partit acabat i d'un de demà."""
+    H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"}
+    for day in ("20261029", "20261031"):
+        d = requests.get(f"https://www.fotmob.com/api/data/matches?date={day}", headers=H, timeout=20).json()
+        m = d["leagues"][0]["matches"][0]
+        for u in (f"https://www.fotmob.com/api/data/matchDetails?matchId={m['id']}", f"https://www.fotmob.com/api/matchDetails?matchId={m['id']}"):
             r = requests.get(u, headers=H, timeout=20)
-            print(f"::notice title={u[:60]}::{r.status_code} {r.text[:300]}")
-            if r.ok and "events" in r.text:
-                ev = r.json()["events"]
-                done = [e for e in ev if e.get("status", {}).get("type") in ("finished", "inprogress")][:1]
-                for e in done:
-                    l = requests.get(u.split("/sport/")[0] + f"/event/{e['id']}/lineups", headers=H, timeout=20)
-                    print(f"::notice title=lineups {e['homeTeam']['name']}::{l.status_code} {l.text[:600]}")
-        except Exception as e:
-            print(f"::notice title={u[:60]} error::{e}"[:500])
+            txt = r.text
+            k = txt.find('"lineup"')
+            print(f"::notice title={day} {m['home']['name']} {u[26:50]}::{r.status_code} len {len(txt)} · {txt[k:k+700] if k >= 0 else txt[:300]}")
 
 
 if __name__ == "__main__":
