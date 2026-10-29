@@ -189,18 +189,23 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): quina Arena faria amb cada porter vigilat si fos titular (no envia res)."""
-    from bot.sorarelineup import gk_arena, arena_text
-    from bot.web import load_json
-    w = load_json("sorare_gkwatch.json", {})
-    for g in w.get("gks", [])[:4]:
-        g = dict(g, fixture=g.get("fixture") or w.get("fixture"))
+    """Prova: Sofascore i FotMob es poden llegir des de GitHub? (onzes oficials)"""
+    H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36",
+         "Accept": "application/json", "Referer": "https://www.sofascore.com/"}
+    for u in ["https://api.sofascore.com/api/v1/sport/football/scheduled-events/2026-10-29",
+              "https://www.sofascore.com/api/v1/sport/football/scheduled-events/2026-10-29",
+              "https://www.fotmob.com/api/data/matches?date=20261029"]:
         try:
-            r = gk_arena(g)
-            print(f"::notice title=arena {g['name']}::" + (arena_text(r[1], r[2]) + f" · entry {r[3]}" if r else "cap"))
+            r = requests.get(u, headers=H, timeout=20)
+            print(f"::notice title={u[:60]}::{r.status_code} {r.text[:300]}")
+            if r.ok and "events" in r.text:
+                ev = r.json()["events"]
+                done = [e for e in ev if e.get("status", {}).get("type") in ("finished", "inprogress")][:1]
+                for e in done:
+                    l = requests.get(u.split("/sport/")[0] + f"/event/{e['id']}/lineups", headers=H, timeout=20)
+                    print(f"::notice title=lineups {e['homeTeam']['name']}::{l.status_code} {l.text[:600]}")
         except Exception as e:
-            import traceback
-            print(f"::notice title=arena {g['name']} error::" + traceback.format_exc().replace(chr(10), " | ")[-1500:])
+            print(f"::notice title={u[:60]} error::{e}"[:500])
 
 
 if __name__ == "__main__":
