@@ -92,7 +92,7 @@ def login():
     salt = requests.get(f"https://api.sorare.com/api/v1/users/{email}", headers=UA, timeout=20).json()["salt"]
     hashed = bcrypt.hashpw(pwd.encode(), salt.encode()).decode()
     d = gql(SIGNIN, {"input": {"email": email, "password": hashed}})["signIn"]
-    if d.get("errors"):
+    if d.get("errors") and not d.get("otpSessionChallenge"):  # «2fa_missing» ve amb el challenge: cal el codi
         raise RuntimeError("Sorare no ha acceptat el correu/contrasenya: " + "; ".join(e["message"] for e in d["errors"]))
     if not d.get("jwtToken") and d.get("otpSessionChallenge"):
         telegram("🔐 Sorare: envia'm aquí el codi de 6 xifres de l'Authenticator (tens 5 minuts).")
