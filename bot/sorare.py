@@ -181,7 +181,8 @@ def explore():
             g = g or (eg.get("projection") or {})
             rows.append(f"{p_['displayName']} ({(p_.get('activeClub') or {}).get('name')}, {p_.get('position')}, {p_.get('age')}a) | {g.get('grade')} {g.get('score')} | {(o.get('starterOddsBasisPoints') or 0)/100:.0f}% | mitj {n.get('averageScore')} | xp {n['anyCard']['xp']} | {n['anyCard']['slug']}")
         print(f"::notice title=bench {champ['displayName']}::" + " ¶ ".join(rows)[:9000])
-        print("::notice title=raw::" + json.dumps(nodes[:2])[:3000])
+        allr = gql("""query { so5 { futureLeaderboardsPaginated(first: 300) { nodes { displayName mainRarityType isArena slug format { title } } } } }""", token=token())["so5"]["futureLeaderboardsPaginated"]["nodes"]
+        print("::notice title=allrare::" + " ¶ ".join(f"{l['displayName']} | {l['mainRarityType']} | {l['format']['title']} | {l['slug']}" for l in allr if l["slug"].startswith("football") and not l["isArena"] and l["mainRarityType"] != "limited")[:6000])
         from collections import Counter
         print("::notice title=rarities::" + str(Counter((l["mainRarityType"], l["format"]["title"], l["slug"].split("-")[0]) for l in leaderboards())))
 
