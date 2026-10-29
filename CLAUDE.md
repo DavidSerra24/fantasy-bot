@@ -110,10 +110,10 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 
 ## Infraestructura
 - Repositori: DavidSerra24/fantasy-bot. S'executa a GitHub Actions; no cal el PC del David. Oracle Free Tier (Madrid) no té capacitat.
-- `auto.yml` cada 30 min (`bot/plan.py` → `bot/execute.py`):
+- `auto.yml` cada 30 min, tot el dia (`bot/plan.py` → `bot/execute.py`):
   - Matí (9:00 Madrid), cada dia: Predicted11 de totes les jornades obertes (només refà equips que canviïn) i FutbolFantasy dels jocs que tanquin en ≤8 dies: omple els buits i revisa/edita els ja omplerts amb les dades del dia. Els jugadors de l'onze sense dades a SorareInside (equip encara sense onze o sense PS) es mantenen. Si no surt un onze vàlid, espera a l'endemà. Els extres de LaLiga també: s'omplen i es revisen cada matí (si un jugador ja no és dels 3 millors, es canvia). Sempre hi ha revisió final abans de tancar.
   - Predicted11: última revisió 50 min abans del tancament (tancament = 2 h abans del primer partit). Llegeix `data-countdown-end`. Només refà equips si canvien jugadors o posicions.
-  - GitHub endarrereix les execucions programades (sovint 1 cop per hora): el planificador agafa les accions de la propera hora i s'espera fins a l'hora exacta; si en queda alguna pendent, la fa de seguida (primer la que tanca abans).
+  - Programat cada 30 min **tot el dia** (repositori públic: sense cost). GitHub endarrereix les execucions (a la pràctica 1 cop per hora, cap a :45–:59): el planificador agafa les accions dels **propers 90 min** i s'espera fins a l'hora exacta; si en queda alguna pendent, la fa de seguida (primer la que tanca abans). Partits de matinada (Brasil, NBA) també es revisen.
   - FutbolFantasy: revisió final 50 min abans del primer partit (dades fresques de SorareInside, amb onzes oficials de FotMob i, si no, d'ESPN; `ff.official_lineups`) i canvis de jugadors si cal. Inclou els extres de LaLiga. Tancaments a `#juego-<id>[data-date-end]`.
 - Mister: l'entrada torna a provar fins a 4 vegades (la web de vegades no respon a les 6:00) i, si una acció del Mister falla, es repeteix a la propera execució (fins a 3 intents, `state/tries.json`). Els errors surten com a `::error` a les anotacions.
 - `fantasy.yml` (manual): proves (`--dry`), forçar competicions. `debug.yml` i `logintest.yml` per diagnosi.

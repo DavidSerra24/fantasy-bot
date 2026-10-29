@@ -1,14 +1,15 @@
 name: Automàtic (cada 30 min)
 on:
   schedule:
-    # Cada 30 minuts, de 5:05 a 23:35 (hora de Madrid a l'estiu; una hora menys a l'hivern)
-    - cron: "5,35 2-21 * * *"
+    # Cada 30 minuts, tot el dia (el repositori és públic: les execucions no tenen cost). GitHub sovint només
+    # n'arrenca una per hora i amb retard: el planificador agafa les accions dels propers 90 min.
+    - cron: "5,35 * * * *"
   workflow_dispatch:
 concurrency: fantasy
 jobs:
   auto:
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 240
     env:
       SI_EMAIL: ${{ secrets.SI_EMAIL }}
       SI_PASSWORD: ${{ secrets.SI_PASSWORD }}

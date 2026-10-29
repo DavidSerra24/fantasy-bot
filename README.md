@@ -6,8 +6,8 @@ S'executa sol a **GitHub Actions** (no cal cap PC engegat) i informa de tot per 
 Les normes detallades (criteris de cada joc i decisions del David) són a [`CLAUDE.md`](CLAUDE.md).
 
 ## Com funciona
-- `auto.yml` s'executa cada 30 min (de les 3:05 a les 22:35, hora de Madrid). `bot/plan.py` decideix què toca fer
-  en la propera hora i `bot/execute.py` ho fa a l'hora exacta (GitHub sovint endarrereix les execucions).
+- `auto.yml` està programat cada 30 min, tot el dia (a la pràctica GitHub l'arrenca ~1 cop per hora i amb retard).
+  `bot/plan.py` decideix què toca fer en els propers 90 min i `bot/execute.py` s'espera i ho fa a l'hora exacta.
 - L'estat (sessions, claus xifrades, decisions ja preses) es desa a `state/` a la memòria cau d'Actions.
 - Els resultats surten com a anotacions dels jobs i per Telegram (`bot/notify.py`).
 - Fonts: **SorareInside** (onzes previstos, % de titularitat, punts projectats), **FutbolFantasy** (% per a LaLiga al Mister),

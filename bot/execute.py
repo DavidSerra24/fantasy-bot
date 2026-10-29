@@ -29,7 +29,7 @@ while queue:
         continue
     wait = (dt.datetime.fromisoformat(a["at"]) - dt.datetime.now(dt.timezone.utc)).total_seconds()
     if wait > 0:
-        time.sleep(min(wait, 3600))
+        time.sleep(min(wait, 5400))
     names = {"laliga": "LaLiga", "laliga2": "LaLiga 2", "premier-league": "Premier", "serie-a": "Serie A",
              "champions": "Champions", "europa-league": "Europa League", None: ""}
     what = {"p11": f"Predicted11 {names.get(a['comp'], a['comp'])}" + (" (última revisió)" if "final" in a.get("key", "") else " (matí)"),
