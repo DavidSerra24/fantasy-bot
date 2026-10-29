@@ -22,8 +22,11 @@ from bot.sorare import gql, token
 
 GRADE = {"A": 5, "B": 4, "C": 3, "D": 2, "E": 1, "F": 0}
 COMPS = [("U23", "under_twenty_one"), ("Champion", "seasonal-champions"), ("All Star", "seasonal-all_star-all_seasons_all_star_")]
-CAP = 370
-SLOTS = ["Goalkeeper", "Defender", "Midfielder", "Forward", "Extra"]
+CAP = 370  # bonificació Classic: suma de mitjanes L10 jugades ≤ 370
+ARENA_CAP = 260  # Arena Beginner: límit obligatori de la suma de mitjanes
+# Classic (Pro): 7 jugadors (índexs 0-6 com a Sorare); Arena: 5
+CLASSIC = ["Goalkeeper", "Defender", "Defender", "Midfielder", "Midfielder", "Forward", "Extra"]
+ARENA = ["Goalkeeper", "Defender", "Midfielder", "Forward", "Extra"]
 LOG = []
 SHORT = {"Goalkeeper": "POR", "Defender": "DEF", "Midfielder": "MIG", "Forward": "DAV", "Extra": "EXT"}
 
@@ -33,7 +36,7 @@ FIXTURE = """query { so5 { so5Fixture(sport: FOOTBALL, type: UPCOMING, eventType
 
 BENCH = """query($slug: String!, $r: RangeInput, $after: String, $pos: [Position!]) { so5 { so5Leaderboard(slug: $slug) {
   myBench(first: 50, after: $after, includeUsed: true, starterOddsBasisPointsRange: $r, positions: $pos) { pageInfo { hasNextPage endCursor } nodes {
-    ... on ComposeTeamBenchCard { averageScore(type: LAST_FIFTEEN_SO5_AVERAGE_SCORE)
+    ... on ComposeTeamBenchCard { positions avg10: averageScore(type: LAST_TEN_PLAYED_SO5_AVERAGE_SCORE) avg15: averageScore(type: LAST_FIFTEEN_SO5_AVERAGE_SCORE)
       anyCard { slug rarityTyped xp }
       anyPlayer { displayName slug age activeClub { name slug } ... on Player { position } }
       eligiblePlayerGameScores(so5LeaderboardSlug: $slug) { projection { grade score } anyGame { id date homeTeam { name } awayTeam { name } } } } } } } } }"""
@@ -72,7 +75,8 @@ def cards(lb):
         club = (p.get("activeClub") or {}).get("name") or ""
         teams = [(game.get("homeTeam") or {}).get("name"), (game.get("awayTeam") or {}).get("name")]
         q = {"card": c["slug"], "xp": c["xp"] or 0, "name": p["displayName"], "player": p["slug"], "club": club,
-             "pos": p.get("position"), "age": p.get("age"), "avg": n.get("averageScore") or 0, "idx": i,
+             "pos": p.get("position"), "poss": n.get("positions") or [p.get("position")], "age": p.get("age"),
+             "avg": n.get("avg10") or 0, "avg15": n.get("avg15") or 0, "idx": i,
              "grade": ((g.get("projection") or {}).get("grade")), "proj": (g.get("projection") or {}).get("score"),
              "game": game.get("id"), "rival": next((t for t in teams if t and t != club), None),
              "girona": "girona" in club.lower(), "gazza": "gazzaniga" in p["slug"]}
@@ -93,48 +97,57 @@ def faces(a, b):
     return a["game"] and a["game"] == b["game"] and a["club"] != b["club"]
 
 
-def build(pool, bonus=True):
-    """Alineació de 5 (POR, DEF, MIG, DAV, Extra) o None. Sense rivals; després quadra la bonificació."""
-    pick = {}
+def fits(q, slot):
+    if slot == "Extra":
+        return q["pos"] != "Goalkeeper"
+    return slot == q["pos"] or slot in q["poss"]
+
+
+def build(pool, slots, cap=CAP, avg="avg", hard=False):
+    """Alineació (llista de jugadors per casella, en l'ordre de `slots`) o None. Ordre: impacte i llista; sense rivals.
+    Cada jugador va a la casella de la seva posició; si està plena, a una altra de les seves posicions i, si no, a Extra.
+    Després quadra la bonificació (màx. 2 per club i suma de mitjanes ≤ cap). Amb hard=True, el límit és obligatori."""
+    pick = [None] * len(slots)
     for q in order(pool):
-        if any(faces(q, o) for o in pick.values()):
+        if any(o and faces(q, o) for o in pick):
             continue
-        if q["pos"] in SLOTS and q["pos"] not in pick:
-            pick[q["pos"]] = q
-        elif q["pos"] != "Goalkeeper" and "Extra" not in pick:
-            pick["Extra"] = q
-        if len(pick) == 5:
+        free = [k for k, s_ in enumerate(slots) if pick[k] is None and s_ != "Extra" and fits(q, s_)]
+        free.sort(key=lambda k: slots[k] != q["pos"])
+        if not free and q["pos"] != "Goalkeeper":
+            free = [k for k, s_ in enumerate(slots) if pick[k] is None and s_ == "Extra"]
+        if free:
+            pick[free[0]] = q
+        if all(pick):
             break
-    if len(pick) < 5:
+    if not all(pick):
         return None
-    if bonus:
-        pick = fit_bonus(pick, pool)
+    pick = fit_bonus(pick, pool, slots, cap, avg, hard)
     return pick
 
 
-def bonus_bad(pick):
+def bonus_bad(pick, cap, avg, hard):
     from collections import Counter
-    clubs = Counter(q["club"] for q in pick.values())
-    return sum(max(0, v - 2) for v in clubs.values()) * 1000 + max(0, sum(q["avg"] for q in pick.values()) - CAP)
+    clubs = Counter(q["club"] for q in pick)
+    over = max(0, sum(q[avg] for q in pick) - cap)
+    return over if hard else sum(max(0, v - 2) for v in clubs.values()) * 1000 + over
 
 
-def fit_bonus(pick, pool):
-    """Canvis d'un jugador, el que menys impacte perdi, fins a complir màx. 2 per club i suma de mitjanes ≤ 370."""
-    for _ in range(6):
-        bad = bonus_bad(pick)
+def fit_bonus(pick, pool, slots, cap, avg, hard):
+    """Canvis d'un jugador, el que menys impacte perdi, fins a complir la bonificació (o el límit obligatori)."""
+    for _ in range(10):
+        bad = bonus_bad(pick, cap, avg, hard)
         if not bad:
-            break
-        used = {q["player"] for q in pick.values()}
+            return pick
+        used = {q["player"] for q in pick}
         best = None
-        for slot, cur in pick.items():
+        for k, cur in enumerate(pick):
             for c in pool:
-                if c["player"] in used or not (c["pos"] == slot or (slot == "Extra" and c["pos"] != "Goalkeeper")):
+                if c["player"] in used or not fits(c, slots[k]):
                     continue
-                rest = {k: v for k, v in pick.items() if k != slot}
-                if any(faces(c, o) for o in rest.values()):
+                if any(faces(c, o) for j, o in enumerate(pick) if j != k):
                     continue
-                new = dict(rest, **{slot: c})
-                nb = bonus_bad(new)
+                new = pick[:k] + [c] + pick[k + 1:]
+                nb = bonus_bad(new, cap, avg, hard)
                 if nb >= bad:
                     continue
                 key = (nb > 0, cur["imp"] - c["imp"], c["gazza"], c["idx"])
@@ -143,15 +156,15 @@ def fit_bonus(pick, pool):
         if not best:
             break
         pick = best[1]
-    return pick
+    return None if hard and bonus_bad(pick, cap, avg, hard) else pick
 
 
 def captain(pick):
-    return min(pick.values(), key=lambda q: (-q["imp"], q["pos"] == "Goalkeeper", q["idx"]))
+    return min(pick, key=lambda q: (-q["imp"], q["pos"] == "Goalkeeper", q["idx"]))
 
 
 def preview(lb, pick, cap):
-    a = [{"cardSlug": q["card"], "captain": q is cap, "index": i} for i, (s, q) in enumerate((s, pick[s]) for s in SLOTS)]
+    a = [{"cardSlug": q["card"], "captain": q is cap, "index": i} for i, q in enumerate(pick)]
     try:
         d = gql(PREVIEW, {"slug": lb["slug"], "a": a}, token=token())["so5"]["so5Leaderboard"]["previewSo5Lineup"]
         bad = [f"{r['ruleName']}: {r['message'] or r['state']}" for r in (d.get("feedbackRules") or []) if r["state"] == "INVALID"]
@@ -160,11 +173,11 @@ def preview(lb, pick, cap):
         return f"(sense previsualització: {str(e)[:120]})"
 
 
-def describe(pick, cap):
+def describe(pick, cap, slots=CLASSIC):
     from collections import Counter
-    clubs = Counter(q["club"] for q in pick.values())
-    total = sum(q["avg"] for q in pick.values())
-    s = ", ".join(f"{SHORT[k]} {pick[k]['name']}{' ©' if pick[k] is cap else ''} ({pick[k]['grade'] or '?'}, {pick[k]['avg']:.0f})" for k in SLOTS)
+    clubs = Counter(q["club"] for q in pick)
+    total = sum(q["avg"] for q in pick)
+    s = ", ".join(f"{SHORT[sl]} {q['name']}{' ©' if q is cap else ''} ({q['grade'] or '?'}, {q['avg']:.0f})" for sl, q in zip(slots, pick))
     flags = ("✅" if max(clubs.values()) <= 2 else "⚠️ >2 d'un club") + " · " + (f"✅ {total:.0f}/370" if total <= CAP else f"⚠️ {total:.0f}/370")
     return s + " · " + flags
 
@@ -187,18 +200,18 @@ def run(dry=True):
     if fx.get("mySo5Lineups"):
         rep.append("Ja hi ha " + str(len(fx["mySo5Lineups"])) + " alineacions fetes: "
                    + "; ".join(f"{l['so5Leaderboard']['displayName']}: " + ", ".join(a["anyPlayer"]["displayName"] for a in l["so5Appearances"]) for l in fx["mySo5Lineups"]))
-    used = set()
-    gazza_rare_used_allstar = False
+    used = {"rare": set(), "limited": set()}  # sense repetir jugadors dins de cada raresa (un jugador pot anar a Rare i a Limited)
     plan = []
-    for rarity, maxn in (("rare", 1), ("limited", 4)):
-        done_rarity = 0
+    for rarity, total in (("rare", 1), ("limited", None)):  # Rare: 1 alineació a la primera competició possible; Limited: fins a 4 per competició
+        made = 0
         for name, key in COMPS:
+            if total and made >= total:
+                break
             lb = next((l for l in lbs if key in l["slug"] and (l["mainRarityType"] or "").lower() == rarity), None)
             if not lb:
                 continue
-            pool = cards(lb)
             allstar = name == "All Star"
-            pool = [q for q in pool if q["player"] not in used]
+            pool = [q for q in cards(lb) if q["player"] not in used[rarity]]
             if allstar and not (rarity == "rare" and girona_rare_allstar):
                 pool = [q for q in pool if not q["girona"]]
             if rarity == "limited":  # 2 Gazzaniga Limited reservats: només entra si en té més de 2 (i sempre l'últim)
@@ -208,41 +221,40 @@ def run(dry=True):
             if rarity == "rare" and not allstar:  # el Rare de Gazzaniga es reserva si no va a All Star Rare
                 pool = [q for q in pool if not q["gazza"]]
             if name == "U23" and not any(q["pos"] == "Goalkeeper" for q in pool):
-                rep.append(f"{name} {rarity.title()}: no hi ha porter U23 titular (≥80%) → no la faig")
+                rep.append(f"{lb['displayName']}: no hi ha porter U23 titular (≥80%) → no la faig")
                 continue
             n = 0
-            while n < 4 and done_rarity < maxn:
-                pick = build(pool)
+            while n < (total or 4) - (made if total else 0):
+                pick = build(pool, CLASSIC)
                 if not pick:
                     break
                 cap = captain(pick)
-                n += 1; done_rarity += 1
-                used |= {q["player"] for q in pick.values()}
-                pool = [q for q in pool if q["player"] not in used]
-                if rarity == "rare" and allstar and any(q["gazza"] for q in pick.values()):
-                    gazza_rare_used_allstar = True
+                n += 1; made += 1
+                used[rarity] |= {q["player"] for q in pick}
+                pool = [q for q in pool if q["player"] not in used[rarity]]
                 plan.append((lb, pick, cap))
                 rep.append(f"🃏 {lb['displayName']} #{n}: {describe(pick, cap)} · {preview(lb, pick, cap)}")
-            if n == 0 and done_rarity < maxn:
+            if n == 0:
                 rep.append(f"{lb['displayName']}: no hi ha prou jugadors amb ≥80% per a una alineació")
-            if done_rarity >= maxn:
-                break
-    # Arena Beginner: proposta amb els sobrants (≥80%, sense Girona ni Gazzaniga: són per a l'Arena manual del David)
+            elif n < 4 and not total:
+                rep.append(f"{lb['displayName']}: {n} alineacions (no queden jugadors per a més)")
+    # Arena Beginner (5 jugadors, límit 260): proposta amb els sobrants Limited (≥80%, sense Girona ni Gazzaniga: Arena manual del David)
     arena = next((l for l in fx["so5Leaderboards"] if l["isArena"] and "beginner" in l["slug"]), None)
     if arena:
-        pool = [q for q in cards(arena) if q["player"] not in used and not q["girona"] and not q["gazza"]]
+        pool = [q for q in cards(arena) if q["player"] not in used["limited"] and not q["girona"] and not q["gazza"]]
         props = []
         while True:
-            pick = build(pool, bonus=False)
+            pick = build(pool, ARENA, ARENA_CAP, "avg15", hard=True)
             if not pick:
                 break
             props.append((pick, captain(pick)))
-            got = {q["player"] for q in pick.values()}
+            got = {q["player"] for q in pick}
             pool = [q for q in pool if q["player"] not in got]
         if props:
-            rep.append(f"🏟️ Proposta d'Arena Beginner: puc fer {len(props)} Arenes ({len(props) * 100} d'essència), quan s'activi et preguntaré «Les faig?»:")
+            rep.append(f"🏟️ Proposta d'Arena Beginner: puc fer {len(props)} Arenes ({len(props) * 100} d'essència); quan s'activi et preguntaré «Les faig?»:")
             for i, (pick, cap) in enumerate(props, 1):
-                rep.append(f"   Arena {i}: " + ", ".join(f"{SHORT[k]} {pick[k]['name']}{' ©' if pick[k] is cap else ''} ({pick[k]['grade'] or '?'})" for k in SLOTS))
+                rep.append(f"   Arena {i}: " + ", ".join(f"{SHORT[sl]} {q['name']}{' ©' if q is cap else ''} ({q['grade'] or '?'})" for sl, q in zip(ARENA, pick))
+                           + f" · {sum(q['avg15'] for q in pick):.0f}/260 · {preview(arena, pick, cap)}")
         else:
             rep.append("🏟️ Arena: no queden prou jugadors amb ≥80% per a cap Arena")
     print("::notice title=sorare::" + " ¶ ".join(rep + LOG)[:60000])
