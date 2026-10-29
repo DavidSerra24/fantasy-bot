@@ -1,29 +1,43 @@
 # fantasy-bot
 
-Automatitzacions setmanals: Predicted11, FutbolFantasy (Fantasy✨), Sorare (Set i Pro) i Mister.
-Corre en una VM Oracle Always Free (Ubuntu 24.04 ARM, Europe/Madrid) amb cron + Playwright.
+Bot del David per als jocs de futbol fantasy: **Predicted11**, **FutbolFantasy (Fantasy✨)**, **Mister** (dues lligues) i **Sorare** (Pro i missions diàries, futbol i NBA).
+S'executa sol a **GitHub Actions** (no cal cap PC engegat) i informa de tot per **Telegram**.
 
-## Instal·lació al servidor
-```bash
-git clone https://github.com/DavidSerra24/fantasy-bot.git
-cd fantasy-bot
-./scripts/setup.sh
-nano .env            # omple-ho tu: tokens i contrasenyes
-.venv/bin/python -m bot.selftest
-```
+Les normes detallades (criteris de cada joc i decisions del David) són a [`CLAUDE.md`](CLAUDE.md).
 
-## Actualitzar
-```bash
-cd ~/fantasy-bot && git pull
-```
+## Com funciona
+- `auto.yml` s'executa cada 30 min (de les 3:05 a les 22:35, hora de Madrid). `bot/plan.py` decideix què toca fer
+  en la propera hora i `bot/execute.py` ho fa a l'hora exacta (GitHub sovint endarrereix les execucions).
+- L'estat (sessions, claus xifrades, decisions ja preses) es desa a `state/` a la memòria cau d'Actions.
+- Els resultats surten com a anotacions dels jobs i per Telegram (`bot/notify.py`).
+- Fonts: **SorareInside** (onzes previstos, % de titularitat, punts projectats), **FutbolFantasy** (% per a LaLiga al Mister),
+  **Jornada Perfecta** (LaLiga 2 quan SorareInside no té l'equip), i onzes oficials de **Sorare**, **FotMob** (només l'oficial)
+  i **ESPN**.
+
+## Què fa
+| Joc | Què fa | Quan |
+|---|---|---|
+| Predicted11 | Onzes de LaLiga, LaLiga 2, Premier, Serie A i Champions (de SorareInside) amb emoticones | Cada matí 9:00 i 50 min abans del tancament |
+| Quinieles | Predicted11 (resultat) i Mister (1 X 2) amb el text del Grok o `/quiniela` per Telegram; recordatoris 26 h i 5 h abans | Quan el David les envia |
+| FutbolFantasy | Jocs de lliga, extres de LaLiga (Trío revulsivo, Trío antagonista, Resiliencia de portero), Copa del Rey | Cada matí 9:00 i revisió final 50 min abans |
+| Mister (Quique i Fentaniños) | Mercat (pujes, vendes, deute), ofertes, alineació i capità, «Mis equipos» de FutbolFantasy | 4:15, 5:10, 6:00, 6:40, 17:10 i 45 min abans del primer partit |
+| Sorare Pro | 7 alineacions Classic (Rare i Limited: U23 → Champion → All Star) i Arenes (només amb el «sí» del David) | Dimecres/diumenge 21:15, matins abans del tancament, 2 h i 40 min abans |
+| Sorare · porters | Avís 1 h 15 min abans dels porters del 20–70% i Arena amb ell si és titular (amb el «sí») | Abans de cada partit |
+| Sorare · missions | Decisive Picker (futbol i NBA): prioritat essència → pistes → experiència | 9:05 i 15 min abans de cada partit |
+
+## Workflows manuals
+- `sorare.yml` (`cmd`): `login` (entrar; demana el codi de l'Authenticator per Telegram), `me`, `lineups` (prova), `fill`, `final`, `missions` (prova), `missionsgo`, `plandry` (simula el pla de demà).
+- `mister.yml`: mercat del Mister (`--dry`, `--retira=Nom`).
+- `fantasy.yml`: proves de Predicted11 / FutbolFantasy (`--dry`).
+- `debug.yml`: diagnosi (`bot.misterwho`, `bot.copa`…).
 
 ## Normes de seguretat
-- Les contrasenyes només viuen a `.env` del servidor (no es pugen mai a GitHub).
+- Les contrasenyes i tokens només viuen als **GitHub Secrets** (mai al repositori). La clau de Sorare es desa xifrada.
+- Mai escriu contrasenyes ni codis de l'Authenticator: el codi l'envia el David per Telegram.
 - Cap script compra, ven ni intercanvia cartes de Sorare, ni fa dipòsits o retirades.
-- Despesa d'essència a Arenes: mai automàtica.
+- L'essència (Arenes) només es gasta si el David respon «sí» per Telegram.
 
-## Mòduls (pendents)
-- [ ] predicted11
-- [ ] futbolfantasy
-- [ ] sorare (set / pro)
-- [ ] mister
+## Pendent
+- Sorare Set (mode gratuït).
+- MLB (quan torni la temporada).
+- Especials de partit de FutbolFantasy («Puntos en el X - Y»): ara només avisa.
