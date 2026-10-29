@@ -133,4 +133,10 @@ def me():
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "me"
-    {"login": login, "me": me}[cmd]()
+    try:
+        {"login": login, "me": me}[cmd]()
+    except Exception as e:
+        import traceback
+        print("::error title=sorare::" + traceback.format_exc().replace("\n", " | ")[-1500:])
+        telegram(f"❌ Sorare: {type(e).__name__}: {str(e)[:300]}")
+        raise
