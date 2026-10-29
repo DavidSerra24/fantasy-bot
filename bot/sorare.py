@@ -191,7 +191,15 @@ def explore():
 def probe():
     """Prova (només lectura): càlcul NBA amb jugadors d'un partit d'avui."""
     from bot.soraremissions import nba_score
-    g = gql("""query { anyGame(id: "c9264f31-bc17-4556-8ef5-cfe6959d0f60") { anyPlayers { slug displayName } } }""", token=token())["anyGame"]
+    g = None
+    for gid in ("Game:c9264f31-bc17-4556-8ef5-cfe6959d0f60", "NBAGame:c9264f31-bc17-4556-8ef5-cfe6959d0f60", "c9264f31-bc17-4556-8ef5-cfe6959d0f60"):
+        try:
+            g = gql("""query($id: ID!) { anyGame(id: $id) { anyPlayers { slug displayName } } }""", {"id": gid}, token=token())["anyGame"]
+            break
+        except Exception as e:
+            print(f"::notice title=game {gid[:8]}::{str(e)[:400]}")
+    if not g:
+        return
     out = []
     for p in g["anyPlayers"][:6]:
         a = nba_score(p["slug"], {"mode": "DECISIVE", "decisiveActions": ["rebounds"], "description": "Pick a player ranked 1.5 Stars or less who grabs 5+ rebounds"})
