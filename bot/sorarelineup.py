@@ -253,7 +253,7 @@ def run(dry=True):
         pool = [q for q in cards(arena) if q["player"] not in used["limited"] and (not q["girona"] or q["gazza"])]
         props = []
         while True:
-            pick = build(pool, ARENA, ARENA_CAP, "avg15", hard=True)
+            pick = build(pool, ARENA, ARENA_CAP, "avg", hard=True)
             if not pick:
                 break
             props.append((pick, captain(pick)))
@@ -263,7 +263,7 @@ def run(dry=True):
             rep.append(f"🏟️ Proposta d'Arena Beginner: puc fer {len(props)} Arenes ({len(props) * 100} d'essència); quan s'activi et preguntaré «Les faig?»:")
             for i, (pick, cap) in enumerate(props, 1):
                 rep.append(f"   Arena {i}: " + ", ".join(f"{SHORT[sl]} {q['name']}{' ©' if q is cap else ''} ({q['grade'] or '?'})" for sl, q in zip(ARENA, pick))
-                           + f" · {sum(q['avg15'] for q in pick):.0f}/260 · {preview(arena, pick, cap)}")
+                           + f" · {sum(q["avg"] for q in pick):.0f}/260 · {preview(arena, pick, cap)}")
         else:
             rep.append("🏟️ Arena: no queden prou jugadors amb ≥80% per a cap Arena")
     print("::notice title=sorare::" + " ¶ ".join(rep + LOG)[:60000])
