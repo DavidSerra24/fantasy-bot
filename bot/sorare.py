@@ -189,14 +189,14 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): format d'alineació de cada competició Classic i de l'Arena."""
-    fx = gql("""query { so5 { so5Fixture(sport: FOOTBALL, type: UPCOMING, eventType: CLASSIC) { so5Leaderboards { slug displayName isArena format { title } } } } }""", token=token())["so5"]["so5Fixture"]
-    for l in fx["so5Leaderboards"]:
-        if l["format"]["title"] != "Classic" and not (l["isArena"] and "beginner" in l["slug"]):
-            continue
-        d = gql("""query($s: String!) { so5 { so5Leaderboard(slug: $s) { engineConfiguration { lineup positions positionStacks sameActiveClub averageScores captain }
-            rules { sumOfAverageScores sameActiveClub { max min } averageScores { max averageType } } } } }""", {"s": l["slug"]}, token=token())
-        print(f"::notice title={l['displayName']}::" + json.dumps(d)[:3000])
+    """Prova (només lectura): quants jugadors i quines posicions tenen les alineacions Classic de jornades passades i en directe."""
+    for st in ("LIVE", "PAST"):
+        try:
+            fx = gql("""query($t: So5State) { so5 { so5Fixture(sport: FOOTBALL, type: $t, eventType: CLASSIC) { slug
+                mySo5Lineups { so5Leaderboard { displayName } so5Appearances { index captain anyPlayer { displayName ... on Player { position } } } } } } }""", {"t": st}, token=token())["so5"]["so5Fixture"]
+            print(f"::notice title={st} {fx['slug']}::" + " ¶ ".join(l["so5Leaderboard"]["displayName"] + f" ({len(l['so5Appearances'])}): " + ", ".join(f"{a['index']}:{a['anyPlayer'].get('position')}" for a in l["so5Appearances"]) for l in fx["mySo5Lineups"])[:5000])
+        except Exception as e:
+            print(f"::notice title={st} error::{e}"[:1500])
 
 
 if __name__ == "__main__":
