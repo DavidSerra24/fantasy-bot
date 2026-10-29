@@ -441,6 +441,7 @@ def gk_arena(gk, final=False):
             if not starts(xi, p["slug"], p["displayName"]):
                 continue
             q["tier"] = 0  # titular confirmat
+            q["src"] = xi[0]
         elif c["slug"] in hi and not (final and D - now < dt.timedelta(minutes=50)):
             q["tier"] = 1  # encara sense onze: 80–90%
         else:

@@ -196,7 +196,7 @@ def probe():
     for g in w.get("gks", [])[:2]:
         g = dict(g, fixture=g.get("fixture") or w.get("fixture"))
         r = L.gk_arena(g)
-        print(f"::notice title=arena {g['name']}::" + (L.arena_text(r[1], r[2]) + " · " + "; ".join(f"{q['name']} {q['date']:%d %H:%M}" for q in r[1]) if r else "cap"))
+        print(f"::notice title=arena {g['name']}::" + (L.arena_text(r[1], r[2]) + " · " + "; ".join(f"{q['name']} {q['date']:%d %H:%M} {q.get('src')} {q['game']}" for q in r[1]) if r else "cap"))
 
 
 if __name__ == "__main__":
