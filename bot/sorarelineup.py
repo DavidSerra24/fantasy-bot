@@ -24,6 +24,7 @@ GRADE = {"A": 5, "B": 4, "C": 3, "D": 2, "E": 1, "F": 0}
 COMPS = [("U23", "under_twenty_one"), ("Champion", "seasonal-champions"), ("All Star", "seasonal-all_star-all_seasons_all_star_")]
 CAP = 370
 SLOTS = ["Goalkeeper", "Defender", "Midfielder", "Forward", "Extra"]
+LOG = []
 SHORT = {"Goalkeeper": "POR", "Defender": "DEF", "Midfielder": "MIG", "Forward": "DAV", "Extra": "EXT"}
 
 FIXTURE = """query { so5 { so5Fixture(sport: FOOTBALL, type: UPCOMING, eventType: CLASSIC) { slug gameWeek cutOffDate
@@ -60,7 +61,7 @@ def cards(lb):
     hi = bench(lb["slug"], {"min": 8000}) + bench(lb["slug"], {"min": 8000}, ["Goalkeeper"])
     ok = {n["anyCard"]["slug"] for n in hi}
     allc = bench(lb["slug"]) + bench(lb["slug"], None, ["Goalkeeper"])
-    print(f"::notice title=bench {lb['displayName']}::{len(allc)} cartes, {len(ok)} amb ≥80% · rareses {sorted({n['anyCard']['rarityTyped'] for n in allc})} vs {lb['mainRarityType']} · posicions {sorted({str(n['anyPlayer'].get('position')) for n in allc})}")
+    LOG.append(f"{lb['displayName']}: {len(allc)} cartes, {len(ok)} amb ≥80%")
     seen, copies = {}, {}
     for i, n in enumerate(allc):
         c, p = n["anyCard"], n["anyPlayer"]
@@ -244,8 +245,7 @@ def run(dry=True):
                 rep.append(f"   Arena {i}: " + ", ".join(f"{SHORT[k]} {pick[k]['name']}{' ©' if pick[k] is cap else ''} ({pick[k]['grade'] or '?'})" for k in SLOTS))
         else:
             rep.append("🏟️ Arena: no queden prou jugadors amb ≥80% per a cap Arena")
-    for l in rep:
-        print("::notice title=sorare::" + l[:4000])
+    print("::notice title=sorare::" + " ¶ ".join(rep + LOG)[:60000])
     telegram("\n".join(rep))
     return plan
 
