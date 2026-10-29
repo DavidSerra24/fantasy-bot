@@ -194,7 +194,7 @@ def probe():
         b: setPlayTasks(sport: FOOTBALL) { __typename name genre id description } } }""", token=token())
     print("::notice title=tasks::" + json.dumps(d)[:4000])
     ids = [t["id"] for t in d["currentUser"]["a"] + d["currentUser"]["b"] if t["__typename"] == "DecisivePlayerPickerTask"]
-    for tid in ids[:2]:
+    for tid in [i.split(":")[-1] for i in ids[:2]]:
         try:
             t = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title target maxAppearancesCount mode rarity expired aasmState startDate
                 taskAppearances { id index status anyCard { slug } anyPlayer { displayName } game { id date } }
