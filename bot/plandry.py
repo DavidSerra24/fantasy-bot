@@ -10,7 +10,7 @@ from bot import plan as P  # noqa: E402
 from bot.web import load_json  # noqa: E402
 
 M = ZoneInfo("Europe/Madrid")
-day = dt.date.fromisoformat(sys.argv[1]) if len(sys.argv) > 1 else (dt.datetime.now(M) + dt.timedelta(days=1)).date()
+day = dt.date.fromisoformat(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1][:2] == "20" else (dt.datetime.now(M) + dt.timedelta(days=1)).date()
 done = list(load_json("done.json", []))
 seen, rows, info0 = set(), [], None
 t = dt.datetime.combine(day, dt.time(3, 5), M).astimezone(dt.timezone.utc)
