@@ -189,29 +189,15 @@ def explore():
 
 
 def probe():
-    """Prova: com calcula SorareBuddy les opcions de les missions d'NBA (codi públic de la web)."""
-    import re as _re
-    H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"}
-    page = requests.get("https://sorarebuddy.com/missions", headers=H, timeout=20).text
-    js = ["https://sorarebuddy.com" + u for u in _re.findall(r'src="(/assets/[^"]+\.js)"', page)]
-    t = "".join(requests.get(u, headers=H, timeout=30).text for u in js)
-    # també els trossos carregats a demanda
-    for u in sorted(set(_re.findall(r'"(assets/[A-Za-z0-9_-]+\.js)"', t)))[:80]:
-        try:
-            c = requests.get("https://sorarebuddy.com/" + u, headers=H, timeout=20).text
-        except Exception:
-            continue
-        if _re.search(r"projectedRebounds|projectedPoints|nbaDaily|rotowire", c, _re.I):
-            t += "\n//" + u + "\n" + c
-    hits = []
-    print(f"::notice title=size::{len(t)}")
-    for kw in (r"kind\.nba", r"projectedStat", r"decisiveActions", r"rebounds", r"col\.chance"):
-        for m in list(_re.finditer(kw, t, _re.I))[:4]:
-            ctx = t[max(0, m.start() - 900):m.start() + 900]
-            if ctx.count('":"') > 12:
-                continue  # textos de traducció
-            hits.append(f"[{kw}] " + ctx)
-    print("::notice title=nba sb::" + " ¶¶ ".join(hits)[:60000])
+    """Prova (només lectura): càlcul NBA amb les previsions (RotoWire) de jugadors d'un partit d'avui."""
+    from bot.soraremissions import nba_score
+    g = gql("""query($id: ID!) { anyGame(id: $id) { anyPlayers { slug displayName } } }""", {"id": "Game:c9264f31-bc17-4556-8ef5-cfe6959d0f60"}, token=token())["anyGame"]
+    out = []
+    for p in g["anyPlayers"][:8]:
+        a = nba_score(p["slug"], {"mode": "DECISIVE", "decisiveActions": ["rebounds"], "description": "Pick a player ranked 1.5 Stars or less who grabs 5+ rebounds"})
+        b = nba_score(p["slug"], {"mode": "SCORE", "description": "outperforms his L10 by 7 points"})
+        out.append(f"{p['displayName']}: reb {a} · daily {b}")
+    print("::notice title=nba::" + " ¶ ".join(out)[:5000])
 
 
 if __name__ == "__main__":

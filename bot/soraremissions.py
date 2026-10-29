@@ -57,46 +57,45 @@ def si_odds():
 
 NBA_FORM = """query($s: String!) { anyPlayer(slug: $s) { displayName ... on NBAPlayer { gameplayTierStars activeInjuries { id }
   l10: averageScore(type: LAST_TEN_PLAYED_SO5_AVERAGE_SCORE) nextDailyFixtureProjectedScore
-  anyGameStats(last: 10) { ... on PlayerGameStatsBasketball { minsPlayed points rebounds assists steals blocks threePointsMade playedInGame } }
-  allPlayerGameScores(first: 20) { nodes { score } } } } }"""
-NBA_STAT = {"rebounds": "rebounds", "points": "points", "assists": "assists", "steals": "steals", "blocks": "blocks",
-            "three": "threePointsMade", "threes": "threePointsMade", "three_points_made": "threePointsMade"}
+  anyFutureGameStats(first: 1) { ... on PlayerGameStatsBasketball { anyGame { id date } projectedMinsPlayed projectedPoints projectedRebounds
+    projectedAssists projectedSteals projectedBlocks projectedThreePointsMade } } } } }"""
+NBA_STAT = {"rebounds": "projectedRebounds", "points": "projectedPoints", "assists": "projectedAssists", "steals": "projectedSteals",
+            "blocks": "projectedBlocks", "three": "projectedThreePointsMade", "threes": "projectedThreePointsMade",
+            "three_points_made": "projectedThreePointsMade"}
 
 
-def nba_score(slug, task):
-    """NBA (com SorareBuddy, adaptat): (disponibilitat, encerts, detall).
-    - Disponibilitat: lesionat → 0; si no, la part dels últims 10 partits que ha jugat (s'exigeix ≥ 80%, com al futbol).
-    - Daily Picker (mode SCORE: superar la seva L10 en 7 punts i fer ≥ 20): part dels últims 20 partits amb
-      puntuació ≥ max(20, L10 + 7); desempat, la projecció de Sorare menys la L10.
-    - Missions d'estadística (rebots, punts, assistències…, «N+»; «X Stars or less»): part dels últims 10 partits amb
-      l'estadística ≥ N; els jugadors amb més estrelles de les permeses, fora."""
+def nba_score(slug, task, game_id=None):
+    """NBA: amb les previsions de RotoWire que dona Sorare (no hi ha % de titularitat).
+    Retorna (juga, valor, detall): juga = 1 si té minuts previstos i no està lesionat.
+    - Daily Picker (mode SCORE: superar la L10 en 7 i fer ≥ 20): valor = punts previstos − max(20, L10 + 7)
+      (com més marge, més opcions; si és negatiu, poques).
+    - Missions d'estadística («N+ rebounds»…, «X Stars or less»): valor = previsió de l'estadística − N;
+      els jugadors amb més estrelles de les permeses, fora."""
     import re
     try:
         p = gql(NBA_FORM, {"s": slug}, token=token())["anyPlayer"]
     except Exception as e:
         print(f"::warning title=nba {slug}::{str(e)[:300]}")
-        return 0, 0, "sense dades"
-    games = [g for g in p.get("anyGameStats") or [] if g]
-    avail = 0 if p.get("activeInjuries") else (sum(1 for g in games if (g.get("minsPlayed") or 0) > 0) / len(games) if games else 0)
+        return 0, -99, "sense dades"
+    fut = next((g for g in p.get("anyFutureGameStats") or [] if g), {}) or {}
+    mins = fut.get("projectedMinsPlayed") or 0
+    plays = 0 if p.get("activeInjuries") or mins <= 0 else 1
     desc = task.get("description") or ""
     m = re.search(r"([\d.]+)\s*Stars? or less", desc, re.I)
     if m and (p.get("gameplayTierStars") or 0) > float(m.group(1)):
-        return 0, 0, f"{p.get('gameplayTierStars')}★ (massa estrelles)"
+        return 0, -99, f"{p.get('gameplayTierStars')}★ (massa estrelles)"
     if task.get("mode") == "SCORE":
         l10 = p.get("l10") or 0
+        proj = p.get("nextDailyFixtureProjectedScore") or 0
         thr = max(20, l10 + 7)
-        sc = [n["score"] for n in (p.get("allPlayerGameScores") or {}).get("nodes") or [] if n.get("score") is not None]
-        rate = sum(1 for x in sc if x >= thr) / len(sc) if sc else 0
-        gain = (p.get("nextDailyFixtureProjectedScore") or 0) - l10
-        return avail, rate + gain / 1000, f"L10 {l10:.0f}, cal {thr:.0f}: {sum(1 for x in sc if x >= thr)}/{len(sc)}"
+        return plays, proj - thr, f"{mins:.0f} min previstos · previsió {proj:.0f} punts, cal {thr:.0f} (L10 {l10:.0f})"
     acts = [a.lower() for a in task.get("decisiveActions") or []]
     key = next((NBA_STAT[a] for a in acts if a in NBA_STAT), None)
     n = re.search(r"(\d+)\+", desc)
     if not key or not n:
-        return avail, 0, "missió no reconeguda"
-    vals = [g.get(key) or 0 for g in games if (g.get("minsPlayed") or 0) > 0]
-    hit = sum(1 for v in vals if (v or 0) >= int(n.group(1)))
-    return avail, (hit / len(vals) if vals else 0), f"{key} ≥{n.group(1)}: {hit}/{len(vals)}"
+        return plays, -99, "missió no reconeguda"
+    v = fut.get(key) or 0
+    return plays, v - int(n.group(1)), f"{mins:.0f} min previstos · previsió {v:.1f} ({key[9:].lower()}), cal {n.group(1)}"
 
 
 def priority(t):
@@ -184,8 +183,8 @@ def run(dry=False):
                     if p["slug"] not in cand or (c.get("xp") or 0) > cand[p["slug"]]["xp"]:
                         cand[p["slug"]] = {"slug": p["slug"], "name": p["displayName"], "card": c["slug"], "xp": c.get("xp") or 0, "game": g, "date": D}
             for q in (cand.values() if nba else []):
-                avail, rate, info = nba_score(q["slug"], task)
-                q.update(l5=0, l10=0, l20=0, tit=avail if avail >= 0.8 else 0.0, confirmed=False, chance=(avail if avail >= 0.8 else 0) * rate, info=info)
+                plays, margin, info = nba_score(q["slug"], task)
+                q.update(l5=0, l10=0, l20=0, tit=float(plays), confirmed=False, chance=margin if plays else -99, info=info)
             for q in (cand.values() if not nba else []):
                 l5, l10, l20, st10 = form(q["slug"])
                 xi = lineup_status(q["game"], cache)
@@ -207,7 +206,7 @@ def run(dry=False):
             for q in ranked[:6]:
                 M = q["date"].astimezone(__import__("zoneinfo").ZoneInfo("Europe/Madrid"))
                 if nba:
-                    line.append(f"   {'✅' if q['slug'] in want_slugs else '·'} {q['name']} · {M:%H:%M} · juga {q['tit'] * 100:.0f}% · {q['info']} · opcions {q['chance'] * 100:.0f}%")
+                    line.append(f"   {'✅' if q['slug'] in want_slugs else '·'} {q['name']} · {M:%H:%M} · {q['info']}{'' if q['tit'] else ' · no juga'}")
                     continue
                 line.append(f"   {'✅' if q['slug'] in want_slugs else '·'} {q['name']} · {M:%H:%M} · titular {q['tit'] * 100:.0f}%{' (onze oficial)' if q['confirmed'] else ' (SorareInside)'}"
                             f" · decisiu {q['l5']}/5 {q['l10']}/10 {q['l20']}/20 · opcions {q['chance'] * 100:.0f}%")
