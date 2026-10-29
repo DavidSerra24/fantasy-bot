@@ -11,6 +11,7 @@ import datetime as dt
 import json
 import os
 import re
+import time
 
 import requests
 from zoneinfo import ZoneInfo
@@ -152,8 +153,11 @@ def telegram_commands(now):
         return []
     out = []
     for u in r.get("result", []):
-        st["offset"] = u["update_id"] + 1
         m = u.get("message") or {}
+        # codi de 6 xifres recent (entrada de Sorare): no el consumim, és per a bot/sorare.py
+        if re.fullmatch(r"\d{6}", re.sub(r"\s", "", m.get("text") or "")) and time.time() - m.get("date", 0) < 600:
+            break
+        st["offset"] = u["update_id"] + 1
         if str((m.get("chat") or {}).get("id")) != str(chat):
             continue  # només el xat del David
         t = (m.get("text") or "").strip()
