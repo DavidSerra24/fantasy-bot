@@ -196,7 +196,7 @@ def probe():
     print("::notice title=gkwatch::" + json.dumps(gks)[:3000])
     for g in gks[:1]:
         try:
-            print("::notice title=game::" + json.dumps(gql(GAME, {"id": g["game"]}, token=token()))[:2000])
+            print("::notice title=game::" + json.dumps(gql(GAME, {"id": g["game"].split(":", 1)[-1]}, token=token()))[:2000])
         except Exception as e:
             print("::notice title=game error::" + str(e)[:1500])
 

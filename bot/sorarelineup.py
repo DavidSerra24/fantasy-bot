@@ -307,7 +307,7 @@ def gk_check(gid, mins):
     hhmm = dt.datetime.fromisoformat(g0["date"].replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Madrid")).strftime("%H:%M")
     who = ", ".join(f"{g['name']} ({g['pct']})" for g in gks)
     try:
-        gm = gql(GAME, {"id": gid}, token=token())["football"]["game"]
+        gm = gql(GAME, {"id": gid.split(":", 1)[-1]}, token=token())["football"]["game"]
     except Exception as e:
         gm = None
         print("::warning title=sorare porters::" + str(e)[:300])
