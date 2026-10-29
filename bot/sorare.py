@@ -183,9 +183,6 @@ def explore():
         print(f"::notice title=bench {champ['displayName']}::" + " ¶ ".join(rows)[:9000])
         fx = gql("""query { so5 { so5Fixture(sport: FOOTBALL, type: UPCOMING, eventType: CLASSIC) { slug gameWeek cutOffDate
             so5Leaderboards { displayName mainRarityType isArena slug format { title } } } } }""", token=token())["so5"]["so5Fixture"]
-        odds = gql("""query($s: String!) { football { player(slug: $s) { displayName nextClassicFixturePlayingStatusOdds { starterOddsBasisPoints reliability providerIconUrl }
-            ... on Player { activeClub { name } } } } }""", {"s": "jude-bellingham"}, token=token())
-        print("::notice title=odds::" + json.dumps(odds)[:1500])
         print("::notice title=fixture::" + f"{fx['slug']} GW{fx['gameWeek']} {fx['cutOffDate']} ¶ " + " ¶ ".join(f"{l['displayName']} | {l['mainRarityType']} | {l['format']['title']} | {l['slug']}" for l in fx["so5Leaderboards"] if not l["isArena"] and l["mainRarityType"] in ("limited", "rare"))[:8000])
         from collections import Counter
         print("::notice title=rarities::" + str(Counter((l["mainRarityType"], l["format"]["title"], l["slug"].split("-")[0]) for l in leaderboards())))
