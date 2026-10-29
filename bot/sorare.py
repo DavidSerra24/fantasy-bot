@@ -189,16 +189,13 @@ def explore():
 
 
 def probe():
-    """Prova: onze de FotMob (matchDetails) d'un partit acabat i d'un de demà."""
+    """Prova: estructura de l'onze de FotMob."""
     H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"}
-    for day in ("20261029", "20261031"):
-        d = requests.get(f"https://www.fotmob.com/api/data/matches?date={day}", headers=H, timeout=20).json()
-        m = d["leagues"][0]["matches"][0]
-        for u in (f"https://www.fotmob.com/api/data/matchDetails?matchId={m['id']}", f"https://www.fotmob.com/api/matchDetails?matchId={m['id']}"):
-            r = requests.get(u, headers=H, timeout=20)
-            txt = r.text
-            k = txt.find('"lineup"')
-            print(f"::notice title={day} {m['home']['name']} {u[26:50]}::{r.status_code} len {len(txt)} · {txt[k:k+700] if k >= 0 else txt[:300]}")
+    for mid in (6275369, 5795498):
+        c = requests.get(f"https://www.fotmob.com/api/data/matchDetails?matchId={mid}", headers=H, timeout=20).json()["content"]
+        lu = c.get("lineup") or {}
+        ht = lu.get("homeTeam") or {}
+        print(f"::notice title=fotmob {mid}::keys {list(lu.keys())} · lineupType {lu.get('lineupType')} · home keys {list(ht.keys())} · starters " + json.dumps((ht.get("starters") or [])[:2])[:900])
 
 
 if __name__ == "__main__":
