@@ -57,10 +57,10 @@ def si_odds():
 
 NBA_FORM = """query($s: String!) { anyPlayer(slug: $s) { displayName ... on NBAPlayer { gameplayTierStars activeInjuries { id }
   l10: averageScore(type: LAST_TEN_PLAYED_SO5_AVERAGE_SCORE) nextDailyFixtureProjectedScore
-  allAverageStats(limit: LAST_10) { stat value lastValues }
+  anyGameStats(last: 10) { ... on PlayerGameStatsBasketball { minsPlayed points rebounds assists steals blocks threePointsMade playedInGame } }
   allPlayerGameScores(first: 20) { nodes { score } } } } }"""
-NBA_STAT = {"rebounds": "REBOUNDS", "points": "POINTS", "assists": "ASSISTS", "steals": "STEALS", "blocks": "BLOCKS",
-            "three": "THREE_POINTS_MADE", "threes": "THREE_POINTS_MADE", "three_points_made": "THREE_POINTS_MADE"}
+NBA_STAT = {"rebounds": "rebounds", "points": "points", "assists": "assists", "steals": "steals", "blocks": "blocks",
+            "three": "threePointsMade", "threes": "threePointsMade", "three_points_made": "threePointsMade"}
 
 
 def nba_score(slug, task):
@@ -76,9 +76,8 @@ def nba_score(slug, task):
     except Exception as e:
         print(f"::warning title=nba {slug}::{str(e)[:300]}")
         return 0, 0, "sense dades"
-    stats = {a["stat"]: a for a in p.get("allAverageStats") or []}
-    mins = (stats.get("MINS_PLAYED") or {}).get("lastValues") or []
-    avail = 0 if p.get("activeInjuries") else (sum(1 for m in mins if (m or 0) > 0) / len(mins) if mins else 0)
+    games = [g for g in p.get("anyGameStats") or [] if g]
+    avail = 0 if p.get("activeInjuries") else (sum(1 for g in games if (g.get("minsPlayed") or 0) > 0) / len(games) if games else 0)
     desc = task.get("description") or ""
     m = re.search(r"([\d.]+)\s*Stars? or less", desc, re.I)
     if m and (p.get("gameplayTierStars") or 0) > float(m.group(1)):
@@ -95,9 +94,9 @@ def nba_score(slug, task):
     n = re.search(r"(\d+)\+", desc)
     if not key or not n:
         return avail, 0, "missió no reconeguda"
-    vals = (stats.get(key) or {}).get("lastValues") or []
+    vals = [g.get(key) or 0 for g in games if (g.get("minsPlayed") or 0) > 0]
     hit = sum(1 for v in vals if (v or 0) >= int(n.group(1)))
-    return avail, (hit / len(vals) if vals else 0), f"{key.lower()} ≥{n.group(1)}: {hit}/{len(vals)}"
+    return avail, (hit / len(vals) if vals else 0), f"{key} ≥{n.group(1)}: {hit}/{len(vals)}"
 
 
 def priority(t):
