@@ -28,7 +28,10 @@ with sync_playwright() as p:
             if api and free:
                 LOG.append(f"{name}: pujaria per {free[0]} amb {api.bid(free[0], dry=True)}")
             if api and mine:
-                LOG.append(f"{name}: retiraria la puja de {mine[0]} amb {api.withdraw(mine[0], dry=True)}")
+                LOG.append(f"{name}: retiraria la puja de {mine[0]} amb {api.withdraw(mine[0], dry=True)} · puja actual {api._pre(mine[0], 'bid').get('bid')}")
+                if name == "Quique":  # prova real sense canviar res: tornar a enviar la mateixa puja (update al mateix import)
+                    ok, mx = api.bid(mine[0])
+                    LOG.append(f"{name}: prova real (mateixa puja) → {ok}; ara {api._pre(mine[0], 'bid').get('bid')}")
             if api and sq:
                 LOG.append(f"{name}: vendria {sq[0]} amb {api.sell(sq[0], dry=True)} · trauria de la venda amb {api.unsell(sq[0], dry=True)}")
         LOG.append(f"total {time.time() - t0:.1f}s")

@@ -136,10 +136,10 @@ class MisterAPI:
         """Puja (pel preu mínim si no es diu l'import). Retorna (True, màxim permès)."""
         pre = self._pre(pid, "bid")
         market = pre.get("market") or {}
-        price = int(amount or market.get("price") or pre.get("value"))
         b = pre.get("bid") or {}
+        price = int(amount or (b.get("input") if b.get("isActive") == 1 else 0) or market.get("price") or pre.get("value"))
         action = "remove" if (b.get("type") == "normal" and b.get("isActive") == 1 and False) else ("update" if b.get("isActive") == 1 else "bid")
-        data = {"offeree_id": (pre.get("owner") or {}).get("id", 0), "id_market": market.get("id") or 0, "id_player": pid,
+        data = {"offeree_id": (pre.get("owner") or {}).get("id") or "", "id_market": market.get("id") or 0, "id_player": pid,
                 "action": action, "barter": "", "bid": price, "bid_range": price}
         mx = (self.balance() or {}).get("maxDebt")
         if dry:
@@ -151,7 +151,7 @@ class MisterAPI:
         """Retira la meva puja."""
         pre = self._pre(pid, "bid")
         market = pre.get("market") or {}
-        data = {"offeree_id": (pre.get("owner") or {}).get("id", 0), "id_market": market.get("id") or 0, "id_player": pid,
+        data = {"offeree_id": (pre.get("owner") or {}).get("id") or "", "id_market": market.get("id") or 0, "id_player": pid,
                 "action": "remove", "barter": "", "bid": market.get("price") or 0}
         if dry:
             return data
