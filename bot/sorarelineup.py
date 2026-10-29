@@ -65,7 +65,7 @@ def cards(lb):
     ok = {n["anyCard"]["slug"] for n in hi}
     allc = bench(lb["slug"]) + bench(lb["slug"], None, ["Goalkeeper"])
     LOG.append(f"{lb['displayName']}: {len(allc)} cartes, {len(ok)} amb ≥80%")
-    seen, copies = {}, {}
+    seen, copies, gazza = {}, {}, []
     for i, n in enumerate(allc):
         c, p = n["anyCard"], n["anyPlayer"]
         if c["rarityTyped"].lower() != (lb["mainRarityType"] or "").lower() or c["slug"] not in ok:
@@ -82,11 +82,24 @@ def cards(lb):
              "girona": "girona" in club.lower(), "gazza": "gazzaniga" in p["slug"]}
         q["imp"] = GRADE.get(q["grade"], -1)
         copies[q["player"]] = copies.get(q["player"], 0) + 1
+        if q["gazza"]:
+            gazza.append(q)
         if q["player"] not in seen or q["xp"] > seen[q["player"]]["xp"]:
             seen[q["player"]] = q
     for q in seen.values():
         q["copies"] = copies[q["player"]]
-    return sorted(seen.values(), key=lambda q: q["idx"])
+    if gazza and (lb["mainRarityType"] or "").lower() == "limited":
+        # Gazzaniga Limited: es reserven 2 per a l'Arena del David; la resta es poden fer servir (encara que sigui
+        # repetir jugador), cada còpia en una alineació diferent i sempre les últimes (la segona després de la primera)
+        for q in list(seen.values()):
+            if q["gazza"]:
+                del seen[q["player"]]
+        gazza.sort(key=lambda q: -q["xp"])
+        for k, q in enumerate(gazza[:max(0, len(gazza) - 2)]):
+            seen[f"{q['player']}#{k}"] = dict(q, player=f"{q['player']}#{k}", gazza=k + 1)
+    out = sorted(seen.values(), key=lambda q: q["idx"])
+    LOG.append(f"   porters ≥80%: {', '.join(q['name'] + (' #' + str(q['gazza']) if q['gazza'] else '') for q in out if q['pos'] == 'Goalkeeper') or 'cap'}")
+    return out
 
 
 def order(pool):
@@ -214,10 +227,6 @@ def run(dry=True):
             pool = [q for q in cards(lb) if q["player"] not in used[rarity]]
             if allstar and not (rarity == "rare" and girona_rare_allstar):
                 pool = [q for q in pool if not q["girona"]]
-            if rarity == "limited":  # 2 Gazzaniga Limited reservats: només entra si en té més de 2 (i sempre l'últim)
-                g = [q for q in pool if q["gazza"]]
-                if g and g[0].get("copies", 0) <= 2:
-                    pool = [q for q in pool if not q["gazza"]]
             if rarity == "rare" and not allstar:  # el Rare de Gazzaniga es reserva si no va a All Star Rare
                 pool = [q for q in pool if not q["gazza"]]
             if name == "U23" and not any(q["pos"] == "Goalkeeper" for q in pool):
