@@ -129,6 +129,29 @@ def plan(now=None, done=None):
         k = f"copa-final:{CT.isoformat()}"
         if due(k, CT - dt.timedelta(minutes=40), CT):
             add(k, CT - dt.timedelta(minutes=40), "copa", None, CT)
+    # Sorare Pro: omplir quan surt l'impacte previst (dimecres i diumenge 21:15), revisió 2 h abans i revisió final + Arena 40 min abans
+    for wd in (2, 6):
+        if local.weekday() == wd:
+            t = local.replace(hour=21, minute=15, second=0, microsecond=0).astimezone(UTC)
+            k = f"sorare-fill:{local.date()}"
+            if due(k, t, t + dt.timedelta(hours=3)):
+                add(k, t, "sorare", "fill", t + dt.timedelta(hours=3))
+    sf = load_json("sorare_fixture.json", {})
+    if sf.get("cutoff"):
+        C = dt.datetime.fromisoformat(sf["cutoff"].replace("Z", "+00:00"))
+        if C > now:
+            info.append(f"Sorare GW{sf.get('gw')}: tanca {C.astimezone(MADRID):%a %d %H:%M}")
+        for lead, mode in ((dt.timedelta(hours=2), "fill"), (dt.timedelta(minutes=40), "final")):
+            k = f"sorare-{mode}:{sf['slug']}:{int(lead.total_seconds())}"
+            if due(k, C - lead, C - dt.timedelta(minutes=5)):
+                add(k, C - lead, "sorare", mode, C - dt.timedelta(minutes=5))
+    # Sorare: porters amb 10–79% → avís 1 h 15 min abans del partit i comprovació de l'onze oficial
+    for g in load_json("sorare_gkwatch.json", {}).get("gks", []):
+        G = dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00"))
+        for mins in (75, 55, 40, 25, 12):
+            k = f"sorarexi:{g['game']}:{mins}"
+            if due(k, G - dt.timedelta(minutes=mins), G):
+                add(k, G - dt.timedelta(minutes=mins), "sorarexi", f"{g['game']}|{mins}", G)
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))

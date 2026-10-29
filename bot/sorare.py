@@ -189,20 +189,24 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): quants jugadors i quines posicions tenen les alineacions Classic de jornades passades i en directe."""
-    for st in ("LIVE", "PAST"):
+    """Prova (només lectura): l'onze oficial d'un partit vigilat es pot llegir?"""
+    from bot.sorarelineup import GAME
+    from bot.web import load_json
+    gks = load_json("sorare_gkwatch.json", {}).get("gks", [])
+    print("::notice title=gkwatch::" + json.dumps(gks)[:3000])
+    for g in gks[:1]:
         try:
-            fx = gql("""query($t: So5State) { so5 { so5Fixture(sport: FOOTBALL, type: $t, eventType: CLASSIC) { slug
-                mySo5Lineups { so5Leaderboard { displayName } so5Appearances { index captain anyPlayer { displayName ... on Player { position } } } } } } }""", {"t": st}, token=token())["so5"]["so5Fixture"]
-            print(f"::notice title={st} {fx['slug']}::" + " ¶ ".join(l["so5Leaderboard"]["displayName"] + f" ({len(l['so5Appearances'])}): " + ", ".join(f"{a['index']}:{a['anyPlayer'].get('position')}" for a in l["so5Appearances"]) for l in fx["mySo5Lineups"])[:5000])
+            print("::notice title=game::" + json.dumps(gql(GAME, {"id": g["game"]}, token=token()))[:2000])
         except Exception as e:
-            print(f"::notice title={st} error::{e}"[:1500])
+            print("::notice title=game error::" + str(e)[:1500])
 
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "me"
     try:
-        {"login": login, "me": me, "schema": schema, "explore": explore, "probe": probe, "lineups": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run(dry=True)}[cmd]()
+        {"login": login, "me": me, "schema": schema, "explore": explore, "probe": probe, "lineups": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("dry"),
+         "fill": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("fill"),
+         "final": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("final")}[cmd]()
     except Exception as e:
         import traceback
         print("::error title=sorare::" + traceback.format_exc().replace("\n", " | ")[-1500:])

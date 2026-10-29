@@ -16,6 +16,8 @@ jobs:
       FF_PASSWORD: ${{ secrets.FF_PASSWORD }}
       MISTER_EMAIL: ${{ secrets.MISTER_EMAIL }}
       MISTER_PASSWORD: ${{ secrets.MISTER_PASSWORD }}
+      SORARE_EMAIL: ${{ secrets.SORARE_EMAIL }}
+      SORARE_PASSWORD: ${{ secrets.SORARE_PASSWORD }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:

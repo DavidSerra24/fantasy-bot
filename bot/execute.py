@@ -32,8 +32,10 @@ for a in acts:
             "copa": "revisió final de l'extra de la Copa del Rey (onzes oficials)",
             "misteroff": "Mister: ofertes dels jugadors en venda",
             "misterxi": "Mister: alineació i capità" + (f" ({names.get(a['comp'], a['comp'])}, revisió final)" if a["comp"] else ""),
-            "fffinal": f"revisió final del Fantasy {names.get(a['comp'], a['comp'])} (onzes oficials)"}[a["do"]]
-    if a["do"] != "quinrem":  # el recordatori ja envia el seu missatge (només si cal)
+            "fffinal": f"revisió final del Fantasy {names.get(a['comp'], a['comp'])} (onzes oficials)",
+            "sorare": "Sorare: " + ("revisió final de les alineacions + Arenes" if a["comp"] == "final" else "omplir/revisar les alineacions"),
+            "sorarexi": "Sorare: porters"}[a["do"]]
+    if a["do"] not in ("quinrem", "sorarexi"):  # el recordatori ja envia el seu missatge (només si cal)
         telegram(f"▶️ Començo: {what}")
     try:
         if a["do"] == "p11":
@@ -65,6 +67,13 @@ for a in acts:
         elif a["do"] == "mister":
             from bot import mistermarket
             mistermarket.run()
+        elif a["do"] == "sorare":
+            from bot import sorarelineup
+            sorarelineup.run(a["comp"])
+        elif a["do"] == "sorarexi":
+            from bot import sorarelineup
+            gid, mins = a["comp"].split("|")
+            sorarelineup.gk_check(gid, int(mins))
         elif a["do"] == "fffinal":
             ff.run(max_hours=3, only=[a["comp"]], final=True)
     except Exception as e:
@@ -74,7 +83,7 @@ for a in acts:
         tries = load_json("tries.json", {})
         tries[a["key"]] = tries.get(a["key"], 0) + 1
         save_json("tries.json", tries)
-        retry = a["do"].startswith("mister") and tries[a["key"]] < 3  # Mister: es torna a provar a la propera execució
+        retry = (a["do"].startswith("mister") or a["do"] == "sorare") and tries[a["key"]] < 3  # Mister: es torna a provar a la propera execució
         telegram(f"❌ Error a {a['do']} {a['comp'] or ''}: {type(e).__name__}: {str(e)[:300]}" + (" · ho torno a provar d'aquí a una estona" if retry else ""))
         if retry:
             done.add(key)

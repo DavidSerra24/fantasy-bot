@@ -13,7 +13,7 @@ Regles del David (CLAUDE.md, «Sorare Pro»):
 - Gazzaniga: es reserven 2 Limited (i 1 Rare si no va a All Star Rare); els que sobrin, sempre els últims.
 - Arena (Beginner, 100 d'essència): amb els sobrants, només una PROPOSTA per Telegram; mai sense el «sí» del David.
 Seguretat: només llegeix i (quan s'activi) envia alineacions. Mai compra, ven, fa ofertes ni mou diners.
-Ús: python -m bot.sorarelineup [--dry]   (de moment sempre en prova: no envia res a Sorare)
+Ús: python -m bot.sorarelineup [dry|fill|final]  (dry: només proposta; fill: omple/actualitza; final: fill + Arena amb el «sí»)
 """
 import argparse
 
@@ -31,8 +31,16 @@ LOG = []
 SHORT = {"Goalkeeper": "POR", "Defender": "DEF", "Midfielder": "MIG", "Forward": "DAV", "Extra": "EXT"}
 
 FIXTURE = """query { so5 { so5Fixture(sport: FOOTBALL, type: UPCOMING, eventType: CLASSIC) { slug gameWeek cutOffDate
-  so5Leaderboards { id slug displayName mainRarityType isArena format { title } }
-  mySo5Lineups { id so5Leaderboard { slug displayName } so5Appearances { captain anyCard { slug } anyPlayer { displayName } } } } } }"""
+  so5Leaderboards { id slug displayName mainRarityType isArena format { title entryItem { id myEntryItemId ... on So5CardShardsEntryItem { quantity rarity } } } }
+  mySo5Lineups { id so5Leaderboard { slug displayName isArena format { title } } so5Appearances { captain anyCard { slug } anyPlayer { displayName } } } } } }"""
+
+SAVE = """mutation($input: createOrUpdateSo5LineupInput!) { createOrUpdateSo5Lineup(input: $input) {
+  so5Lineup { id } errors { message code } } }"""
+DELETE = """mutation($input: deleteSo5LineupInput!) { deleteSo5Lineup(input: $input) { errors { message code } } }"""
+GKS = """query($slug: String!, $r: RangeInput, $after: String) { so5 { so5Leaderboard(slug: $slug) {
+  myBench(first: 50, after: $after, includeUsed: true, positions: [Goalkeeper], starterOddsBasisPointsRange: $r) { pageInfo { hasNextPage endCursor } nodes {
+    ... on ComposeTeamBenchCard { anyCard { slug rarityTyped } anyPlayer { displayName slug activeClub { name } }
+      eligiblePlayerGameScores(so5LeaderboardSlug: $slug) { anyGame { id date homeTeam { name } awayTeam { name } } } } } } } } }"""
 
 BENCH = """query($slug: String!, $r: RangeInput, $after: String, $pos: [Position!]) { so5 { so5Leaderboard(slug: $slug) {
   myBench(first: 50, after: $after, includeUsed: true, starterOddsBasisPointsRange: $r, positions: $pos) { pageInfo { hasNextPage endCursor } nodes {
@@ -195,8 +203,167 @@ def describe(pick, cap, slots=CLASSIC):
     return s + " · " + flags
 
 
-def run(dry=True):
+def save_lineup(lb, pick, cap, entry=None):
+    inp = {"so5LeaderboardId": lb["id"], "so5Appearances": [{"cardSlug": q["card"], "captain": q is cap, "index": i} for i, q in enumerate(pick)]}
+    if entry:
+        inp["entryItemId"] = entry
+    d = gql(SAVE, {"input": inp}, token=token())["createOrUpdateSo5Lineup"]
+    if d.get("errors"):
+        raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
+    return d["so5Lineup"]["id"]
+
+
+def delete_lineup(lid):
+    d = gql(DELETE, {"input": {"so5LineupId": lid}}, token=token())["deleteSo5Lineup"]
+    if d.get("errors"):
+        raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
+
+
+def sync(fx, plan, rep):
+    """Deixa a Sorare exactament les alineacions Classic del pla: es queden les que ja són iguals (mateixes cartes i
+    capità), s'esborren les altres i es creen les que falten (primer esborrar, perquè les cartes quedin lliures)."""
+    have = [l for l in fx.get("mySo5Lineups") or [] if not l["so5Leaderboard"]["isArena"] and l["so5Leaderboard"]["format"]["title"] == "Classic"]
+    def sig_have(l):
+        return (l["so5Leaderboard"]["slug"], frozenset(a["anyCard"]["slug"] for a in l["so5Appearances"]),
+                next((a["anyCard"]["slug"] for a in l["so5Appearances"] if a["captain"]), None))
+    def sig_plan(lb, pick, cap):
+        return (lb["slug"], frozenset(q["card"] for q in pick), cap["card"])
+    keep, todo = set(), []
+    hs = {l["id"]: sig_have(l) for l in have}
+    for lb, pick, cap in plan:
+        sp = sig_plan(lb, pick, cap)
+        match = next((lid for lid, sh in hs.items() if sh == sp and lid not in keep), None)
+        if match:
+            keep.add(match)
+        else:
+            todo.append((lb, pick, cap))
+    errs, deleted, created = [], 0, 0
+    for l in have:
+        if l["id"] not in keep:
+            try:
+                delete_lineup(l["id"]); deleted += 1
+            except Exception as e:
+                errs.append(f"esborrar {l['so5Leaderboard']['displayName']}: {str(e)[:150]}")
+    for lb, pick, cap in todo:
+        try:
+            save_lineup(lb, pick, cap); created += 1
+        except Exception as e:
+            errs.append(f"{lb['displayName']} ({', '.join(q['name'] for q in pick[:3])}…): {str(e)[:200]}")
+    after = gql(FIXTURE, token=token())["so5"]["so5Fixture"]["mySo5Lineups"]
+    n_ok = sum(1 for l in after if not l["so5Leaderboard"]["isArena"] and l["so5Leaderboard"]["format"]["title"] == "Classic")
+    rep.append(f"{'✅' if not errs and n_ok == len(plan) else '⚠️'} Sorare: {len(keep)} sense canvis, {deleted} esborrades, {created} noves → ara n'hi ha {n_ok} de {len(plan)}"
+               + ("" if not errs else " | ❗ " + " | ".join(errs)))
+
+
+def gk_watch(fx, rep):
+    """Porters Limited amb 10–79% de ser titulars: es desen (state/sorare_gkwatch.json) perquè el planificador avisi
+    1 h 15 min abans del seu partit i comprovi si són titulars (onze oficial de Sorare)."""
+    from bot.web import save_json
+    arena = next((l for l in fx["so5Leaderboards"] if l["isArena"] and "beginner" in l["slug"]), None)
+    if not arena:
+        return
+    out = {}
+    for lo, hi, label in ((1000, 4999, "10–49%"), (5000, 7999, "50–79%")):
+        after = None
+        for _ in range(10):
+            d = gql(GKS, {"slug": arena["slug"], "r": {"min": lo, "max": hi}, "after": after}, token=token())["so5"]["so5Leaderboard"]["myBench"]
+            for n in d["nodes"]:
+                if not n or n["anyCard"]["rarityTyped"].lower() != "limited":
+                    continue
+                g = ((n.get("eligiblePlayerGameScores") or [{}])[0] or {}).get("anyGame") or {}
+                if not g.get("id"):
+                    continue
+                p = n["anyPlayer"]
+                out[p["slug"]] = {"name": p["displayName"], "slug": p["slug"], "club": (p.get("activeClub") or {}).get("name"), "pct": label,
+                                  "game": g["id"], "date": g["date"], "home": (g.get("homeTeam") or {}).get("name"), "away": (g.get("awayTeam") or {}).get("name")}
+            if not d["pageInfo"]["hasNextPage"]:
+                break
+            after = d["pageInfo"]["endCursor"]
+    save_json("sorare_gkwatch.json", {"fixture": fx["slug"], "gks": sorted(out.values(), key=lambda g: g["date"])})
+    if out:
+        from zoneinfo import ZoneInfo
+        import datetime as dt
+        M = ZoneInfo("Europe/Madrid")
+        rep.append("🧤 Porters a vigilar (et l'aviso 1 h 15 min abans i miro si són titulars): " + ", ".join(
+            f"{g['name']} ({g['pct']}, {dt.datetime.fromisoformat(g['date'].replace('Z', '+00:00')).astimezone(M):%a %H:%M})" for g in sorted(out.values(), key=lambda g: g["date"])))
+
+
+GAME = """query($id: ID!) { football { game(id: $id) { date homeTeam { name } awayTeam { name }
+  homeFormation { startingLineupAvailable startingLineup { slug } bench { slug } }
+  awayFormation { startingLineupAvailable startingLineup { slug } bench { slug } } } } }"""
+
+
+def gk_check(gid, mins):
+    """Avís i comprovació d'un partit amb porters vigilats: a 75 min avisa; a cada comprovació, si l'onze oficial
+    ja és a Sorare, diu si cada porter és titular (i ja no es torna a comprovar)."""
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    from bot.web import load_json, save_json
+    gks = [g for g in load_json("sorare_gkwatch.json", {}).get("gks", []) if g["game"] == gid]
+    done = load_json("sorare_gkdone.json", {})
+    if not gks or done.get(gid):
+        return
+    g0 = gks[0]
+    hhmm = dt.datetime.fromisoformat(g0["date"].replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Madrid")).strftime("%H:%M")
+    who = ", ".join(f"{g['name']} ({g['pct']})" for g in gks)
+    try:
+        gm = gql(GAME, {"id": gid}, token=token())["football"]["game"]
+    except Exception as e:
+        gm = None
+        print("::warning title=sorare porters::" + str(e)[:300])
+    lines = []
+    if gm:
+        avail = all((gm.get(side) or {}).get("startingLineupAvailable") for side in ("homeFormation", "awayFormation"))
+        if avail:
+            xi = {p["slug"] for side in ("homeFormation", "awayFormation") for row in gm[side]["startingLineup"] for p in row}
+            for g in gks:
+                lines.append(f"{'✅' if g['slug'] in xi else '❌'} {g['name']} ({g['club']}) {'és TITULAR' if g['slug'] in xi else 'NO és titular'}")
+            done[gid] = True
+            save_json("sorare_gkdone.json", done)
+    head = f"🧤 {g0['home']} – {g0['away']} ({hhmm})"
+    if lines:
+        telegram(head + " · onze oficial:\n" + "\n".join(lines))
+    elif mins >= 75:
+        telegram(f"{head}: porter a vigilar per a l'Arena: {who}. Quan surti l'onze oficial et dic si juga.")
+    elif mins <= 12:
+        telegram(f"{head}: encara no hi ha onze oficial a Sorare per a {who}. Mira-ho a X.")
+    print(f"::notice title=sorare porters::{head} · {mins} min · " + ("; ".join(lines) or "sense onze oficial encara"))
+
+
+def wait_yes(since, until):
+    """Espera fins a `until` (UTC) una resposta «sí»/«no» al xat de Telegram (missatges posteriors a `since`)."""
+    import datetime as dt
+    import os
+    import re
+    import time
+    import requests
+    tok, chat = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
+    base = f"https://api.telegram.org/bot{tok}"
+    offset = 0
+    while dt.datetime.now(dt.timezone.utc) < until:
+        r = requests.get(f"{base}/getUpdates", params={"offset": offset, "timeout": 25}, timeout=40).json()
+        for u in r.get("result", []):
+            offset = u["update_id"] + 1
+            m = u.get("message") or {}
+            if str((m.get("chat") or {}).get("id")) != str(chat) or m.get("date", 0) < since:
+                continue
+            t = (m.get("text") or "").strip().lower()
+            if re.fullmatch(r"s[ií]\W*|yes\W*|ok\W*|endavant\W*|fes-les\W*", t):
+                return True
+            if re.fullmatch(r"no\W*", t):
+                return False
+    return None
+
+
+def run(mode="dry"):
+    """mode: dry (només proposta), fill (omple/actualitza les alineacions Classic), final (com fill + Arena amb el «sí»)."""
+    import datetime as dt
+    import time
+    from bot.web import save_json
+    dry = mode == "dry"
+    LOG.clear()
     fx = gql(FIXTURE, token=token())["so5"]["so5Fixture"]
+    save_json("sorare_fixture.json", {"slug": fx["slug"], "gw": fx["gameWeek"], "cutoff": fx["cutOffDate"]})
     lbs = [l for l in fx["so5Leaderboards"] if not l["isArena"] and l["format"]["title"] == "Classic"]
     essence = {}
     try:
@@ -206,13 +373,12 @@ def run(dry=True):
         print("::warning title=sorare essència::" + str(e)[:300])
     rare_ess = essence.get("rare")
     girona_rare_allstar = rare_ess is not None and rare_ess < 100
-    rep = [f"Sorare · GW{fx['gameWeek']} · tanca {fx['cutOffDate'][:16].replace('T', ' ')} UTC"
-           + (" (PROVA: no envio res)" if dry else ""),
+    from zoneinfo import ZoneInfo
+    cut = dt.datetime.fromisoformat(fx["cutOffDate"].replace("Z", "+00:00"))
+    rep = [f"Sorare · GW{fx['gameWeek']} · tanca {cut.astimezone(ZoneInfo('Europe/Madrid')):%a %d %H:%M}"
+           + {"dry": " (PROVA: no envio res)", "fill": "", "final": " · revisió final"}[mode],
            f"Essència: Rare {rare_ess if rare_ess is not None else '?'} · Limited {essence.get('limited', '?')}"
            + (" → Girona permès a All Star Rare" if girona_rare_allstar else "")]
-    if fx.get("mySo5Lineups"):
-        rep.append("Ja hi ha " + str(len(fx["mySo5Lineups"])) + " alineacions fetes: "
-                   + "; ".join(f"{l['so5Leaderboard']['displayName']}: " + ", ".join(a["anyPlayer"]["displayName"] for a in l["so5Appearances"]) for l in fx["mySo5Lineups"]))
     used = {"rare": set(), "limited": set()}  # sense repetir jugadors dins de cada raresa (un jugador pot anar a Rare i a Limited)
     plan = []
     for rarity, total in (("rare", 1), ("limited", None)):  # Rare: 1 alineació a la primera competició possible; Limited: fins a 4 per competició
@@ -247,10 +413,18 @@ def run(dry=True):
                 rep.append(f"{lb['displayName']}: no hi ha prou jugadors amb ≥80% per a una alineació")
             elif n < 4 and not total:
                 rep.append(f"{lb['displayName']}: {n} alineacions (no queden jugadors per a més)")
+    graded = any(q["grade"] for _, pick, _ in plan for q in pick)
+    if not plan:
+        rep.append("No surt cap alineació.")
+    elif not graded:
+        rep.append("⏸️ L'impacte previst encara no s'ha publicat: no envio res.")
+    elif not dry:
+        sync(fx, plan, rep)
     # Arena Beginner (5 jugadors, límit 260): proposta amb els sobrants Limited (≥80%; sense Girona, excepte els Gazzaniga que sobren dels 2 reservats)
     arena = next((l for l in fx["so5Leaderboards"] if l["isArena"] and "beginner" in l["slug"]), None)
     if arena:
-        pool = [q for q in cards(arena) if q["player"] not in used["limited"] and (not q["girona"] or q["gazza"])]
+        busy = {a["anyCard"]["slug"] for l in fx.get("mySo5Lineups") or [] if l["so5Leaderboard"]["isArena"] for a in l["so5Appearances"]}
+        pool = [q for q in cards(arena) if q["player"] not in used["limited"] and (not q["girona"] or q["gazza"]) and q["card"] not in busy]
         props = []
         while True:
             pick = build(pool, ARENA, ARENA_CAP, "avg", hard=True)
@@ -259,13 +433,36 @@ def run(dry=True):
             props.append((pick, captain(pick)))
             got = {q["player"] for q in pick}
             pool = [q for q in pool if q["player"] not in got]
+        lines = [f"   Arena {i}: " + ", ".join(f"{SHORT[sl]} {q['name']}{' ©' if q is cap else ''} ({q['grade'] or '?'})" for sl, q in zip(ARENA, pick))
+                 + f" · {sum(q['avg'] for q in pick):.0f}/260 · {preview(arena, pick, cap)}" for i, (pick, cap) in enumerate(props, 1)]
+        if props and mode == "final":
+            ess = (arena["format"].get("entryItem") or {})
+            rep.append(f"🏟️ Puc fer {len(props)} Arenes Beginner ({len(props) * (ess.get('quantity') or 100)} d'essència):")
+            rep += lines
+            rep.append("Les faig? Respon «sí» o «no» (espero fins 5 min abans del tancament).")
+            telegram("\n".join(rep)); sent = len(rep)
+            ans = wait_yes(int(time.time()) - 5, cut - dt.timedelta(minutes=5))
+            rep2 = []
+            if ans:
+                ok = 0
+                for i, (pick, cap) in enumerate(props, 1):
+                    try:
+                        save_lineup(arena, pick, cap, entry=ess.get("myEntryItemId")); ok += 1
+                    except Exception as e:
+                        rep2.append(f"❗ Arena {i}: {str(e)[:200]}")
+                rep2.insert(0, f"{'✅' if ok == len(props) else '⚠️'} Arenes fetes: {ok} de {len(props)}")
+            else:
+                rep2.append("🏟️ Arenes: no les faig (" + ("m'has dit que no" if ans is False else "no he rebut el «sí» a temps") + ")")
+            print("::notice title=sorare::" + " ¶ ".join(rep + rep2 + LOG)[:60000])
+            telegram("\n".join(rep2))
+            gk_watch(fx, [])
+            return plan
         if props:
-            rep.append(f"🏟️ Proposta d'Arena Beginner: puc fer {len(props)} Arenes ({len(props) * 100} d'essència); quan s'activi et preguntaré «Les faig?»:")
-            for i, (pick, cap) in enumerate(props, 1):
-                rep.append(f"   Arena {i}: " + ", ".join(f"{SHORT[sl]} {q['name']}{' ©' if q is cap else ''} ({q['grade'] or '?'})" for sl, q in zip(ARENA, pick))
-                           + f" · {sum(q["avg"] for q in pick):.0f}/260 · {preview(arena, pick, cap)}")
+            rep.append(f"🏟️ Arenes possibles: {len(props)} ({len(props) * 100} d'essència). Te les proposaré a la revisió final i només les faré si dius «sí»:")
+            rep += lines
         else:
             rep.append("🏟️ Arena: no queden prou jugadors amb ≥80% per a cap Arena")
+    gk_watch(fx, rep)
     print("::notice title=sorare::" + " ¶ ".join(rep + LOG)[:60000])
     telegram("\n".join(rep))
     return plan
@@ -273,6 +470,5 @@ def run(dry=True):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--dry", action="store_true")
-    a = ap.parse_args()
-    run(dry=True)  # fins que el David validi les propostes, sempre en prova
+    ap.add_argument("mode", nargs="?", default="dry", choices=["dry", "fill", "final"])
+    run(ap.parse_args().mode)
