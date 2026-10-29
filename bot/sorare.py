@@ -189,14 +189,20 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): l'Arena que faria amb els porters vigilats, amb la font de cada titular."""
-    from bot import sorarelineup as L
-    from bot.web import load_json
-    w = load_json("sorare_gkwatch.json", {})
-    for g in w.get("gks", [])[:2]:
-        g = dict(g, fixture=g.get("fixture") or w.get("fixture"))
-        r = L.gk_arena(g)
-        print(f"::notice title=arena {g['name']}::" + (L.arena_text(r[1], r[2]) + " · " + "; ".join(f"{q['name']} {q['date']:%d %H:%M} {q.get('src')}" for q in r[1]) if r else "cap"))
+    """Prova (només lectura): jornades DAILY i missions (tasks) de Sorare."""
+    for st in ("LIVE", "UPCOMING"):
+        try:
+            fx = gql("""query($t: So5State) { so5 { so5Fixture(sport: FOOTBALL, type: $t, eventType: DAILY) { slug displayName cutOffDate endDate
+                so5Leaderboards { slug displayName mainRarityType isArena format { title } rulesSummary
+                  myTasks { name description progress genre periodicity expired aasmState } } } } }""", {"t": st}, token=token())["so5"]["so5Fixture"]
+            print(f"::notice title=DAILY {st}::" + json.dumps(fx)[:6000])
+        except Exception as e:
+            print(f"::notice title=DAILY {st} error::{e}"[:1500])
+    try:
+        d = gql("""query { currentUser { dailyRunTask(sport: FOOTBALL) { name description progress genre periodicity expired aasmState } } }""", token=token())
+        print("::notice title=dailyRunTask::" + json.dumps(d)[:3000])
+    except Exception as e:
+        print(f"::notice title=dailyRunTask error::{e}"[:1500])
 
 
 if __name__ == "__main__":
