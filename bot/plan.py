@@ -164,6 +164,16 @@ def plan(now=None, done=None):
             k = f"sorarearena:{key_}"
             if due(k, S, S + dt.timedelta(minutes=5)):
                 add(k, S, "sorarearena", key_, S + dt.timedelta(minutes=5))
+    # Sorare: Decisive Picker (missió diària) al matí (10:00) i 15 min abans de cada partit amb candidats (onzes oficials)
+    t10 = local.replace(hour=10, minute=0, second=0, microsecond=0).astimezone(UTC)
+    k = f"soraremission:{local.date()}"
+    if due(k, t10, t10 + dt.timedelta(hours=12)):
+        add(k, t10, "soraremission", "mati", t10 + dt.timedelta(hours=12))
+    for gd in load_json("sorare_missions.json", {}).get("games", []):
+        G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
+        k = f"soraremission:{gd}"
+        if due(k, G - dt.timedelta(minutes=15), G):
+            add(k, G - dt.timedelta(minutes=15), "soraremission", gd, G)
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
