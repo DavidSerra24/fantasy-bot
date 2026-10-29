@@ -208,7 +208,9 @@ if __name__ == "__main__":
     try:
         {"login": login, "me": me, "schema": schema, "explore": explore, "probe": probe, "lineups": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("dry"),
          "fill": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("fill"),
-         "final": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("final")}[cmd]()
+         "final": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("final"),
+         "missions": lambda: __import__("bot.soraremissions", fromlist=["run"]).run(dry=True),
+         "missionsgo": lambda: __import__("bot.soraremissions", fromlist=["run"]).run(dry=False)}[cmd]()
     except Exception as e:
         import traceback
         print("::error title=sorare::" + traceback.format_exc().replace("\n", " | ")[-1500:])
