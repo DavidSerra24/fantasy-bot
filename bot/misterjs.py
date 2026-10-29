@@ -5,7 +5,7 @@ import requests
 
 H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"}
 U = "https://mister.mundodeportivo.com"
-html = requests.get(U + "/", headers=H, timeout=30).text
+html = "".join(requests.get(U + p, headers=H, timeout=30).text for p in ("/", "/feed", "/team", "/market"))
 js = sorted(set(re.findall(r'src="([^"]+\.js[^"]*)"', html)))
 print("::notice title=js::" + " ".join(js)[:3000])
 found = {}
@@ -14,7 +14,7 @@ for u in js:
         u = "https:" + u
     elif u.startswith("/"):
         u = U + u
-    if "mundodeportivo" not in u:
+    if not any(k in u for k in ("mundodeportivo", "forge", "mister")):
         continue
     try:
         t = requests.get(u, headers=H, timeout=30).text
