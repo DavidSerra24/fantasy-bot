@@ -189,19 +189,23 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): la missió Decisive Picker per l'API."""
-    d = gql("""query { currentUser { a: featuredTasks(rarity: limited, sport: FOOTBALL) { __typename name genre id description }
-        b: setPlayTasks(sport: FOOTBALL) { __typename name genre id description } } }""", token=token())
-    print("::notice title=tasks::" + json.dumps(d)[:4000])
-    ids = [t["id"] for t in d["currentUser"]["a"] + d["currentUser"]["b"] if t["__typename"] == "DecisivePlayerPickerTask"]
-    for tid in [i.split(":")[-1] for i in ids[:2]]:
+    """Prova: SorareBuddy és accessible? Quines API fa servir la pàgina de missions?"""
+    import re as _re
+    H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"}
+    r = requests.get("https://sorarebuddy.com/missions", headers=H, timeout=20)
+    print(f"::notice title=page::{r.status_code} len {len(r.text)} · {r.text[:300]}")
+    js = _re.findall(r'(?:src|href)="([^"]+\.js)"', r.text)
+    print("::notice title=js::" + " ".join(js)[:2000])
+    found = set()
+    for u in js[:40]:
+        u = u if u.startswith("http") else "https://sorarebuddy.com" + u
         try:
-            t = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title target maxAppearancesCount mode rarity expired aasmState startDate
-                taskAppearances { id index status anyCard { slug } anyPlayer { displayName } game { id date } }
-                pickableGames(first: 40) { nodes { totalCount game { id date homeTeam { name } awayTeam { name } } cards { slug rarityTyped anyPlayer { displayName slug } } } } } } } }""", {"id": tid}, token=token())
-            print(f"::notice title=task {tid}::" + json.dumps(t)[:8000])
-        except Exception as e:
-            print(f"::notice title=task error::{e}"[:1500])
+            t = requests.get(u, headers=H, timeout=20).text
+        except Exception:
+            continue
+        for m in _re.findall(r'["\'`](/api/[A-Za-z0-9_/\-${}.?=&]+|https://[a-z0-9.-]+/[A-Za-z0-9_/\-]*(?:mission|decisive|picker)[A-Za-z0-9_/\-]*)', t):
+            found.add(m)
+    print("::notice title=apis::" + " | ".join(sorted(found))[:5000])
 
 
 if __name__ == "__main__":
