@@ -204,7 +204,8 @@ def probe():
         if _re.search(r"projectedRebounds|projectedPoints|nbaDaily|rotowire", c, _re.I):
             t += "\n//" + u + "\n" + c
     hits = []
-    for kw in (r"projectedRebounds", r"projectedPoints", r"rotowire", r"nbaScorer", r"chance\s*[:=]"):
+    print(f"::notice title=size::{len(t)}")
+    for kw in (r"kind\.nba", r"projectedStat", r"decisiveActions", r"rebounds", r"col\.chance"):
         for m in list(_re.finditer(kw, t, _re.I))[:4]:
             ctx = t[max(0, m.start() - 900):m.start() + 900]
             if ctx.count('":"') > 12:
