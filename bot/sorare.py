@@ -189,23 +189,16 @@ def explore():
 
 
 def probe():
-    """Prova: SorareBuddy és accessible? Quines API fa servir la pàgina de missions?"""
+    """Prova: com calcula SorareBuddy les recomanacions del Decisive Picker (codi públic de la web)."""
     import re as _re
     H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"}
-    r = requests.get("https://sorarebuddy.com/missions", headers=H, timeout=20)
-    print(f"::notice title=page::{r.status_code} len {len(r.text)} · {r.text[:300]}")
-    js = _re.findall(r'(?:src|href)="([^"]+\.js)"', r.text)
-    print("::notice title=js::" + " ".join(js)[:2000])
-    found = set()
-    for u in js[:40]:
-        u = u if u.startswith("http") else "https://sorarebuddy.com" + u
-        try:
-            t = requests.get(u, headers=H, timeout=20).text
-        except Exception:
-            continue
-        for m in _re.findall(r'["\'`](/api/[A-Za-z0-9_/\-${}.?=&]+|https://[a-z0-9.-]+/[A-Za-z0-9_/\-]*(?:mission|decisive|picker)[A-Za-z0-9_/\-]*)', t):
-            found.add(m)
-    print("::notice title=apis::" + " | ".join(sorted(found))[:5000])
+    t = requests.get("https://sorarebuddy.com/assets/index-8cREJRfy.js", headers=H, timeout=30).text
+    print(f"::notice title=len::{len(t)}")
+    for kw in ("pickableGames", "pickableCards", "DecisivePlayerPicker", "decisiveRate", "Acción decisiva", "decisive_action", "/20", "probab"):
+        for k, m in enumerate(_re.finditer(_re.escape(kw), t)):
+            if k >= 3:
+                break
+            print(f"::notice title={kw} {k}::" + t[max(0, m.start() - 1500):m.start() + 1500].replace("\n", " ")[:3000])
 
 
 if __name__ == "__main__":
