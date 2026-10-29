@@ -192,7 +192,7 @@ def probe():
     """Prova (només lectura): la missió Decisive Picker per l'API."""
     TQ = """... on DecisivePlayerPickerTask { id title description target maxAppearancesCount mode expired aasmState startDate
         taskAppearances { index status anyCard { slug } anyPlayer { displayName } game { id date } }
-        pickableGames(first: 30) { nodes { id date homeTeam { name } awayTeam { name } } } }"""
+        pickableGames(first: 30) { nodes { totalCount game { id date homeTeam { name } awayTeam { name } } cards { slug rarityTyped anyPlayer { displayName slug } } } } }"""
     for q in ("featuredTasks(rarity: limited, sport: FOOTBALL)", "setPlayTasks(sport: FOOTBALL)"):
         try:
             d = gql("query { currentUser { t: %s { __typename name genre ... on DecisivePlayerPickerTask { id } %s } } }" % (q, TQ), token=token())
