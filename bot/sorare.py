@@ -189,16 +189,18 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): l'onze oficial d'un partit vigilat es pot llegir?"""
-    from bot.sorarelineup import GAME
+    """Prova (només lectura): quina Arena faria amb cada porter vigilat si fos titular (no envia res)."""
+    from bot.sorarelineup import gk_arena, arena_text
     from bot.web import load_json
-    gks = load_json("sorare_gkwatch.json", {}).get("gks", [])
-    print("::notice title=gkwatch::" + json.dumps(gks)[:3000])
-    for g in gks[:1]:
+    w = load_json("sorare_gkwatch.json", {})
+    for g in w.get("gks", [])[:4]:
+        g = dict(g, fixture=g.get("fixture") or w.get("fixture"))
         try:
-            print("::notice title=game::" + json.dumps(gql(GAME, {"id": g["game"].split(":", 1)[-1]}, token=token()))[:2000])
+            r = gk_arena(g)
+            print(f"::notice title=arena {g['name']}::" + (arena_text(r[1], r[2]) + f" · entry {r[3]}" if r else "cap"))
         except Exception as e:
-            print("::notice title=game error::" + str(e)[:1500])
+            import traceback
+            print(f"::notice title=arena {g['name']} error::" + traceback.format_exc().replace(chr(10), " | ")[-1500:])
 
 
 if __name__ == "__main__":

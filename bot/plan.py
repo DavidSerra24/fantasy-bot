@@ -158,6 +158,12 @@ def plan(now=None, done=None):
             k = f"sorarexi:{g['game']}:{mins}"
             if due(k, G - dt.timedelta(minutes=mins), G):
                 add(k, G - dt.timedelta(minutes=mins), "sorarexi", f"{g['game']}|{mins}", G)
+    for key_, v in load_json("sorare_gkarena.json", {}).items():
+        if v.get("status") == "proposed":
+            G = dt.datetime.fromisoformat(v["gk"]["date"].replace("Z", "+00:00"))
+            k = f"sorarearena:{key_}"
+            if due(k, G - dt.timedelta(minutes=5), G):
+                add(k, G - dt.timedelta(minutes=5), "sorarearena", v["game"], G)
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
@@ -190,6 +196,10 @@ def telegram_commands(now):
         if str((m.get("chat") or {}).get("id")) != str(chat):
             continue  # només el xat del David
         t = (m.get("text") or "").strip()
+        if re.fullmatch(r"s[ií]\W*|yes\W*|ok\W*|endavant\W*|fes-la\W*|fes-les\W*", t.lower()):  # «sí» per a una Arena de Sorare
+            from bot.web import save_json as _sj
+            _sj("sorare_yes.json", (load_json("sorare_yes.json", []) + [m.get("date", 0)])[-20:])
+            continue
         from bot.quiniela import parse_grok
         grok = parse_grok(t)
         if grok:  # taula del Grok enganxada (amb o sense /quiniela): una acció per competició

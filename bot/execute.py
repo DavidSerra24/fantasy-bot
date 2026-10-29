@@ -34,8 +34,8 @@ for a in acts:
             "misterxi": "Mister: alineació i capità" + (f" ({names.get(a['comp'], a['comp'])}, revisió final)" if a["comp"] else ""),
             "fffinal": f"revisió final del Fantasy {names.get(a['comp'], a['comp'])} (onzes oficials)",
             "sorare": "Sorare: " + ("revisió final de les alineacions + Arenes" if a["comp"] == "final" else "omplir/revisar les alineacions"),
-            "sorarexi": "Sorare: porters"}[a["do"]]
-    if a["do"] not in ("quinrem", "sorarexi"):  # el recordatori ja envia el seu missatge (només si cal)
+            "sorarexi": "Sorare: porters", "sorarearena": "Sorare: Arena amb porter"}[a["do"]]
+    if a["do"] not in ("quinrem", "sorarexi", "sorarearena"):  # el recordatori ja envia el seu missatge (només si cal)
         telegram(f"▶️ Començo: {what}")
     try:
         if a["do"] == "p11":
@@ -70,6 +70,9 @@ for a in acts:
         elif a["do"] == "sorare":
             from bot import sorarelineup
             sorarelineup.run(a["comp"])
+        elif a["do"] == "sorarearena":
+            from bot import sorarelineup
+            sorarelineup.gk_arena_final(a["comp"])
         elif a["do"] == "sorarexi":
             from bot import sorarelineup
             gid, mins = a["comp"].split("|")

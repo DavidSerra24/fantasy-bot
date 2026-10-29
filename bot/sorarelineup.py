@@ -111,7 +111,8 @@ def cards(lb):
 
 
 def order(pool):
-    return sorted(pool, key=lambda q: (q["gazza"] is not True and q["gazza"] >= 2, -q["imp"], q["idx"]))
+    # gk_arena posa «tier» (0 = titular confirmat, 1 = 80–90%): primer els confirmats
+    return sorted(pool, key=lambda q: (q.get("tier", 0), q["gazza"] is not True and q["gazza"] >= 2, -q["imp"], q["idx"]))
 
 
 def faces(a, b):
@@ -280,6 +281,16 @@ def gk_watch(fx, rep):
             if not d["pageInfo"]["hasNextPage"]:
                 break
             after = d["pageInfo"]["endCursor"]
+    import datetime as _dt
+    from bot.web import load_json
+    for g in out.values():
+        g["fixture"] = fx["slug"]
+    old = load_json("sorare_gkwatch.json", {})
+    now = _dt.datetime.now(_dt.timezone.utc)
+    for g in old.get("gks", []):  # els porters de la jornada en joc (després del tancament) es mantenen fins al seu partit
+        g.setdefault("fixture", old.get("fixture"))
+        if g["slug"] not in out and _dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00")) > now and g["fixture"] != fx["slug"]:
+            out[g["slug"] + "|" + g["game"]] = g
     save_json("sorare_gkwatch.json", {"fixture": fx["slug"], "gks": sorted(out.values(), key=lambda g: g["date"])})
     if out:
         from zoneinfo import ZoneInfo
@@ -321,6 +332,25 @@ def gk_check(gid, mins):
                 lines.append(f"{'✅' if g['slug'] in xi else '❌'} {g['name']} ({g['club']}) {'és TITULAR' if g['slug'] in xi else 'NO és titular'}")
             done[gid] = True
             save_json("sorare_gkdone.json", done)
+            st = load_json("sorare_gkarena.json", {})
+            for g in gks:
+                if g["slug"] not in xi:
+                    continue
+                g = dict(g, fixture=g.get("fixture") or load_json("sorare_gkwatch.json", {}).get("fixture"))
+                try:
+                    res = gk_arena(g)
+                except Exception as e:
+                    res = None
+                    print("::warning title=sorare arena porter::" + str(e)[:300])
+                if res:
+                    lb, pick, cap, entry = res
+                    import time as _t
+                    st[g["slug"] + "|" + gid] = {"game": gid, "gk": g, "at": int(_t.time()), "status": "proposed"}
+                    lines.append(f"🏟️ Proposta d'Arena (100 d'essència): {arena_text(pick, cap)}\n"
+                                 f"La faig? Respon «sí». La faré 5 min abans del partit, amb els titulars confirmats en aquell moment.")
+                else:
+                    lines.append(f"🏟️ Amb {g['name']} no surt cap Arena vàlida (falten jugadors titulars o del 80–90%).")
+            save_json("sorare_gkarena.json", st)
     head = f"🧤 {g0['home']} – {g0['away']} ({hhmm})"
     if lines:
         telegram(head + " · onze oficial:\n" + "\n".join(lines))
@@ -329,6 +359,136 @@ def gk_check(gid, mins):
     elif mins <= 12:
         telegram(f"{head}: encara no hi ha onze oficial a Sorare per a {who}. Mira-ho a X.")
     print(f"::notice title=sorare porters::{head} · {mins} min · " + ("; ".join(lines) or "sense onze oficial encara"))
+
+
+FIXTURE_SLUG = FIXTURE.replace("query {", "query($s: String!) {").replace("so5Fixture(sport: FOOTBALL, type: UPCOMING, eventType: CLASSIC)", "so5Fixture(slug: $s)")
+YES = r"s[ií]\W*|yes\W*|ok\W*|endavant\W*|fes-la\W*|fes-les\W*"
+
+
+def lineup_status(gid, cache):
+    """None si l'onze oficial encara no és a Sorare; si no, el conjunt de titulars (slugs de jugador)."""
+    if gid not in cache:
+        try:
+            gm = gql(GAME, {"id": gid.split(":", 1)[-1]}, token=token())["football"]["game"]
+            if all((gm.get(side) or {}).get("startingLineupAvailable") for side in ("homeFormation", "awayFormation")):
+                cache[gid] = {p["slug"] for side in ("homeFormation", "awayFormation") for row in gm[side]["startingLineup"] for p in row}
+            else:
+                cache[gid] = None
+        except Exception:
+            cache[gid] = None
+    return cache[gid]
+
+
+def gk_arena(gk, final=False):
+    """Arena Beginner amb un porter vigilat que és titular. Els altres 4: primer els titulars confirmats (per impacte),
+    i si d'una posició no n'hi ha, els del 80–90% (com el Pro). Només jugadors que juguen a l'hora del porter o després
+    (l'Arena es tanca quan comença el partit de qualsevol jugador). Amb final=True (5 min abans), els d'un partit que ja
+    hauria de tenir onze i encara no se sap si juguen, fora. Retorna (lb, pick, cap, entry) o None."""
+    import datetime as dt
+    fx = gql(FIXTURE_SLUG, {"s": gk["fixture"]}, token=token())["so5"]["so5Fixture"]
+    arena = next((l for l in fx["so5Leaderboards"] if l["isArena"] and "beginner" in l["slug"]), None)
+    if not arena:
+        return None
+    G = dt.datetime.fromisoformat(gk["date"].replace("Z", "+00:00"))
+    busy = {a["anyCard"]["slug"] for l in fx.get("mySo5Lineups") or [] for a in l["so5Appearances"]}
+    hi = {n["anyCard"]["slug"] for n in bench(arena["slug"], {"min": 8000})}
+    cache, pool, gkq = {}, [], None
+    for i, n in enumerate(bench(arena["slug"]) + bench(arena["slug"], None, ["Goalkeeper"])):
+        c, p = n["anyCard"], n["anyPlayer"]
+        if c["rarityTyped"].lower() != "limited" or c["slug"] in busy:
+            continue
+        g = (n.get("eligiblePlayerGameScores") or [{}])[0] or {}
+        game = g.get("anyGame") or {}
+        if not game.get("id"):
+            continue
+        D = dt.datetime.fromisoformat(game["date"].replace("Z", "+00:00"))
+        club = (p.get("activeClub") or {}).get("name") or ""
+        pos = n.get("position") or p.get("position")
+        q = {"card": c["slug"], "xp": c["xp"] or 0, "name": p["displayName"], "player": p["slug"], "club": club, "pos": pos, "poss": [pos],
+             "avg": n.get("avg10") or 0, "idx": i, "grade": (g.get("projection") or {}).get("grade"), "game": game["id"], "date": D,
+             "girona": "girona" in club.lower(), "gazza": False}
+        q["imp"] = GRADE.get(q["grade"], -1)
+        if p["slug"] == gk["slug"]:
+            if not gkq or q["xp"] > gkq["xp"]:
+                gkq = q
+            continue
+        if pos == "Goalkeeper" or D < G or q["girona"] or "gazzaniga" in p["slug"]:
+            continue  # el porter és el vigilat; Girona i Gazzaniga són per a l'Arena manual del David
+        xi = lineup_status(game["id"], cache)
+        if xi is not None:
+            if p["slug"] not in xi:
+                continue
+            q["tier"] = 0  # titular confirmat
+        elif c["slug"] in hi and not (final and D - G < dt.timedelta(minutes=50)):
+            q["tier"] = 1  # encara sense onze: 80–90%
+        else:
+            continue
+        pool.append(q)
+    if not gkq:
+        return None
+    # un jugador per carta (la de més XP); ordre: confirmats, després 80–90%; dins de cada grup, impacte i llista
+    best = {}
+    for q in pool:
+        if q["player"] not in best or q["xp"] > best[q["player"]]["xp"]:
+            best[q["player"]] = q
+    pool = list(best.values())
+    pick = build([gkq] + pool, ARENA, ARENA_CAP, "avg", hard=True)
+    if not pick or pick[0] is not gkq:
+        return None
+    return arena, pick, captain(pick), (arena["format"].get("entryItem") or {}).get("myEntryItemId")
+
+
+def arena_text(pick, cap):
+    return ", ".join(f"{SHORT[sl]} {q['name']}{' ©' if q is cap else ''} ({q['grade'] or '?'}{', titular' if q.get('tier') == 0 else ', 80–90%' if q.get('tier') == 1 else ''})"
+                     for sl, q in zip(ARENA, pick)) + f" · {sum(q['avg'] for q in pick):.0f}/260"
+
+
+def yes_after(ts):
+    """Hi ha un «sí» al xat de Telegram després de `ts` (segons)? Mira els missatges encara no llegits pel planificador
+    i els «sí» que el planificador ja ha desat (state/sorare_yes.json)."""
+    import os
+    import re
+    import requests
+    from bot.web import load_json
+    if any(t >= ts for t in load_json("sorare_yes.json", [])):
+        return True
+    tok, chat = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
+    try:
+        r = requests.get(f"https://api.telegram.org/bot{tok}/getUpdates", params={"timeout": 0}, timeout=20).json()
+    except Exception:
+        return False
+    for u in r.get("result", []):
+        m = u.get("message") or {}
+        if str((m.get("chat") or {}).get("id")) == str(chat) and m.get("date", 0) >= ts and re.fullmatch(YES, (m.get("text") or "").strip().lower()):
+            return True
+    return False
+
+
+def gk_arena_final(gid):
+    """5 min abans del partit del porter: si el David ha dit «sí» a la proposta, es refà l'Arena amb les dades del
+    moment (titulars confirmats) i s'envia."""
+    from bot.web import load_json, save_json
+    st = load_json("sorare_gkarena.json", {})
+    pend = [(k, v) for k, v in st.items() if v.get("game") == gid and v.get("status") == "proposed"]
+    for k, v in pend:
+        if not yes_after(v["at"]):
+            v["status"] = "no"
+            telegram(f"🏟️ Arena amb {v['gk']['name']}: no l'he feta (no he rebut el «sí»).")
+            continue
+        res = gk_arena(v["gk"], final=True)
+        if not res:
+            v["status"] = "error"
+            telegram(f"⚠️ Arena amb {v['gk']['name']}: ara no surt cap alineació vàlida; no l'he feta.")
+            continue
+        lb, pick, cap, entry = res
+        try:
+            save_lineup(lb, pick, cap, entry=entry)
+            v["status"] = "done"
+            telegram(f"✅ Arena feta (100 d'essència): {arena_text(pick, cap)}")
+        except Exception as e:
+            v["status"] = "error"
+            telegram(f"❌ Arena amb {v['gk']['name']}: {str(e)[:300]}")
+    save_json("sorare_gkarena.json", st)
 
 
 def wait_yes(since, until):
