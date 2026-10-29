@@ -1,0 +1,39 @@
+name: Sorare (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      cmd:
+        description: "login (entrar; et demanarà el codi per Telegram) o me (comprovar)"
+        default: "login"
+concurrency: sorare
+jobs:
+  sorare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SORARE_EMAIL: ${{ secrets.SORARE_EMAIL }}
+      SORARE_PASSWORD: ${{ secrets.SORARE_PASSWORD }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install requests python-dotenv bcrypt cryptography
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            state
+            !state/session_*.json
+          key: state-${{ github.run_id }}
+          restore-keys: state-
+      - run: python -m bot.sorare ${{ github.event.inputs.cmd }}
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            state
+            !state/session_*.json
+          key: state-${{ github.run_id }}
