@@ -190,15 +190,18 @@ def explore():
 
 def probe():
     """Prova (només lectura): la missió Decisive Picker per l'API."""
-    TQ = """... on DecisivePlayerPickerTask { id title description target maxAppearancesCount mode expired aasmState startDate
-        taskAppearances { index status anyCard { slug } anyPlayer { displayName } game { id date } }
-        pickableGames(first: 30) { nodes { totalCount game { id date homeTeam { name } awayTeam { name } } cards { slug rarityTyped anyPlayer { displayName slug } } } } }"""
-    for q in ("featuredTasks(rarity: limited, sport: FOOTBALL)", "setPlayTasks(sport: FOOTBALL)"):
+    d = gql("""query { currentUser { a: featuredTasks(rarity: limited, sport: FOOTBALL) { __typename name genre id description }
+        b: setPlayTasks(sport: FOOTBALL) { __typename name genre id description } } }""", token=token())
+    print("::notice title=tasks::" + json.dumps(d)[:4000])
+    ids = [t["id"] for t in d["currentUser"]["a"] + d["currentUser"]["b"] if t["__typename"] == "DecisivePlayerPickerTask"]
+    for tid in ids[:2]:
         try:
-            d = gql("query { currentUser { t: %s { __typename name genre ... on DecisivePlayerPickerTask { id } %s } } }" % (q, TQ), token=token())
-            print(f"::notice title={q[:20]}::" + json.dumps(d)[:5000])
+            t = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title target maxAppearancesCount mode rarity expired aasmState startDate
+                taskAppearances { id index status anyCard { slug } anyPlayer { displayName } game { id date } }
+                pickableGames(first: 40) { nodes { totalCount game { id date homeTeam { name } awayTeam { name } } cards { slug rarityTyped anyPlayer { displayName slug } } } } } } } }""", {"id": tid}, token=token())
+            print(f"::notice title=task {tid}::" + json.dumps(t)[:8000])
         except Exception as e:
-            print(f"::notice title={q[:20]} error::{e}"[:1500])
+            print(f"::notice title=task error::{e}"[:1500])
 
 
 if __name__ == "__main__":
