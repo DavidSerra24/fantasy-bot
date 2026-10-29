@@ -441,7 +441,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                 official, olog = {}, []
                 if final:
                     kickoff = deadline
-                    official = official_lineups(slug, kickoff, sidata, wait_until=kickoff.astimezone(dt.timezone.utc) - dt.timedelta(minutes=15), log=olog)
+                    official = official_lineups(slug, kickoff, sidata, wait_until=kickoff.astimezone(dt.timezone.utc) - dt.timedelta(minutes=20), log=olog)
                     if official:  # dades fresques: els onzes poden haver canviat mentre esperàvem
                         sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
                 cands = candidates(sidata, official)
