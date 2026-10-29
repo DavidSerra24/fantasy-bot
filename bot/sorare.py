@@ -181,8 +181,9 @@ def explore():
             g = g or (eg.get("projection") or {})
             rows.append(f"{p_['displayName']} ({(p_.get('activeClub') or {}).get('name')}, {p_.get('position')}, {p_.get('age')}a) | {g.get('grade')} {g.get('score')} | {(o.get('starterOddsBasisPoints') or 0)/100:.0f}% | mitj {n.get('averageScore')} | xp {n['anyCard']['xp']} | {n['anyCard']['slug']}")
         print(f"::notice title=bench {champ['displayName']}::" + " ¶ ".join(rows)[:9000])
-        allr = gql("""query { so5 { futureLeaderboardsPaginated(first: 300) { nodes { displayName mainRarityType isArena slug format { title } } } } }""", token=token())["so5"]["futureLeaderboardsPaginated"]["nodes"]
-        print("::notice title=allrare::" + " ¶ ".join(f"{l['displayName']} | {l['mainRarityType']} | {l['format']['title']} | {l['slug']}" for l in allr if l["slug"].startswith("football") and not l["isArena"] and l["mainRarityType"] != "limited")[:6000])
+        fx = gql("""query { so5 { so5Fixture(sport: FOOTBALL, type: UPCOMING, eventType: CLASSIC) { slug gameWeek cutOffDate
+            so5Leaderboards { displayName mainRarityType isArena slug format { title } } } } }""", token=token())["so5"]["so5Fixture"]
+        print("::notice title=fixture::" + f"{fx['slug']} GW{fx['gameWeek']} {fx['cutOffDate']} ¶ " + " ¶ ".join(f"{l['displayName']} | {l['mainRarityType']} | {l['format']['title']} | {l['slug']}" for l in fx["so5Leaderboards"] if not l["isArena"] and l["mainRarityType"] in ("limited", "rare"))[:8000])
         from collections import Counter
         print("::notice title=rarities::" + str(Counter((l["mainRarityType"], l["format"]["title"], l["slug"].split("-")[0]) for l in leaderboards())))
 
