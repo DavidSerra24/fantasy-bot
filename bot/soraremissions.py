@@ -21,7 +21,7 @@ from bot.notify import telegram
 from bot.sorare import gql, token
 from bot.web import load_json, save_json
 
-TASKS = """query($r: Rarity!) { currentUser { featuredTasks(rarity: $r, sport: FOOTBALL) { __typename id title description
+TASKS = """query($r: Rarity!, $sp: Sport!) { currentUser { featuredTasks(rarity: $r, sport: $sp) { __typename id title description
   rewardConfigs { __typename ... on InGameCurrencyRewardConfig { currency amount } ... on CardShardRewardConfig { quantity rarity } } } } }"""
 FIX = """query($t: So5State) { so5 { so5Fixture(sport: FOOTBALL, type: $t, eventType: CLASSIC) { slug so5Leaderboards { slug isArena mainRarityType } } } }"""
 ODDS = """query($s: String!, $r: RangeInput, $after: String, $pos: [Position!]) { so5 { so5Leaderboard(slug: $s) {
@@ -55,9 +55,56 @@ def si_odds():
     return out
 
 
+NBA_FORM = """query($s: String!) { anyPlayer(slug: $s) { displayName ... on NBAPlayer { gameplayTierStars activeInjuries { id }
+  l10: averageScore(type: LAST_TEN_PLAYED_SO5_AVERAGE_SCORE) nextDailyFixtureProjectedScore
+  allAverageStats(limit: LAST_10) { stat value lastValues }
+  allPlayerGameScores(first: 20) { nodes { score } } } } }"""
+NBA_STAT = {"rebounds": "REBOUNDS", "points": "POINTS", "assists": "ASSISTS", "steals": "STEALS", "blocks": "BLOCKS",
+            "three": "THREE_POINTS_MADE", "threes": "THREE_POINTS_MADE", "three_points_made": "THREE_POINTS_MADE"}
+
+
+def nba_score(slug, task):
+    """NBA (com SorareBuddy, adaptat): (disponibilitat, encerts, detall).
+    - Disponibilitat: lesionat → 0; si no, la part dels últims 10 partits que ha jugat (s'exigeix ≥ 80%, com al futbol).
+    - Daily Picker (mode SCORE: superar la seva L10 en 7 punts i fer ≥ 20): part dels últims 20 partits amb
+      puntuació ≥ max(20, L10 + 7); desempat, la projecció de Sorare menys la L10.
+    - Missions d'estadística (rebots, punts, assistències…, «N+»; «X Stars or less»): part dels últims 10 partits amb
+      l'estadística ≥ N; els jugadors amb més estrelles de les permeses, fora."""
+    import re
+    try:
+        p = gql(NBA_FORM, {"s": slug}, token=token())["anyPlayer"]
+    except Exception as e:
+        print(f"::warning title=nba {slug}::{str(e)[:300]}")
+        return 0, 0, "sense dades"
+    stats = {a["stat"]: a for a in p.get("allAverageStats") or []}
+    mins = (stats.get("MINS_PLAYED") or {}).get("lastValues") or []
+    avail = 0 if p.get("activeInjuries") else (sum(1 for m in mins if (m or 0) > 0) / len(mins) if mins else 0)
+    desc = task.get("description") or ""
+    m = re.search(r"([\d.]+)\s*Stars? or less", desc, re.I)
+    if m and (p.get("gameplayTierStars") or 0) > float(m.group(1)):
+        return 0, 0, f"{p.get('gameplayTierStars')}★ (massa estrelles)"
+    if task.get("mode") == "SCORE":
+        l10 = p.get("l10") or 0
+        thr = max(20, l10 + 7)
+        sc = [n["score"] for n in (p.get("allPlayerGameScores") or {}).get("nodes") or [] if n.get("score") is not None]
+        rate = sum(1 for x in sc if x >= thr) / len(sc) if sc else 0
+        gain = (p.get("nextDailyFixtureProjectedScore") or 0) - l10
+        return avail, rate + gain / 1000, f"L10 {l10:.0f}, cal {thr:.0f}: {sum(1 for x in sc if x >= thr)}/{len(sc)}"
+    acts = [a.lower() for a in task.get("decisiveActions") or []]
+    key = next((NBA_STAT[a] for a in acts if a in NBA_STAT), None)
+    n = re.search(r"(\d+)\+", desc)
+    if not key or not n:
+        return avail, 0, "missió no reconeguda"
+    vals = (stats.get(key) or {}).get("lastValues") or []
+    hit = sum(1 for v in vals if (v or 0) >= int(n.group(1)))
+    return avail, (hit / len(vals) if vals else 0), f"{key.lower()} ≥{n.group(1)}: {hit}/{len(vals)}"
+
+
 def priority(t):
-    """Essència (0) → pistes de crafteig (1) → experiència (2) → altres (3)."""
-    best = 3
+    """Essència (0) → pistes de crafteig (1) → experiència (2) → altres (3). Si la missió no diu les recompenses,
+    es miren a la descripció («Essence», «Clue», «XP»)."""
+    d = (t.get("description") or "").lower()
+    best = 0 if "essence" in d else 1 if "clue" in d else 2 if " xp" in d else 3
     for r in t.get("rewardConfigs") or []:
         cur = r.get("currency") or ""
         if r["__typename"] == "CardShardRewardConfig" or "SHARD" in cur or "ESSENCE" in cur:
@@ -67,7 +114,7 @@ def priority(t):
         elif r["__typename"] == "ExperienceRewardConfig" or cur.endswith("_XP"):
             best = min(best, 2)
     return best
-TASK = """query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title description maxAppearancesCount mode rarity expired aasmState
+TASK = """query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title description maxAppearancesCount mode rarity expired aasmState decisiveActions
   taskAppearances { id index status anyCard { slug } anyPlayer { displayName slug } game { id date } }
   pickableGames(first: 60) { nodes { game { id date homeTeam { name } awayTeam { name } } cards { slug xp rarityTyped anyPlayer { displayName slug } } } } } } } }"""
 FORM = """query($s: String!) { anyPlayer(slug: $s) { displayName
@@ -95,13 +142,14 @@ def run(dry=False):
     now = dt.datetime.now(dt.timezone.utc)
     rep, games_seen = [], []
     all_tasks = []
-    for rarity in ("limited", "rare", "super_rare", "unique"):
-        try:
-            for t in gql(TASKS, {"r": rarity}, token=token())["currentUser"]["featuredTasks"]:
-                if t["__typename"] == "DecisivePlayerPickerTask":
-                    all_tasks.append((priority(t), rarity, t))
-        except Exception as e:
-            rep.append(f"⚠️ {rarity}: {str(e)[:150]}")
+    for sport in ("FOOTBALL", "NBA"):  # MLB: fora de temporada (es pot afegir quan torni)
+        for rarity in ("limited", "rare", "super_rare", "unique"):
+            try:
+                for t in gql(TASKS, {"r": rarity, "sp": sport}, token=token())["currentUser"]["featuredTasks"]:
+                    if t["__typename"] == "DecisivePlayerPickerTask":
+                        all_tasks.append((priority(t), rarity, dict(t, sport=sport)))
+            except Exception as e:
+                rep.append(f"⚠️ {sport} {rarity}: {str(e)[:150]}")
     all_tasks.sort(key=lambda x: x[0])  # primer les d'essència, després pistes, després experiència
     odds = si_odds() if all_tasks else {}
     used_cards = set()
@@ -110,7 +158,8 @@ def run(dry=False):
         for pri, rarity, t in all_tasks:
             tid = t["id"].split(":")[-1]
             task = gql(TASK, {"id": tid}, token=token())["currentUser"]["task"]
-            if task.get("expired") or task.get("mode") != "DECISIVE":
+            nba = t["sport"] == "NBA"
+            if task.get("expired") or (task.get("mode") != "DECISIVE" and not nba):
                 rep.append(f"ℹ️ {task['title']} ({rarity}): {task['description']} — no és d'acció decisiva, no la toco")
                 continue
             n_max = task["maxAppearancesCount"]
@@ -135,7 +184,10 @@ def run(dry=False):
                         continue
                     if p["slug"] not in cand or (c.get("xp") or 0) > cand[p["slug"]]["xp"]:
                         cand[p["slug"]] = {"slug": p["slug"], "name": p["displayName"], "card": c["slug"], "xp": c.get("xp") or 0, "game": g, "date": D}
-            for q in cand.values():
+            for q in (cand.values() if nba else []):
+                avail, rate, info = nba_score(q["slug"], task)
+                q.update(l5=0, l10=0, l20=0, tit=avail if avail >= 0.8 else 0.0, confirmed=False, chance=(avail if avail >= 0.8 else 0) * rate, info=info)
+            for q in (cand.values() if not nba else []):
                 l5, l10, l20, st10 = form(q["slug"])
                 xi = lineup_status(q["game"], cache)
                 # titular: amb l'onze oficial, 100% o 0%; si no, el % de SorareInside (només compten els del 80–90%)
@@ -148,13 +200,16 @@ def run(dry=False):
             cur_slugs = {a["anyPlayer"]["slug"] for a in cur.values()}
             want_slugs = {q["slug"] for q in want}
             used_cards |= {q["card"] for q in want}
-            line = [f"🎯 {task['title']} ({rarity}, {n_max} places, recompensa: {PRI[pri]}): {task['description']}"]
+            line = [f"🎯 {'🏀 ' if nba else ''}{task['title']} ({rarity}, {n_max} places, recompensa: {PRI[pri]}): {task['description']}"]
             for i, a in sorted(locked.items()):
                 line.append(f"   🔒 {a['anyPlayer']['displayName']} ({a['status'].lower()})")
             if cur:
                 line.append("   ara triats: " + ", ".join(a["anyPlayer"]["displayName"] for a in cur.values()))
             for q in ranked[:6]:
                 M = q["date"].astimezone(__import__("zoneinfo").ZoneInfo("Europe/Madrid"))
+                if nba:
+                    line.append(f"   {'✅' if q['slug'] in want_slugs else '·'} {q['name']} · {M:%H:%M} · juga {q['tit'] * 100:.0f}% · {q['info']} · opcions {q['chance'] * 100:.0f}%")
+                    continue
                 line.append(f"   {'✅' if q['slug'] in want_slugs else '·'} {q['name']} · {M:%H:%M} · titular {q['tit'] * 100:.0f}%{' (onze oficial)' if q['confirmed'] else ' (SorareInside)'}"
                             f" · decisiu {q['l5']}/5 {q['l10']}/10 {q['l20']}/20 · opcions {q['chance'] * 100:.0f}%")
             if want_slugs != cur_slugs and want:

@@ -189,22 +189,15 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): missions d'NBA."""
-    for r in ("limited", "rare", "common"):
-        try:
-            d = gql("""query($r: Rarity!) { currentUser { featuredTasks(rarity: $r, sport: NBA) { __typename id title description
-                rewardConfigs { __typename ... on InGameCurrencyRewardConfig { currency amount } ... on CardShardRewardConfig { quantity rarity } } } } }""", {"r": r}, token=token())
-            print(f"::notice title=nba {r}::" + json.dumps(d)[:3000])
-            for t in d["currentUser"]["featuredTasks"]:
-                if t["__typename"] != "DecisivePlayerPickerTask":
-                    continue
-                x = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { mode maxAppearancesCount decisiveActions statThresholds { stat min }
-                    taskAppearances { index status anyPlayer { displayName } }
-                    pickableGames(first: 30) { nodes { totalCount game { id date homeTeam { name } awayTeam { name } } cards { slug anyPlayer { displayName slug } } } } } } } }""",
-                        {"id": t["id"].split(":")[-1]}, token=token())
-                print(f"::notice title=nba task {r} {t['title']}::" + json.dumps(x)[:4000])
-        except Exception as e:
-            print(f"::notice title=nba {r} error::{e}"[:1500])
+    """Prova (només lectura): càlcul NBA amb jugadors d'un partit d'avui."""
+    from bot.soraremissions import nba_score
+    g = gql("""query { anyGame(id: "c9264f31-bc17-4556-8ef5-cfe6959d0f60") { anyPlayers { slug displayName } } }""", token=token())["anyGame"]
+    out = []
+    for p in g["anyPlayers"][:6]:
+        a = nba_score(p["slug"], {"mode": "DECISIVE", "decisiveActions": ["rebounds"], "description": "Pick a player ranked 1.5 Stars or less who grabs 5+ rebounds"})
+        b = nba_score(p["slug"], {"mode": "SCORE", "description": "outperforms his L10 by 7 points"})
+        out.append(f"{p['displayName']}: reb {a} · daily {b}")
+    print("::notice title=nba::" + " ¶ ".join(out)[:5000])
 
 
 if __name__ == "__main__":
