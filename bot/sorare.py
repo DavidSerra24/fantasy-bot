@@ -189,21 +189,22 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): recompenses de les missions i % de titularitat (filtre del banc) de la jornada en joc."""
-    for r in ("limited", "rare"):
-        d = gql("""query($r: Rarity!) { currentUser { featuredTasks(rarity: $r, sport: FOOTBALL) { __typename id title description
-            rewardConfigs { __typename ... on InGameCurrencyRewardConfig { currency amount } ... on CardShardRewardConfig { quantity rarity } ... on ExperienceRewardConfig { __typename } } } } }""", {"r": r}, token=token())
-        print(f"::notice title=rewards {r}::" + json.dumps(d)[:3000])
-    for st in ("LIVE", "UPCOMING"):
-        fx = gql("""query($t: So5State) { so5 { so5Fixture(sport: FOOTBALL, type: $t, eventType: CLASSIC) { slug so5Leaderboards { slug displayName isArena mainRarityType } } } }""", {"t": st}, token=token())["so5"]["so5Fixture"]
-        lb = next(l for l in fx["so5Leaderboards"] if "all_star" in l["slug"] and l["mainRarityType"] == "limited" and not l["isArena"])
-        for rng in ({"min": 8000}, {"min": 6000, "max": 7999}):
-            try:
-                b = gql("""query($s: String!, $r: RangeInput) { so5 { so5Leaderboard(slug: $s) { myBench(first: 50, includeUsed: true, starterOddsBasisPointsRange: $r, query: "Reinier") { nodes { ... on ComposeTeamBenchCard { anyPlayer { displayName } } } } } } }""",
-                        {"s": lb["slug"], "r": rng}, token=token())
-                print(f"::notice title={st} {rng}::{fx['slug']} " + json.dumps(b)[:500])
-            except Exception as e:
-                print(f"::notice title={st} error::{e}"[:800])
+    """Prova (només lectura): missions d'NBA."""
+    for r in ("limited", "rare", "common"):
+        try:
+            d = gql("""query($r: Rarity!) { currentUser { featuredTasks(rarity: $r, sport: NBA) { __typename id title description
+                rewardConfigs { __typename ... on InGameCurrencyRewardConfig { currency amount } ... on CardShardRewardConfig { quantity rarity } } } } }""", {"r": r}, token=token())
+            print(f"::notice title=nba {r}::" + json.dumps(d)[:3000])
+            for t in d["currentUser"]["featuredTasks"]:
+                if t["__typename"] != "DecisivePlayerPickerTask":
+                    continue
+                x = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { mode maxAppearancesCount decisiveActions statThresholds { stat min }
+                    taskAppearances { index status anyPlayer { displayName } }
+                    pickableGames(first: 30) { nodes { totalCount game { id date homeTeam { name } awayTeam { name } } cards { slug anyPlayer { displayName slug } } } } } } } }""",
+                        {"id": t["id"].split(":")[-1]}, token=token())
+                print(f"::notice title=nba task {r} {t['title']}::" + json.dumps(x)[:4000])
+        except Exception as e:
+            print(f"::notice title=nba {r} error::{e}"[:1500])
 
 
 if __name__ == "__main__":
