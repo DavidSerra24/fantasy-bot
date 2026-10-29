@@ -46,19 +46,27 @@ def matches(day):
     return _days[k]
 
 
+YOUTH = re.compile(r"\b(u\d\d|ii|b|women|w|femenino|feminine|reserves?|youth|juvenil)\b", re.I)
+
+
 def find(home, away, when):
-    """id del partit de FotMob (mateixos equips; FotMob agrupa per dia local, es miren el dia d'abans i el de després)."""
+    """id del partit de FotMob: mateixos equips (local i visitant) i mateixa hora (±20 min). FotMob agrupa per dia
+    local: es miren el dia d'abans, el mateix i el de després. Els equips filials, juvenils o femenins no compten
+    (llevat que el nom de Sorare també ho sigui)."""
     best, bs = None, 0
+    youth = bool(YOUTH.search(home) or YOUTH.search(away))
     for d in (when - dt.timedelta(days=1), when, when + dt.timedelta(days=1)):
         for m in matches(d):
-            sc = min(team_score(home, m["home"].get("longName") or m["home"]["name"]), team_score(away, m["away"].get("longName") or m["away"]["name"]))
+            hn, an = m["home"].get("longName") or m["home"]["name"], m["away"].get("longName") or m["away"]["name"]
+            if not youth and (YOUTH.search(hn) or YOUTH.search(an)):
+                continue
             t = (m.get("status") or {}).get("utcTime")
-            if t:
-                try:
-                    if abs((dt.datetime.fromisoformat(t.replace("Z", "+00:00")) - when).total_seconds()) > 3 * 3600:
-                        continue
-                except ValueError:
-                    pass
+            try:
+                if not t or abs((dt.datetime.fromisoformat(t.replace("Z", "+00:00")) - when).total_seconds()) > 20 * 60:
+                    continue
+            except ValueError:
+                continue
+            sc = min(team_score(home, hn), team_score(away, an))
             if sc > bs:
                 best, bs = m["id"], sc
     return best if bs > 0 else None
