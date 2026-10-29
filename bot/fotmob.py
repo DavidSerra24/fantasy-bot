@@ -89,3 +89,20 @@ def starters(home, away, when):
     if any(len(s.get("starters") or []) < 11 for s in sides):
         return None
     return [p["name"] for s in sides for p in s["starters"]]
+
+
+def starters_by_team(home, away, when):
+    """{nom de l'equip a FotMob: [titulars]} dels dos equips, o None si encara no hi ha onze oficial."""
+    mid = find(home, away, when)
+    if not mid:
+        return None
+    try:
+        lu = requests.get(f"https://www.fotmob.com/api/data/matchDetails?matchId={mid}", headers=H, timeout=20).json()["content"].get("lineup") or {}
+    except Exception:
+        return None
+    if (lu.get("lineupType") or "").lower() != "standard" or when - dt.datetime.now(dt.timezone.utc) > dt.timedelta(hours=3):
+        return None
+    sides = [lu.get("homeTeam") or {}, lu.get("awayTeam") or {}]
+    if any(len(s.get("starters") or []) < 11 for s in sides):
+        return None
+    return {s.get("name") or "": [p["name"] for p in s["starters"]] for s in sides}

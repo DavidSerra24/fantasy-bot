@@ -189,15 +189,11 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): càlcul NBA amb les previsions (RotoWire) de jugadors d'un partit d'avui."""
-    from bot.soraremissions import nba_score
-    g = gql("""query($id: ID!) { anyGame(id: $id) { anyPlayers { slug displayName } } }""", {"id": "Game:c9264f31-bc17-4556-8ef5-cfe6959d0f60"}, token=token())["anyGame"]
-    out = []
-    for p in g["anyPlayers"][:8]:
-        a = nba_score(p["slug"], {"mode": "DECISIVE", "decisiveActions": ["rebounds"], "description": "Pick a player ranked 1.5 Stars or less who grabs 5+ rebounds"})
-        b = nba_score(p["slug"], {"mode": "SCORE", "description": "outperforms his L10 by 7 points"})
-        out.append(f"{p['displayName']}: reb {a} · daily {b}")
-    print("::notice title=nba::" + " ¶ ".join(out)[:5000])
+    """Prova: onzes per equip de FotMob."""
+    import datetime as dt
+    from bot import fotmob
+    r = fotmob.starters_by_team("Everton", "Newcastle United", dt.datetime(2026, 10, 29, 19, 45, tzinfo=dt.timezone.utc))
+    print("::notice title=fotmob::" + json.dumps(r)[:1500])
 
 
 if __name__ == "__main__":

@@ -107,7 +107,7 @@ def candidates(sidata, official=None):
 
 def official_lineups(slug, kickoff, sidata, wait_until=None, log=None):
     log = log if log is not None else []
-    """Onzes oficials (ESPN) dels partits que comencen a `kickoff`. Espera (reintenta cada 3 min)
+    """Onzes oficials (FotMob i, si no, ESPN) dels partits que comencen a `kickoff`. Espera (reintenta cada 3 min)
     fins a `wait_until` si encara no s'han publicat. Retorna {equip SorareInside: [titulars]}."""
     import time
     from bot import espn
@@ -121,10 +121,17 @@ def official_lineups(slug, kickoff, sidata, wait_until=None, log=None):
     for ev in evs:
         st = None
         while True:
-            try:
-                st = espn.starters(slug, ev["id"])
+            st = None
+            try:  # primer FotMob (sovint el té abans, quan el club el publica), si no ESPN
+                from bot import fotmob
+                st = fotmob.starters_by_team(ev["home"], ev["away"], ev["start"])
             except Exception:
                 st = None
+            if not st:
+                try:
+                    st = espn.starters(slug, ev["id"])
+                except Exception:
+                    st = None
             if st or not wait_until or dt.datetime.now(dt.timezone.utc) >= wait_until:
                 break
             time.sleep(180)

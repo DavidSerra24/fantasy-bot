@@ -258,6 +258,21 @@ def run(dry=False, retira=()):
                 bal, squad, market, have, cap = league_data(b, pg, spg, cid, country, league, report, cache)
                 if league == "Primera División":
                     fent_squad = squad
+                # Jugadors en venda que han tornat a arribar al mínim: es treuen de la venda (també a la revisió de les 4:15,
+                # abans de les ofertes de les 5:00). Les vendes per saldar el deute es mantenen.
+                back = []
+                for q in [q for q in squad if q["onsale"] and q["pct"] is not None and q["pct"] >= minimum
+                          and f"{cid}:{q['pid']}" not in load_json("mister_debt_sales.json", {})]:
+                    if dry:
+                        back.append(q["short"]); continue
+                    try:
+                        from bot.misteroffers import REMOVE, click_text, open_sale
+                        open_sale(pg, q["pid"])
+                        if click_text(pg, REMOVE) == 1:
+                            back.append(q["short"]); q["onsale"] = False
+                            sold.pop(f"{cid}:{q['pid']}", None)
+                    except Exception as e:
+                        report.append(f"⚠️ {name}: no he pogut treure {q['short']} de la venda ({type(e).__name__})")
                 # Vendes: per sota del mínim de titularitat, sense deixar la plantilla sense onze possible
                 keep = [q for q in squad if not q["onsale"] and f"{cid}:{q['pid']}" not in sold]
                 sales, nosale = [], []
@@ -376,6 +391,8 @@ def run(dry=False, retira=()):
                     line += " | ⚠️ falten per fer l'onze: " + ", ".join(f"{k} {v}" for k, v in short.items()) + " → " + ("pujaria per " if dry else "pujes urgents: ") + (", ".join(uplaced) or "cap amb el % mínim; caldrà una cessió")
                 if skipped:
                     line += " | no: " + ", ".join(skipped[:6])
+                if back:
+                    line += " | ↩️ tornen a arribar al mínim, " + ("els trauria" if dry else "trets") + " de la venda: " + ", ".join(back)
                 if kept:
                     line += " | pujes que mantinc: " + ", ".join(kept)
                 if gone:
