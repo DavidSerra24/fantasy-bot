@@ -141,6 +141,12 @@ def plan(now=None, done=None):
         C = dt.datetime.fromisoformat(sf["cutoff"].replace("Z", "+00:00"))
         if C > now:
             info.append(f"Sorare GW{sf.get('gw')}: tanca {C.astimezone(MADRID):%a %d %H:%M}")
+        # revisió cada matí (9:30) els dies abans del tancament: dijous i divendres (tanca divendres), dilluns i dimarts (tanca dimarts)
+        mt = local.replace(hour=9, minute=30, second=0, microsecond=0).astimezone(UTC)
+        if mt < C - dt.timedelta(hours=2) and C - mt < dt.timedelta(hours=48):
+            k = f"sorare-mati:{sf['slug']}:{local.date()}"
+            if due(k, mt, C - dt.timedelta(hours=2)):
+                add(k, mt, "sorare", "fill", C - dt.timedelta(hours=2))
         for lead, mode in ((dt.timedelta(hours=2), "fill"), (dt.timedelta(minutes=40), "final")):
             k = f"sorare-{mode}:{sf['slug']}:{int(lead.total_seconds())}"
             if due(k, C - lead, C - dt.timedelta(minutes=5)):

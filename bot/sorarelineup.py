@@ -256,14 +256,15 @@ def sync(fx, plan, rep):
 
 
 def gk_watch(fx, rep):
-    """Porters Limited amb 10–79% de ser titulars: es desen (state/sorare_gkwatch.json) perquè el planificador avisi
+    """Porters Limited amb 20–70% de ser titulars (més del 10% i menys del 80%): es desen (state/sorare_gkwatch.json) perquè el planificador avisi
     1 h 15 min abans del seu partit i comprovi si són titulars (onze oficial de Sorare)."""
     from bot.web import save_json
     arena = next((l for l in fx["so5Leaderboards"] if l["isArena"] and "beginner" in l["slug"]), None)
     if not arena:
         return
     out = {}
-    for lo, hi, label in ((1000, 4999, "10–49%"), (5000, 7999, "50–79%")):
+    for lo in range(2000, 8000, 1000):  # més del 10% i menys del 80%: 20, 30, 40, 50, 60 i 70%
+        hi, label = lo + 999, f"{lo // 100}%"
         after = None
         for _ in range(10):
             d = gql(GKS, {"slug": arena["slug"], "r": {"min": lo, "max": hi}, "after": after}, token=token())["so5"]["so5Leaderboard"]["myBench"]
