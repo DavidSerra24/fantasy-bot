@@ -30,8 +30,8 @@ FIXTURE = """query { so5 { so5Fixture(sport: FOOTBALL, type: UPCOMING, eventType
   so5Leaderboards { id slug displayName mainRarityType isArena format { title } }
   mySo5Lineups { id so5Leaderboard { slug displayName } so5Appearances { captain anyCard { slug } anyPlayer { displayName } } } } } }"""
 
-BENCH = """query($slug: String!, $r: RangeInput, $after: String) { so5 { so5Leaderboard(slug: $slug) {
-  myBench(first: 50, after: $after, includeUsed: true, starterOddsBasisPointsRange: $r) { pageInfo { hasNextPage endCursor } nodes {
+BENCH = """query($slug: String!, $r: RangeInput, $after: String, $pos: [Position!]) { so5 { so5Leaderboard(slug: $slug) {
+  myBench(first: 50, after: $after, includeUsed: true, starterOddsBasisPointsRange: $r, positions: $pos) { pageInfo { hasNextPage endCursor } nodes {
     ... on ComposeTeamBenchCard { averageScore(type: LAST_FIFTEEN_SO5_AVERAGE_SCORE)
       anyCard { slug rarityTyped xp }
       anyPlayer { displayName slug age activeClub { name slug } ... on Player { position } }
@@ -43,10 +43,10 @@ PREVIEW = """query($slug: String!, $a: [So5AppearanceInput!]!) { so5 { so5Leader
   previewSo5Lineup(appearances: $a) { rewardMultiplier feedbackRules { ruleName state message } } } } }"""
 
 
-def bench(slug, rng=None):
+def bench(slug, rng=None, pos=None):
     out, after = [], None
     for _ in range(20):
-        d = gql(BENCH, {"slug": slug, "r": rng, "after": after}, token=token())["so5"]["so5Leaderboard"]["myBench"]
+        d = gql(BENCH, {"slug": slug, "r": rng, "after": after, "pos": pos}, token=token())["so5"]["so5Leaderboard"]["myBench"]
         out += [n for n in d["nodes"] if n]
         if not d["pageInfo"]["hasNextPage"]:
             break
@@ -56,9 +56,10 @@ def bench(slug, rng=None):
 
 def cards(lb):
     """Cartes de la competició (de la seva raresa) amb ≥80%, una per jugador (la de més XP), en ordre de la llista."""
-    hi = bench(lb["slug"], {"min": 8000})
+    # la llista sense filtre és la de la posició Extra (jugadors de camp); els porters van a part
+    hi = bench(lb["slug"], {"min": 8000}) + bench(lb["slug"], {"min": 8000}, ["Goalkeeper"])
     ok = {n["anyCard"]["slug"] for n in hi}
-    allc = bench(lb["slug"])
+    allc = bench(lb["slug"]) + bench(lb["slug"], None, ["Goalkeeper"])
     print(f"::notice title=bench {lb['displayName']}::{len(allc)} cartes, {len(ok)} amb ≥80% · rareses {sorted({n['anyCard']['rarityTyped'] for n in allc})} vs {lb['mainRarityType']} · posicions {sorted({str(n['anyPlayer'].get('position')) for n in allc})}")
     seen, copies = {}, {}
     for i, n in enumerate(allc):
