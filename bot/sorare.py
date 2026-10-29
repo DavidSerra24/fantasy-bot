@@ -189,18 +189,21 @@ def explore():
 
 
 def probe():
-    """Prova: fórmula de «Opciones» de SorareBuddy (codi públic)."""
-    import re as _re
-    H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"}
-    t = requests.get("https://sorarebuddy.com/assets/index-8cREJRfy.js", headers=H, timeout=30).text
-    hits = []
-    for kw in (r"l20\b", r"missions\.col\.chance\b(?!\.hint)", r"winOdds", r"decisiveStats", r"benchedAlert"):
-        for m in list(_re.finditer(kw, t))[:6]:
-            ctx = t[max(0, m.start() - 700):m.start() + 700]
-            if '":"' in ctx[:200] and kw != r"benchedAlert":
-                continue  # textos de traducció
-            hits.append(f"[{kw}] " + ctx)
-    print("::notice title=hits::" + " ¶¶ ".join(hits)[:60000])
+    """Prova (només lectura): recompenses de les missions i % de titularitat (filtre del banc) de la jornada en joc."""
+    for r in ("limited", "rare"):
+        d = gql("""query($r: Rarity!) { currentUser { featuredTasks(rarity: $r, sport: FOOTBALL) { __typename id title description
+            rewardConfigs { __typename ... on InGameCurrencyRewardConfig { currency amount } ... on CardShardRewardConfig { quantity rarity } ... on ExperienceRewardConfig { __typename } } } } }""", {"r": r}, token=token())
+        print(f"::notice title=rewards {r}::" + json.dumps(d)[:3000])
+    for st in ("LIVE", "UPCOMING"):
+        fx = gql("""query($t: So5State) { so5 { so5Fixture(sport: FOOTBALL, type: $t, eventType: CLASSIC) { slug so5Leaderboards { slug displayName isArena mainRarityType } } } }""", {"t": st}, token=token())["so5"]["so5Fixture"]
+        lb = next(l for l in fx["so5Leaderboards"] if "all_star" in l["slug"] and l["mainRarityType"] == "limited" and not l["isArena"])
+        for rng in ({"min": 8000}, {"min": 6000, "max": 7999}):
+            try:
+                b = gql("""query($s: String!, $r: RangeInput) { so5 { so5Leaderboard(slug: $s) { myBench(first: 50, includeUsed: true, starterOddsBasisPointsRange: $r, query: "Reinier") { nodes { ... on ComposeTeamBenchCard { anyPlayer { displayName } } } } } } }""",
+                        {"s": lb["slug"], "r": rng}, token=token())
+                print(f"::notice title={st} {rng}::{fx['slug']} " + json.dumps(b)[:500])
+            except Exception as e:
+                print(f"::notice title={st} error::{e}"[:800])
 
 
 if __name__ == "__main__":
