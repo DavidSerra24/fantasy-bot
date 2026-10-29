@@ -14,7 +14,26 @@ def logged(pg):
 
 
 def login(pg):
-    """Entra al Mister; si alguna pantalla no apareix (la web va lenta), ho torna a provar fins a 3 vegades."""
+    """Entra al Mister. Primer per l'API (segons): la sessió es passa al navegador i queda a bot.misterapi.API per fer
+    les accions sense finestres. Si falla, l'entrada de sempre amb les pantalles (pla B), fins a 3 vegades."""
+    from bot import misterapi
+    try:
+        api = misterapi.MisterAPI().login()
+        pg.context.add_cookies(api.cookies_for_browser())
+        pg.goto(U + "/feed", wait_until="domcontentloaded", timeout=60000)
+        pg.wait_for_timeout(2500)
+        try:
+            pg.locator("#didomi-notice-agree-button").click(timeout=4000)
+        except Exception:
+            pass
+        if logged(pg):
+            misterapi.API = api
+            print("::notice title=Mister::entrada per l'API")
+            return True
+        print("::warning title=Mister API::la sessió de l'API no ha entrat al navegador → entrada amb pantalles")
+    except Exception as e:
+        print(f"::warning title=Mister API::{str(e)[:200]} → entrada amb pantalles")
+    misterapi.API = None
     for i in range(3):
         try:
             return _login(pg)

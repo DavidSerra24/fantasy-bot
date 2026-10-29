@@ -98,3 +98,86 @@ class MisterAPI:
             if n:
                 fields[n.group(1)] = v.group(1) if v else ""
         return (act.group(1) or act.group(2)) if act else None, fields
+
+    # -- accions del mercat (mateixos formularis que la web: bid.twig, sale.twig, offers) --
+    def _pre(self, pid, kind):
+        d = self.ajax("player-community-info", {"id_player": pid, "popup": kind})
+        pre = d.get("data")
+        if not isinstance(pre, dict):
+            raise RuntimeError(f"Mister API: finestra {kind} de {pid} sense dades")
+        return pre
+
+    @staticmethod
+    def _ok(d, what):
+        if not isinstance(d, dict) or d.get("status") != "ok":
+            raise RuntimeError(f"Mister API {what}: {str(d)[:200]}")
+        return d
+
+    def bid(self, pid, amount=None, dry=False):
+        """Puja (pel preu mínim si no es diu l'import). Retorna (True, màxim permès)."""
+        pre = self._pre(pid, "bid")
+        market = pre.get("market") or {}
+        price = int(amount or market.get("price") or pre.get("value"))
+        b = pre.get("bid") or {}
+        action = "remove" if (b.get("type") == "normal" and b.get("isActive") == 1 and False) else ("update" if b.get("isActive") == 1 else "bid")
+        data = {"offeree_id": (pre.get("owner") or {}).get("id", 0), "id_market": market.get("id") or 0, "id_player": pid,
+                "action": action, "barter": "", "bid": price, "bid_range": price}
+        mx = (self.balance() or {}).get("maxDebt")
+        if dry:
+            return True, mx, data
+        self._ok(self.ajax("bid", data), "puja")
+        return True, mx
+
+    def withdraw(self, pid, dry=False):
+        """Retira la meva puja."""
+        pre = self._pre(pid, "bid")
+        market = pre.get("market") or {}
+        data = {"offeree_id": (pre.get("owner") or {}).get("id", 0), "id_market": market.get("id") or 0, "id_player": pid,
+                "action": "remove", "barter": "", "bid": market.get("price") or 0}
+        if dry:
+            return data
+        self._ok(self.ajax("bid", data), "retirar la puja")
+        return True
+
+    def sell(self, pid, price=None, dry=False):
+        """Posa en venda pel preu mínim (= valor)."""
+        pre = self._pre(pid, "sale")
+        if (pre.get("market") or {}).get("id"):
+            return True  # ja és en venda
+        data = {"id_player": pid, "action": "sale", "price": int(price or pre.get("value"))}
+        if dry:
+            return data
+        self._ok(self.ajax("sale", data), "posar en venda")
+        return True
+
+    def unsell(self, pid, dry=False):
+        """Treu de la venda."""
+        pre = self._pre(pid, "sale")
+        if not (pre.get("market") or {}).get("id"):
+            return True
+        data = {"id_player": pid, "action": "remove", "price": (pre.get("market") or {}).get("price") or pre.get("value")}
+        if dry:
+            return data
+        self._ok(self.ajax("sale", data), "treure de la venda")
+        return True
+
+    def accept_offer(self, id_bid, amount, dry=False):
+        data = {"id_bid": id_bid, "type": "accept", "amount": int(amount)}
+        if dry:
+            return data
+        self._ok(self.ajax("offer", data), "acceptar l'oferta")
+        return True
+
+
+API = None  # sessió compartida (la crea bot.mister.login); si és None, tot es fa amb el navegador
+
+
+def use(fn_name, *a, **k):
+    """Fa una acció per l'API; si no hi ha API o falla, torna None (i el bot fa servir el navegador, pla B)."""
+    if API is None:
+        return None
+    try:
+        return getattr(API, fn_name)(*a, **k)
+    except Exception as e:
+        print(f"::warning title=Mister API {fn_name}::{str(e)[:300]} → faig servir el navegador")
+        return None

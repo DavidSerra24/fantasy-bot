@@ -87,14 +87,11 @@ def accept(pg, pid):
     o = offers(pg).get(pid)
     if not o:
         return False
-    pg.locator(f'.sw-content button[data-popup="market/offers-received/direct-transfer-confirmation"][data-id_bid="{o["id_bid"]}"]').first.click()
-    pop = pg.locator("#popup-content")
-    pop.locator("input[name=type][value=accept]").wait_for(state="attached", timeout=10000)
-    pg.wait_for_timeout(800)
-    btn = pop.locator("#btn-send")
-    if not btn.count():
-        btn = pop.locator("button").filter(has_text=re.compile(r"^\s*(Vendre|Vender)\s*$"))
-    btn.first.click()
+    from bot import misterapi
+    if misterapi.use("accept_offer", o["id_bid"], o["bid"]):
+        pass  # acceptada per l'API: es comprova igual que amb la finestra
+    else:
+        _accept_window(pg, o)
     # El Mister triga una mica a actualitzar-ho: es comprova fins a 4 vegades (≈40 s) abans de dir que ha fallat
     for i in range(4):
         pg.wait_for_timeout(5000 + 5000 * i)
@@ -104,6 +101,18 @@ def accept(pg, pid):
         if pid not in offers(pg):
             return True
     return False
+
+
+def _accept_window(pg, o):
+    """Pla B: accepta l'oferta amb la finestra de la web."""
+    pg.locator(f'.sw-content button[data-popup="market/offers-received/direct-transfer-confirmation"][data-id_bid="{o["id_bid"]}"]').first.click()
+    pop = pg.locator("#popup-content")
+    pop.locator("input[name=type][value=accept]").wait_for(state="attached", timeout=10000)
+    pg.wait_for_timeout(800)
+    btn = pop.locator("#btn-send")
+    if not btn.count():
+        btn = pop.locator("button").filter(has_text=re.compile(r"^\s*(Vendre|Vender)\s*$"))
+    btn.first.click()
 
 
 def run(dry=False):
@@ -129,7 +138,8 @@ def run(dry=False):
                     if q["pct"] is not None and q["pct"] >= minimum and not debt:  # ha tornat a ser titular: es queda
                         if dry:
                             done.append(f"{label}: el trauria de la venda"); continue
-                        n = click_text(pg, REMOVE)
+                        from bot import misterapi
+                        n = 1 if misterapi.use("unsell", q["pid"]) else click_text(pg, REMOVE)
                         done.append(f"{label}: tret de la venda" if n == 1 else f"{label}: ⚠️ volia treure'l de la venda però no he trobat el botó ({n})")
                         continue
                     pg.keyboard.press("Escape")

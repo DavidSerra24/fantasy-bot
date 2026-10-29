@@ -45,7 +45,12 @@ def squad_slots(pg):
 
 
 def bid(pg, pid, amount=None):
-    """Obre la finestra de puja i envia el preu mínim (o `amount`, si es dona). Retorna (ok, màxim permès)."""
+    """Puja pel preu mínim (o `amount`). Primer per l'API; si falla, amb la finestra (pla B). Retorna (ok, màxim permès)."""
+    from bot import misterapi
+    r = misterapi.use("bid", pid, amount)
+    if r:
+        return r
+    pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
     pg.locator(f'li[data-owner="0"] button.btn-bid[data-id_player="{pid}"]').first.click()
     pg.locator("#form-bid").wait_for(timeout=10000)
     mx = pg.evaluate("() => +document.getElementById('input-range')?.max || null")
@@ -67,7 +72,10 @@ def bid(pg, pid, amount=None):
 
 
 def withdraw(pg, pid):
-    """Retira una puja meva (la finestra mostra «Eliminar»)."""
+    """Retira una puja meva (la finestra mostra «Eliminar»). Primer per l'API; si falla, amb la finestra."""
+    from bot import misterapi
+    if misterapi.use("withdraw", pid):
+        return True
     pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
     pg.locator(f'li[data-owner="0"] button.btn-bid.btn--accent[data-id_player="{pid}"]').first.click()
     pg.locator("#form-bid input[name=action][value=remove]").wait_for(state="attached", timeout=10000)
@@ -107,7 +115,10 @@ def can_field(squad):
 
 
 def sell(pg, pid):
-    """Posa el jugador en venda pel preu mínim (el seu valor). Retorna True si la finestra es tanca bé."""
+    """Posa el jugador en venda pel preu mínim (el seu valor). Primer per l'API; si falla, amb la finestra."""
+    from bot import misterapi
+    if misterapi.use("sell", pid):
+        return True
     pg.goto(U + "/team", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
     pg.locator(f'button.btn-popup[data-popup="sale"][data-id_player="{pid}"]').first.click()
     pg.locator("form input[name=action][value=sale]").first.wait_for(state="attached", timeout=10000)
@@ -266,9 +277,13 @@ def run(dry=False, retira=()):
                     if dry:
                         back.append(q["short"]); continue
                     try:
+                        from bot import misterapi
                         from bot.misteroffers import REMOVE, click_text, open_sale
-                        open_sale(pg, q["pid"])
-                        if click_text(pg, REMOVE) == 1:
+                        ok = misterapi.use("unsell", q["pid"])
+                        if not ok:
+                            open_sale(pg, q["pid"])
+                            ok = click_text(pg, REMOVE) == 1
+                        if ok:
                             back.append(q["short"]); q["onsale"] = False
                             sold.pop(f"{cid}:{q['pid']}", None)
                     except Exception as e:
