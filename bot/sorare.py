@@ -208,7 +208,7 @@ def probe():
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "me"
     try:
-        {"login": login, "me": me, "schema": schema, "explore": explore, "probe": probe}[cmd]()
+        {"login": login, "me": me, "schema": schema, "explore": explore, "probe": probe, "lineups": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run(dry=True)}[cmd]()
     except Exception as e:
         import traceback
         print("::error title=sorare::" + traceback.format_exc().replace("\n", " | ")[-1500:])
