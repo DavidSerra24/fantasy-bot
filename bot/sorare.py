@@ -207,7 +207,7 @@ def probe():
     for kw in (r"projectedRebounds", r"projectedPoints", r"rotowire", r"nbaScorer", r"chance\s*[:=]"):
         for m in list(_re.finditer(kw, t, _re.I))[:4]:
             ctx = t[max(0, m.start() - 900):m.start() + 900]
-            if ctx.count('":"') > 6:
+            if ctx.count('":"') > 12:
                 continue  # textos de traducció
             hits.append(f"[{kw}] " + ctx)
     print("::notice title=nba sb::" + " ¶¶ ".join(hits)[:60000])
