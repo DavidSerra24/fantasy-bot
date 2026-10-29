@@ -18,7 +18,7 @@ POOLS = {"laliga": [(2519290, "pool-public", "Oficial"), (2519290, "pool-private
 
 ROWS = """() => [...document.querySelectorAll('.sw-content ul.pool-games > li')].map(li => { const bs = [...li.querySelectorAll('button.btn-pools')];
     return { id: bs[0]?.dataset.id_match, home: li.querySelector('.left .name')?.innerText.trim() || '', away: li.querySelector('.right .name')?.innerText.trim() || '',
-             sel: bs.filter(b => !/btn--tertiary/.test(b.className) || /active|selected|accent/.test(b.className)).map(b => b.dataset.prediction),
+             sel: bs.filter(b => /\bmine\b/.test(b.className)).map(b => b.dataset.prediction),  // la web marca el triat amb «mine»
              cls: bs.map(b => b.className.trim()).join(' / '), locked: !bs.length || bs.every(b => b.disabled) || !/pending/.test(li.className) }; }).filter(r => r.id)"""
 
 
