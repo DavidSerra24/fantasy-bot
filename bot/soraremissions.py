@@ -2,7 +2,8 @@
 
 Criteri (com SorareBuddy, decisió del David 29/10): «opcions» = probabilitat de titular × forma.
 - Titular: 100% si l'onze oficial ja és publicat i hi surt (Sorare o FotMob), 0% si no hi surt; si encara no hi ha
-  onze, el % de SorareInside (filtre del banc de Sorare): només entren els del 80–90%.
+  onze, el % de SorareInside (filtre del banc de Sorare): només entren els del 80–90%. Els de menys del 80% es
+  miren igualment i només entren si surten titulars a l'onze oficial (revisió 15 min abans de cada partit).
 - Diverses missions (caps de setmana, Champions): primer les que donen essència, després pistes de crafteig, després
   experiència; una carta triada en una missió no es fa servir en una altra.
 - Forma: partits amb acció decisiva positiva dels últims 20 (desempat: últims 10 i últims 5).

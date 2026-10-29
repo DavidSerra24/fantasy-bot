@@ -164,8 +164,8 @@ def plan(now=None, done=None):
             k = f"sorarearena:{key_}"
             if due(k, S, S + dt.timedelta(minutes=5)):
                 add(k, S, "sorarearena", key_, S + dt.timedelta(minutes=5))
-    # Sorare: Decisive Picker (missió diària) al matí (10:00) i 15 min abans de cada partit amb candidats (onzes oficials)
-    t10 = local.replace(hour=10, minute=0, second=0, microsecond=0).astimezone(UTC)
+    # Sorare: Decisive Picker (les missions es renoven a les 9:00) a les 9:05 i 15 min abans de cada partit amb candidats
+    t10 = local.replace(hour=9, minute=5, second=0, microsecond=0).astimezone(UTC)
     k = f"soraremission:{local.date()}"
     if due(k, t10, t10 + dt.timedelta(hours=12)):
         add(k, t10, "soraremission", "mati", t10 + dt.timedelta(hours=12))
