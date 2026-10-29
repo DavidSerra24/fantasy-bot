@@ -51,6 +51,7 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - **Girona**: no a All Star (es reserven per a Arena), excepte si l'essència Rare és < 100 (llavors sí, a All Star Rare).
 - **Gazzaniga**: sempre reservar 2 Limited (i 1 Rare si no s'ha fet servir a All Star Rare) per a l'Arena manual del David. Si en sobren, es poden fer servir, sempre els últims.
 - **Arena (Rooms Beginner, 100 d'essència)**: amb els jugadors sobrants (≥80%), el bot proposa les Arenes per Telegram («Puc fer N Arenes amb… (N×100 d'essència). Les faig?») i només les fa si el David respon «sí». Repetir un jugador per a l'Arena només preguntant-ho.
+- Motor: `bot/sorarelineup.py` (`sorare.yml` amb cmd=lineups; de moment **només prova**, envia la proposta per Telegram). El % de titularitat surt del filtre del banc de Sorare (`starterOddsBasisPointsRange` ≥ 8000; el camp d'odds directe torna null). El banc sense filtre de posició és la llista de la posició Extra (només jugadors de camp); els porters es demanen a part (`positions: [Goalkeeper]`). Validació amb `previewSo5Lineup` (multiplicador i regles invàlides). Essència = `cardShardsChests` per raresa. Jugadors no repetits entre totes les alineacions (Rare i Limited).
 - Quan: l'impacte previst surt dimecres a les 21:00 (diumenge al vespre si la GW comença dimarts): a partir d'aquí, fer i actualitzar les alineacions fins al tancament.
 
 ## Sorare Set (mode gratuït; en preparació, encara no automatitzat)
