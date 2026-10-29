@@ -23,16 +23,16 @@ TASKS = """query($r: Rarity!) { currentUser { featuredTasks(rarity: $r, sport: F
 TASK = """query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title description maxAppearancesCount mode rarity expired aasmState
   taskAppearances { id index status anyCard { slug } anyPlayer { displayName slug } game { id date } }
   pickableGames(first: 60) { nodes { game { id date homeTeam { name } awayTeam { name } } cards { slug xp rarityTyped anyPlayer { displayName slug } } } } } } } }"""
-FORM = """query($s: String!) { football { player(slug: $s) { displayName
+FORM = """query($s: String!) { anyPlayer(slug: $s) { displayName
   ... on Player { allPlayerGameScores(first: 20) { nodes { anyGame { date } ... on PlayerGameScore { positiveDecisiveStats { stat } }
-    anyPlayerGameStats { ... on PlayerGameStats { gameStarted minsPlayed } } } } } } } }"""
+    anyPlayerGameStats { ... on PlayerGameStats { gameStarted minsPlayed } } } } } } }"""
 UPSERT = """mutation($input: upsertTaskAppearancesInput!) { upsertTaskAppearances(input: $input) { errors { message } } }"""
 
 
 def form(slug):
     """(l5, l10, l20, titular10): partits amb acció decisiva positiva als últims 5/10/20 i titularitats dels últims 10."""
     try:
-        nodes = gql(FORM, {"s": slug}, token=token())["football"]["player"]["allPlayerGameScores"]["nodes"]
+        nodes = gql(FORM, {"s": slug}, token=token())["anyPlayer"]["allPlayerGameScores"]["nodes"]
     except Exception as e:
         print(f"::warning title=forma {slug}::{str(e)[:300]}")
         return 0, 0, 0, 0
