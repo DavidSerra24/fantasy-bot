@@ -172,7 +172,7 @@ def resolve_by_search(pg, players, entries, field, report, ask=True):
         hit = next((e for e in pool if e["name"] == alias.get(str(q["pid"]))), None)
         tried = 0
         for e in ([] if hit else pool):
-            if tried >= 8:
+            if tried >= 5:
                 break
             tried += 1
             try:
@@ -209,12 +209,12 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
             fpage = new_context(b, "futbolfantasy").new_page(); login_futbolfantasy(fpage)
             cache['ffp'] = sources.ff_probs(fpage)
         sources.assign(squad + market, cache['ffp'], "ff")
-        resolve_by_search(pg, squad + [m for m in market if not m.get("ff")][:12], cache['ffp'], "ff", report)
+        resolve_by_search(pg, squad + [m for m in market if not m.get("ff")][:5], cache['ffp'], "ff", report)
         for q in squad + market:
             q["pct"] = q["ff"]["pct"] if q["ff"] else None
             q["src"] = "FF"
     else:  # Quique: SorareInside i, si l'equip no hi és, Jornada Perfecta (si surt a l'onze, compta com a titular)
-        resolve_by_search(pg, squad + [m for m in market if not m.get("si")][:12], sources.si_entries(sidata), "si", report)
+        resolve_by_search(pg, squad + [m for m in market if not m.get("si")][:5], sources.si_entries(sidata), "si", report)
         for q in squad + market:
             if q.get("si") and q["pct"] is None:
                 q["pct"], q["ps"], q["src"] = q["si"].get("pct"), q["si"].get("ps"), "SI"
