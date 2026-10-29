@@ -147,6 +147,50 @@ def debt_day(kick):
     return (k.date() == today and late) or (k.date() == today + dt.timedelta(days=1) and not late)
 
 
+def search_ids(pg, q):
+    """Buscador de jugadors del Mister: ids dels jugadors que surten per a `q`."""
+    pg.goto(U + "/search", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
+    inp = pg.locator("input.search-players-input:visible").first
+    inp.fill(q); inp.dispatch_event("input"); inp.dispatch_event("keyup"); pg.wait_for_timeout(2500)
+    return pg.evaluate("""() => [...document.querySelectorAll('a[href^="players/"]')].filter(a => a.offsetParent !== null)
+        .map(a => a.getAttribute('href').split('/')[1])""")
+
+
+def resolve_by_search(pg, players, entries, field, report, ask=True):
+    """Jugadors del Mister que no s'han pogut relacionar amb la font però el seu equip hi és: es busquen al buscador
+    del Mister els noms de la font d'aquell equip que han quedat sense parella; si el resultat és el mateix jugador,
+    s'hi relaciona (i es recorda a state/mister_alias.json). Si no, s'avisa per corregir-ho."""
+    alias = load_json("mister_alias.json", {})
+    used = {(q[field].get("name"), q[field].get("key")) for q in players if q.get(field)}
+    asked = []
+    for q in players:
+        if q.get(field) or not q.get("team"):
+            continue
+        pool = [e for e in entries if sources.team_ok(q["team"], e["key"]) and (e["name"], e["key"]) not in used]
+        if not pool:
+            continue  # la font no té l'equip
+        hit = next((e for e in pool if e["name"] == alias.get(str(q["pid"]))), None)
+        tried = 0
+        for e in ([] if hit else pool):
+            if tried >= 8:
+                break
+            tried += 1
+            try:
+                if str(q["pid"]) in search_ids(pg, e["name"])[:6]:
+                    hit = e
+                    break
+            except Exception:
+                break
+        if hit:
+            q[field] = hit; used.add((hit["name"], hit["key"])); alias[str(q["pid"])] = hit["name"]
+        elif ask and q.get("in_squad"):
+            asked.append(f"{q['short']} ({q['team']})")
+    save_json("mister_alias.json", alias)
+    if asked:
+        report.append("❓ No trobo a la font (ni amb el buscador del Mister): " + ", ".join(asked)
+                      + ". Compten com a 0%. Si surten amb un altre nom, digues-me quin i ho corregeixo.")
+
+
 def league_data(b, pg, spg, cid, country, league, report, cache):
     """Saldo, plantilla i mercat lliure d'una lliga, amb el % de titularitat de la font que toca."""
     pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
@@ -158,15 +202,22 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
     market = [m for m in read_free_market(pg) if m["href"] and m["pid"]]
     team_slugs(pg, squad + market)
     enrich(squad, sidata); enrich(market, sidata)
+    for q in squad:
+        q["in_squad"] = True
     if league == "Primera División":  # Fentaniños: el % de FutbolFantasy (alineacions probables / Mis equipos)
         if cache.get('ffp') is None:
             fpage = new_context(b, "futbolfantasy").new_page(); login_futbolfantasy(fpage)
             cache['ffp'] = sources.ff_probs(fpage)
         sources.assign(squad + market, cache['ffp'], "ff")
+        resolve_by_search(pg, squad + [m for m in market if not m.get("ff")][:12], cache['ffp'], "ff", report)
         for q in squad + market:
             q["pct"] = q["ff"]["pct"] if q["ff"] else None
             q["src"] = "FF"
     else:  # Quique: SorareInside i, si l'equip no hi és, Jornada Perfecta (si surt a l'onze, compta com a titular)
+        resolve_by_search(pg, squad + [m for m in market if not m.get("si")][:12], sources.si_entries(sidata), "si", report)
+        for q in squad + market:
+            if q.get("si") and q["pct"] is None:
+                q["pct"], q["ps"], q["src"] = q["si"].get("pct"), q["si"].get("ps"), "SI"
         if any(q["pct"] is None for q in squad + market):
             if cache.get('jp') is None:
                 try:
