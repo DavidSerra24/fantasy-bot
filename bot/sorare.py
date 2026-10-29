@@ -54,7 +54,8 @@ def gql(query, variables=None, token=None):
         h["Authorization"] = f"Bearer {token}"
         h["JWT-AUD"] = AUD
     r = requests.post(API, json={"query": query, "variables": variables or {}}, headers=h, timeout=30)
-    r.raise_for_status()
+    if r.status_code >= 400:
+        raise RuntimeError(f"Sorare HTTP {r.status_code}: {r.text[:500]}")
     j = r.json()
     if j.get("errors"):
         raise RuntimeError("Sorare: " + "; ".join(e.get("message", "") for e in j["errors"])[:300])
