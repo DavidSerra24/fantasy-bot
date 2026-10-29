@@ -143,14 +143,16 @@ def schema():
     print("::notice title=mutations::" + " | ".join(f["name"] + "(" + ",".join(a["name"] + ":" + str((a["type"] or {}).get("name") or ((a["type"] or {}).get("ofType") or {}).get("name")) for a in f["args"]) + ")" for f in muts)[:5000])
 
 
-LEADERBOARDS = """query { so5 { futureLeaderboardsPaginated(rarities: [LIMITED, RARE], first: 80) { nodes {
+LEADERBOARDS = """query { so5 { futureLeaderboardsPaginated(rarities: [LIMITED, RARE], first: 200) { nodes {
   id slug displayName mainRarityType isArena division gameWeek cutOffDate format { title } canCompose { value reason missingPositions } } } } }"""
 
 BENCH = """query($slug: String!) { so5 { so5Leaderboard(slug: $slug) { displayName myBench(first: 200) { nodes {
   ... on ComposeTeamBenchCard { id averageScore(type: LAST_FIFTEEN_SO5_AVERAGE_SCORE)
     anyCard { slug rarityTyped xp seasonYear inSeasonEligible }
     anyPlayer { displayName slug age activeClub { name slug }
-      ... on Player { position nextClassicFixtureProjectedGrade { grade score } nextClassicFixturePlayingStatusOdds { starterOddsBasisPoints } } } } } } } } }"""
+      ... on Player { position nextClassicFixtureProjectedGrade { grade score } nextClassicFixturePlayingStatusOdds { starterOddsBasisPoints } } }
+    eligiblePlayerGameScores(so5LeaderboardSlug: $slug) { projection { grade score }
+      anyPlayerGameStats { ... on PlayerGameStats { footballPlayingStatusOdds(newVersion: true) { starterOddsBasisPoints reliability } } } } } } } } } }"""
 
 
 def leaderboards():
@@ -173,6 +175,10 @@ def explore():
         rows = []
         for n in nodes:
             p_ = n["anyPlayer"]; g = (p_.get("nextClassicFixtureProjectedGrade") or {}); o = (p_.get("nextClassicFixturePlayingStatusOdds") or {})
+            eg = (n.get("eligiblePlayerGameScores") or [{}])[0] or {}
+            if not o.get("starterOddsBasisPoints"):
+                o = ((eg.get("anyPlayerGameStats") or {}).get("footballPlayingStatusOdds") or {})
+            g = g or (eg.get("projection") or {})
             rows.append(f"{p_['displayName']} ({(p_.get('activeClub') or {}).get('name')}, {p_.get('position')}, {p_.get('age')}a) | {g.get('grade')} {g.get('score')} | {(o.get('starterOddsBasisPoints') or 0)/100:.0f}% | mitj {n.get('averageScore')} | xp {n['anyCard']['xp']} | {n['anyCard']['slug']}")
         print(f"::notice title=bench {champ['displayName']}::" + " ¶ ".join(rows)[:9000])
 
