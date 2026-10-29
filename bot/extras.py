@@ -167,7 +167,13 @@ def final_extras(page, report, dry=False):
     kickoff = (dt.datetime.now(ff.MADRID) + dt.timedelta(hours=cards[0]["hours"])).astimezone(dt.timezone.utc)
     starters, teams_first = [], set()
     for ev in espn.matches_at("laliga", kickoff):
-        lu = espn.starters("laliga", ev["id"])
+        lu = None
+        try:  # primer l'onze oficial de FotMob (mai el probable), si no ESPN
+            from bot import fotmob
+            lu = fotmob.starters_by_team(ev["home"], ev["away"], ev["start"])
+        except Exception:
+            lu = None
+        lu = lu or espn.starters("laliga", ev["id"])
         if not lu:
             report.append(f"ℹ️ Extres: l'onze oficial de {ev['home']}-{ev['away']} encara no hi és")
             continue
