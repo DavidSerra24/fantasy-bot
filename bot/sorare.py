@@ -150,5 +150,6 @@ if __name__ == "__main__":
     except Exception as e:
         import traceback
         print("::error title=sorare::" + traceback.format_exc().replace("\n", " | ")[-1500:])
-        telegram(f"❌ Sorare: {type(e).__name__}: {str(e)[:300]}")
+        if cmd == "login":  # les proves (me, schema…) no avisen per Telegram
+            telegram(f"❌ Sorare: {type(e).__name__}: {str(e)[:300]}")
         raise
