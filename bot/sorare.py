@@ -189,16 +189,18 @@ def explore():
 
 
 def probe():
-    """Prova: com calcula SorareBuddy les recomanacions del Decisive Picker (codi públic de la web)."""
+    """Prova: fórmula de «Opciones» de SorareBuddy (codi públic)."""
     import re as _re
     H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"}
     t = requests.get("https://sorarebuddy.com/assets/index-8cREJRfy.js", headers=H, timeout=30).text
-    print(f"::notice title=len::{len(t)}")
-    for kw in ("pickableGames", "pickableCards", "DecisivePlayerPicker", "decisiveRate", "Acción decisiva", "decisive_action", "/20", "probab"):
-        for k, m in enumerate(_re.finditer(_re.escape(kw), t)):
-            if k >= 3:
-                break
-            print(f"::notice title={kw} {k}::" + t[max(0, m.start() - 1500):m.start() + 1500].replace("\n", " ")[:3000])
+    hits = []
+    for kw in (r"l20\b", r"missions\.col\.chance\b(?!\.hint)", r"winOdds", r"decisiveStats", r"benchedAlert"):
+        for m in list(_re.finditer(kw, t))[:6]:
+            ctx = t[max(0, m.start() - 700):m.start() + 700]
+            if '":"' in ctx[:200] and kw != r"benchedAlert":
+                continue  # textos de traducció
+            hits.append(f"[{kw}] " + ctx)
+    print("::notice title=hits::" + " ¶¶ ".join(hits)[:60000])
 
 
 if __name__ == "__main__":
