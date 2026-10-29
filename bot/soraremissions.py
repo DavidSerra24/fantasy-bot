@@ -56,7 +56,7 @@ def si_odds():
 
 
 NBA_FORM = """query($s: String!) { anyPlayer(slug: $s) { displayName ... on NBAPlayer { gameplayTierStars activeInjuries { id }
-  l10: averageScore(type: LAST_TEN_PLAYED_SO5_AVERAGE_SCORE) nextDailyFixtureProjectedScore
+  l10: averageScore(type: LAST_TEN_PLAYED_SO5_AVERAGE_SCORE) nextDailyFixtureProjectedScore nextClassicFixtureProjectedScore
   anyFutureGameStats(first: 1) { ... on PlayerGameStatsBasketball { anyGame { id date } projectedMinsPlayed projectedPoints projectedRebounds
     projectedAssists projectedSteals projectedBlocks projectedThreePointsMade } } } } }"""
 NBA_STAT = {"rebounds": "projectedRebounds", "points": "projectedPoints", "assists": "projectedAssists", "steals": "projectedSteals",
@@ -79,23 +79,24 @@ def nba_score(slug, task, game_id=None):
         return 0, -99, "sense dades"
     fut = next((g for g in p.get("anyFutureGameStats") or [] if g), {}) or {}
     mins = fut.get("projectedMinsPlayed") or 0
-    plays = 0 if p.get("activeInjuries") or mins <= 0 else 1
+    # sense % de titularitat: si RotoWire li preveu punts, juga (com més punts, més minuts)
+    plays = 0 if p.get("activeInjuries") or not ((fut.get("projectedPoints") or 0) > 0 or mins > 0) else 1
     desc = task.get("description") or ""
     m = re.search(r"([\d.]+)\s*Stars? or less", desc, re.I)
     if m and (p.get("gameplayTierStars") or 0) > float(m.group(1)):
         return 0, -99, f"{p.get('gameplayTierStars')}★ (massa estrelles)"
     if task.get("mode") == "SCORE":
         l10 = p.get("l10") or 0
-        proj = p.get("nextDailyFixtureProjectedScore") or 0
+        proj = p.get("nextDailyFixtureProjectedScore") or p.get("nextClassicFixtureProjectedScore") or 0
         thr = max(20, l10 + 7)
-        return plays, proj - thr, f"{mins:.0f} min previstos · previsió {proj:.0f} punts, cal {thr:.0f} (L10 {l10:.0f})"
+        return plays, proj - thr, f"previsió {fut.get('projectedPoints') or 0:.0f} punts reals · {proj:.0f} punts Sorare, cal {thr:.0f} (L10 {l10:.0f})"
     acts = [a.lower() for a in task.get("decisiveActions") or []]
     key = next((NBA_STAT[a] for a in acts if a in NBA_STAT), None)
     n = re.search(r"(\d+)\+", desc)
     if not key or not n:
         return plays, -99, "missió no reconeguda"
     v = fut.get(key) or 0
-    return plays, v - int(n.group(1)), f"{mins:.0f} min previstos · previsió {v:.1f} ({key[9:].lower()}), cal {n.group(1)}"
+    return plays, v - int(n.group(1)), f"previsió {v:.1f} ({key[9:].lower()}), cal {n.group(1)}"
 
 
 def priority(t):
