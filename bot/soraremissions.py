@@ -24,7 +24,7 @@ TASK = """query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerP
   taskAppearances { id index status anyCard { slug } anyPlayer { displayName slug } game { id date } }
   pickableGames(first: 60) { nodes { game { id date homeTeam { name } awayTeam { name } } cards { slug xp rarityTyped anyPlayer { displayName slug } } } } } } } }"""
 FORM = """query($s: String!) { football { player(slug: $s) { displayName
-  ... on Player { allPlayerGameScores(first: 20) { nodes { positiveDecisiveStats { stat } anyGame { date }
+  ... on Player { allPlayerGameScores(first: 20) { nodes { anyGame { date } ... on PlayerGameScore { positiveDecisiveStats { stat } }
     anyPlayerGameStats { ... on PlayerGameStats { gameStarted minsPlayed } } } } } } } }"""
 UPSERT = """mutation($input: upsertTaskAppearancesInput!) { upsertTaskAppearances(input: $input) { errors { message } } }"""
 
@@ -33,7 +33,8 @@ def form(slug):
     """(l5, l10, l20, titular10): partits amb acció decisiva positiva als últims 5/10/20 i titularitats dels últims 10."""
     try:
         nodes = gql(FORM, {"s": slug}, token=token())["football"]["player"]["allPlayerGameScores"]["nodes"]
-    except Exception:
+    except Exception as e:
+        print(f"::warning title=forma {slug}::{str(e)[:300]}")
         return 0, 0, 0, 0
     now = dt.datetime.now(dt.timezone.utc)
     past = [n for n in nodes if n.get("anyGame") and dt.datetime.fromisoformat(n["anyGame"]["date"].replace("Z", "+00:00")) < now]
