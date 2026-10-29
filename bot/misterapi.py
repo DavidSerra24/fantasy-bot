@@ -57,11 +57,30 @@ class MisterAPI:
     def community(self, cid):
         self.page(f"/action/change?id_community={cid}")
 
-    def ajax(self, action, data=None):
+    def sync(self):
+        """Quan el navegador comparteix la sessió, la web pot renovar-ne la galeta i la clau: es copien del navegador."""
+        pg = getattr(self, "pg", None)
+        if pg is None:
+            return
+        for c in pg.context.cookies():
+            if "mundodeportivo" in c.get("domain", ""):
+                self.s.cookies.set(c["name"], c["value"], domain=c["domain"], path=c.get("path", "/"))
+        try:
+            a = pg.evaluate("() => (window._FG_cfg && _FG_cfg.auth) || null")
+            if a:
+                self.auth = a
+        except Exception:
+            pass
+
+    def ajax(self, action, data=None, retry=True):
         if FORBIDDEN.search(action):
             raise RuntimeError(f"Mister API: acció prohibida ({action})")
+        self.sync()
         r = self.s.post(f"{U}/ajax/{action.lstrip('/')}", data=data or {}, timeout=30,
                         headers={"X-Auth": self.auth or "", "X-Requested-With": "XMLHttpRequest", "Referer": U + "/market"})
+        if r.status_code == 401 and retry:
+            self.page("/feed")  # clau nova
+            return self.ajax(action, data, retry=False)
         if r.status_code >= 400:
             raise RuntimeError(f"Mister API {action}: HTTP {r.status_code} {r.text[:200]}")
         try:

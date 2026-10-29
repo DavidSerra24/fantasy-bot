@@ -27,6 +27,7 @@ def login(pg):
         except Exception:
             pass
         if logged(pg):
+            api.pg = pg  # comparteixen la sessió: l'API agafa la galeta i la clau del navegador abans de cada crida
             misterapi.API = api
             print("::notice title=Mister::entrada per l'API")
             return True
