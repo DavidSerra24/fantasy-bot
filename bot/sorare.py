@@ -188,10 +188,27 @@ def explore():
         print("::notice title=rarities::" + str(Counter((l["mainRarityType"], l["format"]["title"], l["slug"].split("-")[0]) for l in leaderboards())))
 
 
+def probe():
+    """Prova (només lectura): el filtre de titularitat de Sorare funciona per l'API?"""
+    slug = "football-30-oct-3-nov-2026-seasonal-champions-all_seasons_champions_limited"
+    q = """query($slug: String!, $r: RangeInput) { so5 { so5Leaderboard(slug: $slug) { defaultSortType { direction typeData { type } }
+      myBench(first: 200, starterOddsBasisPointsRange: $r) { nodes { ... on ComposeTeamBenchCard { anyCard { slug } anyPlayer { displayName }
+        eligiblePlayerGameScores(so5LeaderboardSlug: $slug) { anyGame { id date homeTeam { name } awayTeam { name } }
+          anyPlayerGameStats { ... on PlayerGameStats { footballPlayingStatusOdds(newVersion: true) { starterOddsBasisPoints } } } } } } } } } }"""
+    for r in (None, {"min": 8000}, {"min": 5000, "max": 7999}, {"max": 4999}):
+        try:
+            d = gql(q, {"slug": slug, "r": r}, token=token())["so5"]["so5Leaderboard"]
+            ns = [n for n in d["myBench"]["nodes"] if n]
+            print(f"::notice title=odds {r}::{len(ns)} cartes · sort {d['defaultSortType']} · " + " ¶ ".join(
+                n["anyPlayer"]["displayName"] + " " + str([(g["anyGame"]["homeTeam"]["name"], g["anyGame"]["awayTeam"]["name"], ((g.get("anyPlayerGameStats") or {}).get("footballPlayingStatusOdds") or {}).get("starterOddsBasisPoints")) for g in n["eligiblePlayerGameScores"]]) for n in ns)[:6000])
+        except Exception as e:
+            print(f"::notice title=odds {r} error::{e}"[:1500])
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "me"
     try:
-        {"login": login, "me": me, "schema": schema, "explore": explore}[cmd]()
+        {"login": login, "me": me, "schema": schema, "explore": explore, "probe": probe}[cmd]()
     except Exception as e:
         import traceback
         print("::error title=sorare::" + traceback.format_exc().replace("\n", " | ")[-1500:])
