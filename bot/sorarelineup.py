@@ -103,7 +103,7 @@ def cards(lb):
 
 
 def order(pool):
-    return sorted(pool, key=lambda q: (q["gazza"], -q["imp"], q["idx"]))
+    return sorted(pool, key=lambda q: (q["gazza"] is not True and q["gazza"] >= 2, -q["imp"], q["idx"]))
 
 
 def faces(a, b):
@@ -163,7 +163,7 @@ def fit_bonus(pick, pool, slots, cap, avg, hard):
                 nb = bonus_bad(new, cap, avg, hard)
                 if nb >= bad:
                     continue
-                key = (nb > 0, cur["imp"] - c["imp"], c["gazza"], c["idx"])
+                key = (nb > 0, cur["imp"] - c["imp"], c["gazza"] is not True and c["gazza"] >= 2, c["idx"])
                 if best is None or key < best[0]:
                     best = (key, new)
         if not best:
