@@ -2,7 +2,11 @@
 import re
 import requests
 
-s = requests.get("https://api.sorare.com/graphql/schema", timeout=60).text
+import os
+os.makedirs("state", exist_ok=True)
+rr = requests.get("https://api.sorare.com/graphql/schema", timeout=60)
+print(f"::notice title=http::{rr.status_code} {rr.text[:200]}")
+s = rr.text
 open("state/sorare_schema.graphql", "w").write(s)
 print(f"::notice title=size::{len(s)} caràcters")
 
