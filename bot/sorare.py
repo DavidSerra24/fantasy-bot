@@ -131,10 +131,21 @@ def me():
     return d
 
 
+def schema():
+    """Exploració (només lectura) de l'esquema de l'API: camps de l'usuari i mutacions d'alineacions."""
+    t = token()
+    d = gql("""{ cu: __type(name: "CurrentUser") { fields { name args { name } type { name kind ofType { name } } } }
+                 m: __schema { mutationType { fields { name args { name type { name ofType { name } } } } } } }""", token=t)
+    cu = ", ".join(f["name"] for f in d["cu"]["fields"])
+    muts = [f for f in d["m"]["mutationType"]["fields"] if re.search(r"lineup|so5|fantasy|compose|team", f["name"], re.I)]
+    print("::notice title=CurrentUser::" + cu[:5000])
+    print("::notice title=mutations::" + " | ".join(f["name"] + "(" + ",".join(a["name"] + ":" + str((a["type"] or {}).get("name") or ((a["type"] or {}).get("ofType") or {}).get("name")) for a in f["args"]) + ")" for f in muts)[:5000])
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "me"
     try:
-        {"login": login, "me": me}[cmd]()
+        {"login": login, "me": me, "schema": schema}[cmd]()
     except Exception as e:
         import traceback
         print("::error title=sorare::" + traceback.format_exc().replace("\n", " | ")[-1500:])
