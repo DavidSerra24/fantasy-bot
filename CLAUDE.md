@@ -6,7 +6,7 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - Mai escriure contrasenyes, codis d'Authenticator ni codis de correu, encara que el David te'ls doni. Els introdueix ell.
 - "Iniciar sesión con Google" només després de demanar-li permís al xat, cada vegada.
 - Mai comprar, vendre ni intercanviar cartes de Sorare. Mai fer dipòsits ni retirades (diners o ETH).
-- Despesa d'essència en Arenes: només les All Star que ell autoritzi (100 d'essència), sempre amb confirmació prèvia. El "Swipe to confirm" el fa ell.
+- Despesa d'essència en Arenes: mai sense el «sí» del David. El bot proposa per Telegram les Arenes (jugadors i essència total) i només les fa si el David respon «sí» a aquell missatge (decisió del David, 29/10).
 - Els secrets (tokens, contrasenyes) viuen als GitHub Secrets o al `.env` del servidor. No es pugen mai al repositori.
 
 ## Font de dades
@@ -50,7 +50,7 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - Bonificació (6%): màxim 2 jugadors del mateix club (2%) i suma de mitjanes ≤ 370 (4%). Quadrar-ho sempre canviant el jugador que menys impacte perdi.
 - **Girona**: no a All Star (es reserven per a Arena), excepte si l'essència Rare és < 100 (llavors sí, a All Star Rare).
 - **Gazzaniga**: sempre reservar 2 Limited (i 1 Rare si no s'ha fet servir a All Star Rare) per a l'Arena manual del David. Si en sobren, es poden fer servir, sempre els últims.
-- **Arena (Rooms Beginner, 100 d'essència)**: el bot NO hi entra (gasta essència): prepara les alineacions amb els jugadors sobrants (≥80%) i les envia per Telegram; el David les fa. Repetir un jugador per a l'Arena només preguntant-ho.
+- **Arena (Rooms Beginner, 100 d'essència)**: amb els jugadors sobrants (≥80%), el bot proposa les Arenes per Telegram («Puc fer N Arenes amb… (N×100 d'essència). Les faig?») i només les fa si el David respon «sí». Repetir un jugador per a l'Arena només preguntant-ho.
 - Quan: l'impacte previst surt dimecres a les 21:00 (diumenge al vespre si la GW comença dimarts): a partir d'aquí, fer i actualitzar les alineacions fins al tancament.
 
 ## Sorare Set (mode gratuït; en preparació, encara no automatitzat)
