@@ -143,10 +143,44 @@ def schema():
     print("::notice title=mutations::" + " | ".join(f["name"] + "(" + ",".join(a["name"] + ":" + str((a["type"] or {}).get("name") or ((a["type"] or {}).get("ofType") or {}).get("name")) for a in f["args"]) + ")" for f in muts)[:5000])
 
 
+LEADERBOARDS = """query { so5 { futureLeaderboardsPaginated(rarities: [LIMITED, RARE], first: 80) { nodes {
+  id slug displayName mainRarityType isArena division gameWeek cutOffDate format { title } canCompose { value reason missingPositions } } } } }"""
+
+BENCH = """query($slug: String!) { so5 { so5Leaderboard(slug: $slug) { displayName myBench(first: 200) { nodes {
+  ... on ComposeTeamBenchCard { id averageScore(type: LAST_FIFTEEN_SO5_AVERAGE_SCORE)
+    anyCard { slug rarityTyped xp seasonYear inSeasonEligible }
+    anyPlayer { displayName slug age activeClub { name slug }
+      ... on Player { position nextClassicFixtureProjectedGrade { grade score } nextClassicFixturePlayingStatusOdds { starterOddsBasisPoints } } } } } } } } }"""
+
+
+def leaderboards():
+    return gql(LEADERBOARDS, token=token())["so5"]["futureLeaderboardsPaginated"]["nodes"]
+
+
+def bench(slug):
+    return gql(BENCH, {"slug": slug}, token=token())["so5"]["so5Leaderboard"]["myBench"]["nodes"]
+
+
+def explore():
+    """Només lectura: competicions Classic de la propera jornada (Limited i Rare) i, per a una, les cartes elegibles."""
+    lbs = [l for l in leaderboards() if not l["isArena"]]
+    print("::notice title=leaderboards::" + " ¶ ".join(f"{l['displayName']} | {l['mainRarityType']} | div{l['division']} | GW{l['gameWeek']} | {l['cutOffDate'][:16]} | {l['format']['title']} | compose={l['canCompose']['value']} {l['canCompose'].get('reason') or ''} | {l['slug']}" for l in lbs)[:9000])
+    arenas = [l for l in leaderboards() if l["isArena"]]
+    print("::notice title=arenas::" + " ¶ ".join(f"{l['displayName']} | {l['mainRarityType']} | {l['slug']}" for l in arenas)[:3000])
+    champ = next((l for l in lbs if re.search(r"champion", l["displayName"], re.I) and l["mainRarityType"] == "limited"), lbs[0] if lbs else None)
+    if champ:
+        nodes = [n for n in bench(champ["slug"]) if n]
+        rows = []
+        for n in nodes:
+            p_ = n["anyPlayer"]; g = (p_.get("nextClassicFixtureProjectedGrade") or {}); o = (p_.get("nextClassicFixturePlayingStatusOdds") or {})
+            rows.append(f"{p_['displayName']} ({(p_.get('activeClub') or {}).get('name')}, {p_.get('position')}, {p_.get('age')}a) | {g.get('grade')} {g.get('score')} | {(o.get('starterOddsBasisPoints') or 0)/100:.0f}% | mitj {n.get('averageScore')} | xp {n['anyCard']['xp']} | {n['anyCard']['slug']}")
+        print(f"::notice title=bench {champ['displayName']}::" + " ¶ ".join(rows)[:9000])
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "me"
     try:
-        {"login": login, "me": me, "schema": schema}[cmd]()
+        {"login": login, "me": me, "schema": schema, "explore": explore}[cmd]()
     except Exception as e:
         import traceback
         print("::error title=sorare::" + traceback.format_exc().replace("\n", " | ")[-1500:])
