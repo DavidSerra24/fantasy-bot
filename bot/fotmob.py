@@ -1,6 +1,7 @@
 """FotMob: onze oficial d'un partit (sovint surt abans que a Sorare, quan el club el publica).
 
-FotMob dona també onzes «predicted»: només compten quan lineupType no és «predicted» i hi ha 11 titulars per equip.
+FotMob dona també onzes previstos («predicted») i l'onze del partit anterior («lastStarting11»): només compta
+lineupType «standard» (onze oficial), amb 11 titulars per equip i com a molt 3 h abans del partit.
 Sense navegador (només requests), perquè es pugui fer servir des de qualsevol workflow.
 """
 import datetime as dt
@@ -81,7 +82,8 @@ def starters(home, away, when):
         lu = requests.get(f"https://www.fotmob.com/api/data/matchDetails?matchId={mid}", headers=H, timeout=20).json()["content"].get("lineup") or {}
     except Exception:
         return None
-    if (lu.get("lineupType") or "").lower() == "predicted":
+    # «standard» = onze oficial; «predicted» i «lastStarting11» (l'onze del partit anterior) no compten
+    if (lu.get("lineupType") or "").lower() != "standard" or when - dt.datetime.now(dt.timezone.utc) > dt.timedelta(hours=3):
         return None
     sides = [lu.get("homeTeam") or {}, lu.get("awayTeam") or {}]
     if any(len(s.get("starters") or []) < 11 for s in sides):

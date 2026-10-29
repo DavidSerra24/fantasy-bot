@@ -189,16 +189,14 @@ def explore():
 
 
 def probe():
-    """Diagnosi: què diu FotMob d'un partit futur (lineupType)."""
-    from bot import fotmob
-    from bot.sorarelineup import GAME
-    for gid in ("Game:b2dcee25-00d8-474f-a791-5bfe3ab8b08d", "Game:ef21aa68-0f7e-4b32-a6bf-c423050a82ab"):
-        gm = gql(GAME, {"id": gid.split(":", 1)[-1]}, token=token())["football"]["game"]
-        import datetime as dt
-        when = dt.datetime.fromisoformat(gm["date"].replace("Z", "+00:00"))
-        mid = fotmob.find(gm["homeTeam"]["name"], gm["awayTeam"]["name"], when)
-        lu = requests.get(f"https://www.fotmob.com/api/data/matchDetails?matchId={mid}", headers=fotmob.H, timeout=20).json()["content"].get("lineup") or {}
-        print(f"::notice title={gm['homeTeam']['name']}::{gm['date']} fotmob {mid} type {lu.get('lineupType')!r} source {lu.get('source')!r} keys {list(lu.keys())} filters {lu.get('availableFilters')}")
+    """Prova (només lectura): l'Arena que faria amb els porters vigilats, amb la font de cada titular."""
+    from bot import sorarelineup as L
+    from bot.web import load_json
+    w = load_json("sorare_gkwatch.json", {})
+    for g in w.get("gks", [])[:2]:
+        g = dict(g, fixture=g.get("fixture") or w.get("fixture"))
+        r = L.gk_arena(g)
+        print(f"::notice title=arena {g['name']}::" + (L.arena_text(r[1], r[2]) + " · " + "; ".join(f"{q['name']} {q['date']:%d %H:%M} {q.get('src')}" for q in r[1]) if r else "cap"))
 
 
 if __name__ == "__main__":
