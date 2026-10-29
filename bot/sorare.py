@@ -189,19 +189,18 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): FotMob amb un partit acabat i l'Arena que faria amb el primer porter vigilat."""
+    """Prova: per què FotMob dona titulars de partits futurs."""
     import datetime as dt
     from bot import fotmob
-    from bot.sorarelineup import gk_arena, arena_text
-    from bot.web import load_json
-    st = fotmob.starters("Everton FC", "Newcastle United FC", dt.datetime(2026, 10, 29, 19, 45, tzinfo=dt.timezone.utc))
-    print("::notice title=fotmob Everton::" + str(st)[:800])
-    print("::notice title=fotmob demà Chelsea::" + str(fotmob.starters("Chelsea FC", "Manchester United FC", dt.datetime(2026, 10, 31, 12, 30, tzinfo=dt.timezone.utc))))
-    w = load_json("sorare_gkwatch.json", {})
-    for g in w.get("gks", [])[:2]:
-        g = dict(g, fixture=g.get("fixture") or w.get("fixture"))
-        r = gk_arena(g)
-        print(f"::notice title=arena {g['name']}::" + (arena_text(r[1], r[2]) + " · primer partit " + str(min(q["date"] for q in r[1])) if r else "cap"))
+    for h, a, t in (("Newcastle United FC", "Everton FC", "2026-10-31T15:00:00+00:00"), ("Chelsea FC", "Manchester United FC", "2026-10-31T12:30:00+00:00")):
+        when = dt.datetime.fromisoformat(t)
+        ms = [m for d in (when - dt.timedelta(days=1), when, when + dt.timedelta(days=1)) for m in fotmob.matches(d)]
+        cand = [m for m in ms if fotmob.team_score(h, m["home"].get("longName") or m["home"]["name"]) and fotmob.team_score(a, m["away"].get("longName") or m["away"]["name"])]
+        print(f"::notice title=find {h}::" + json.dumps([{k: m.get(k) for k in ("id", "time", "status", "home", "away")} for m in cand])[:1500] + f" · find={fotmob.find(h, a, when)}")
+        mid = fotmob.find(h, a, when)
+        if mid:
+            lu = requests.get(f"https://www.fotmob.com/api/data/matchDetails?matchId={mid}", headers=fotmob.H, timeout=20).json()["content"].get("lineup") or {}
+            print(f"::notice title=lineup {h}::type {lu.get('lineupType')} source {lu.get('source')} n {len((lu.get('homeTeam') or {}).get('starters') or [])}")
 
 
 if __name__ == "__main__":
