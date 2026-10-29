@@ -24,7 +24,7 @@ TASK = """query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerP
   taskAppearances { id index status anyCard { slug } anyPlayer { displayName slug } game { id date } }
   pickableGames(first: 60) { nodes { game { id date homeTeam { name } awayTeam { name } } cards { slug xp rarityTyped anyPlayer { displayName slug } } } } } } } }"""
 FORM = """query($s: String!) { anyPlayer(slug: $s) { displayName
-  ... on Player { allPlayerGameScores(first: 20) { nodes { anyGame { date } ... on PlayerGameScore { positiveDecisiveStats { stat } }
+  ... on Player { allPlayerGameScores(first: 20) { nodes { anyGame { date } ... on PlayerGameScore { positiveDecisiveStats { stat statValue } }
     anyPlayerGameStats { ... on PlayerGameStats { gameStarted minsPlayed } } } } } } }"""
 UPSERT = """mutation($input: upsertTaskAppearancesInput!) { upsertTaskAppearances(input: $input) { errors { message } } }"""
 
@@ -38,7 +38,7 @@ def form(slug):
         return 0, 0, 0, 0
     now = dt.datetime.now(dt.timezone.utc)
     past = [n for n in nodes if n.get("anyGame") and dt.datetime.fromisoformat(n["anyGame"]["date"].replace("Z", "+00:00")) < now]
-    dec = [1 if n.get("positiveDecisiveStats") else 0 for n in past]
+    dec = [1 if any((x.get("statValue") or 0) > 0 for x in n.get("positiveDecisiveStats") or []) else 0 for n in past]
     st = [1 if ((n.get("anyPlayerGameStats") or {}).get("gameStarted") or 0) > 0 else 0 for n in past[:10]]
     return sum(dec[:5]), sum(dec[:10]), sum(dec[:20]), (sum(st) / len(st) if st else 0)
 
@@ -94,6 +94,8 @@ def run(dry=False):
             line = [f"🎯 {task['title']} ({rarity}, {n_max} places): {task['description']}"]
             for i, a in sorted(locked.items()):
                 line.append(f"   🔒 {a['anyPlayer']['displayName']} ({a['status'].lower()})")
+            if cur:
+                line.append("   ara triats: " + ", ".join(a["anyPlayer"]["displayName"] for a in cur.values()))
             for q in ranked[:6]:
                 M = q["date"].astimezone(__import__("zoneinfo").ZoneInfo("Europe/Madrid"))
                 line.append(f"   {'✅' if q['slug'] in want_slugs else '·'} {q['name']} · {M:%H:%M} · titular {q['tit'] * 100:.0f}%{' (onze oficial)' if q['confirmed'] else ''}"
