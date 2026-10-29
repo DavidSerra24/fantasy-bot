@@ -189,13 +189,19 @@ def explore():
 
 
 def probe():
-    """Prova: estructura de l'onze de FotMob."""
-    H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"}
-    for mid in (6275369, 5795498):
-        c = requests.get(f"https://www.fotmob.com/api/data/matchDetails?matchId={mid}", headers=H, timeout=20).json()["content"]
-        lu = c.get("lineup") or {}
-        ht = lu.get("homeTeam") or {}
-        print(f"::notice title=fotmob {mid}::keys {list(lu.keys())} · lineupType {lu.get('lineupType')} · home keys {list(ht.keys())} · starters " + json.dumps((ht.get("starters") or [])[:2])[:900])
+    """Prova (només lectura): FotMob amb un partit acabat i l'Arena que faria amb el primer porter vigilat."""
+    import datetime as dt
+    from bot import fotmob
+    from bot.sorarelineup import gk_arena, arena_text
+    from bot.web import load_json
+    st = fotmob.starters("Everton FC", "Newcastle United FC", dt.datetime(2026, 10, 29, 19, 45, tzinfo=dt.timezone.utc))
+    print("::notice title=fotmob Everton::" + str(st)[:800])
+    print("::notice title=fotmob demà Chelsea::" + str(fotmob.starters("Chelsea FC", "Manchester United FC", dt.datetime(2026, 10, 31, 12, 30, tzinfo=dt.timezone.utc))))
+    w = load_json("sorare_gkwatch.json", {})
+    for g in w.get("gks", [])[:2]:
+        g = dict(g, fixture=g.get("fixture") or w.get("fixture"))
+        r = gk_arena(g)
+        print(f"::notice title=arena {g['name']}::" + (arena_text(r[1], r[2]) + " · primer partit " + str(min(q["date"] for q in r[1])) if r else "cap"))
 
 
 if __name__ == "__main__":

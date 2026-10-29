@@ -318,46 +318,48 @@ def gk_check(gid, mins):
     g0 = gks[0]
     hhmm = dt.datetime.fromisoformat(g0["date"].replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Madrid")).strftime("%H:%M")
     who = ", ".join(f"{g['name']} ({g['pct']})" for g in gks)
-    try:
-        gm = gql(GAME, {"id": gid.split(":", 1)[-1]}, token=token())["football"]["game"]
-    except Exception as e:
-        gm = None
-        print("::warning title=sorare porters::" + str(e)[:300])
     lines = []
-    if gm:
-        avail = all((gm.get(side) or {}).get("startingLineupAvailable") for side in ("homeFormation", "awayFormation"))
-        if avail:
-            xi = {p["slug"] for side in ("homeFormation", "awayFormation") for row in gm[side]["startingLineup"] for p in row}
-            for g in gks:
-                lines.append(f"{'✅' if g['slug'] in xi else '❌'} {g['name']} ({g['club']}) {'és TITULAR' if g['slug'] in xi else 'NO és titular'}")
-            done[gid] = True
-            save_json("sorare_gkdone.json", done)
-            st = load_json("sorare_gkarena.json", {})
-            for g in gks:
-                if g["slug"] not in xi:
-                    continue
-                g = dict(g, fixture=g.get("fixture") or load_json("sorare_gkwatch.json", {}).get("fixture"))
-                try:
-                    res = gk_arena(g)
-                except Exception as e:
-                    res = None
-                    print("::warning title=sorare arena porter::" + str(e)[:300])
-                if res:
-                    lb, pick, cap, entry = res
-                    import time as _t
-                    st[g["slug"] + "|" + gid] = {"game": gid, "gk": g, "at": int(_t.time()), "status": "proposed"}
-                    lines.append(f"🏟️ Proposta d'Arena (100 d'essència): {arena_text(pick, cap)}\n"
-                                 f"La faig? Respon «sí». La faré 5 min abans del partit, amb els titulars confirmats en aquell moment.")
-                else:
-                    lines.append(f"🏟️ Amb {g['name']} no surt cap Arena vàlida (falten jugadors titulars o del 80–90%).")
-            save_json("sorare_gkarena.json", st)
+    xi = lineup_status({"id": gid, "date": g0["date"], "home": g0["home"], "away": g0["away"]}, {})
+    if xi:
+        for g in gks:
+            ok = starts(xi, g["slug"], g["name"])
+            lines.append(f"{'✅' if ok else '❌'} {g['name']} ({g['club']}) {'és TITULAR' if ok else 'NO és titular'} (onze de {'Sorare' if xi[0] == 'sorare' else 'FotMob'})")
+        done[gid] = True
+        save_json("sorare_gkdone.json", done)
+        st = load_json("sorare_gkarena.json", {})
+        for g in gks:
+            if not starts(xi, g["slug"], g["name"]):
+                continue
+            g = dict(g, fixture=g.get("fixture") or load_json("sorare_gkwatch.json", {}).get("fixture"))
+            try:
+                res = gk_arena(g)
+            except Exception as e:
+                res = None
+                print("::warning title=sorare arena porter::" + str(e)[:300])
+            if res:
+                lb, pick, cap, entry = res
+                import time as _t
+                first = min(q["date"] for q in pick)
+                sub = first - dt.timedelta(minutes=5)
+                key = g["slug"] + "|" + gid
+                st[key] = {"game": gid, "gk": g, "at": int(_t.time()), "status": "proposed", "submit_at": sub.isoformat()}
+                M = ZoneInfo("Europe/Madrid")
+                lines.append(f"🏟️ Proposta d'Arena (100 d'essència): {arena_text(pick, cap)}\n"
+                             f"La faig? Respon «sí». L'envio a les {sub.astimezone(M):%H:%M} (5 min abans del primer partit, {first.astimezone(M):%H:%M}), "
+                             f"amb els titulars confirmats en aquell moment.")
+                from bot.web import load_json as _lj, save_json as _sj  # acció dinàmica dins de la mateixa execució
+                _sj("dyn_actions.json", _lj("dyn_actions.json", []) + [{"key": f"sorarearena:{key}", "at": sub.isoformat(), "do": "sorarearena",
+                                                                        "comp": key, "deadline": first.isoformat()}])
+            else:
+                lines.append(f"🏟️ Amb {g['name']} no surt cap Arena vàlida (falten jugadors titulars o del 80–90%).")
+        save_json("sorare_gkarena.json", st)
     head = f"🧤 {g0['home']} – {g0['away']} ({hhmm})"
     if lines:
         telegram(head + " · onze oficial:\n" + "\n".join(lines))
     elif mins >= 75:
         telegram(f"{head}: porter a vigilar per a l'Arena: {who}. Quan surti l'onze oficial et dic si juga.")
     elif mins <= 12:
-        telegram(f"{head}: encara no hi ha onze oficial a Sorare per a {who}. Mira-ho a X.")
+        telegram(f"{head}: encara no hi ha onze oficial (ni a Sorare ni a FotMob) per a {who}. Mira-ho a X.")
     print(f"::notice title=sorare porters::{head} · {mins} min · " + ("; ".join(lines) or "sense onze oficial encara"))
 
 
@@ -365,31 +367,50 @@ FIXTURE_SLUG = FIXTURE.replace("query {", "query($s: String!) {").replace("so5Fi
 YES = r"s[ií]\W*|yes\W*|ok\W*|endavant\W*|fes-la\W*|fes-les\W*"
 
 
-def lineup_status(gid, cache):
-    """None si l'onze oficial encara no és a Sorare; si no, el conjunt de titulars (slugs de jugador)."""
+def lineup_status(game, cache):
+    """Onze oficial d'un partit: primer Sorare; si encara no hi és, FotMob (sovint surt abans, quan el club el publica).
+    Retorna None si encara no se sap, o ("sorare", slugs) / ("fotmob", noms)."""
+    import datetime as dt
+    from bot import fotmob
+    gid = game["id"]
     if gid not in cache:
+        cache[gid] = None
         try:
             gm = gql(GAME, {"id": gid.split(":", 1)[-1]}, token=token())["football"]["game"]
             if all((gm.get(side) or {}).get("startingLineupAvailable") for side in ("homeFormation", "awayFormation")):
-                cache[gid] = {p["slug"] for side in ("homeFormation", "awayFormation") for row in gm[side]["startingLineup"] for p in row}
-            else:
-                cache[gid] = None
+                cache[gid] = ("sorare", {p["slug"] for side in ("homeFormation", "awayFormation") for row in gm[side]["startingLineup"] for p in row})
         except Exception:
-            cache[gid] = None
+            pass
+        if cache[gid] is None:
+            try:
+                names = fotmob.starters((game.get("homeTeam") or {}).get("name") or game.get("home") or "", (game.get("awayTeam") or {}).get("name") or game.get("away") or "",
+                                        dt.datetime.fromisoformat(game["date"].replace("Z", "+00:00")))
+                if names:
+                    cache[gid] = ("fotmob", names)
+            except Exception:
+                pass
     return cache[gid]
+
+
+def starts(st, slug, name):
+    from bot import fotmob
+    if st[0] == "sorare":
+        return slug in st[1]
+    return any(fotmob.same_player(name, n) for n in st[1])
 
 
 def gk_arena(gk, final=False):
     """Arena Beginner amb un porter vigilat que és titular. Els altres 4: primer els titulars confirmats (per impacte),
-    i si d'una posició no n'hi ha, els del 80–90% (com el Pro). Només jugadors que juguen a l'hora del porter o després
-    (l'Arena es tanca quan comença el partit de qualsevol jugador). Amb final=True (5 min abans), els d'un partit que ja
-    hauria de tenir onze i encara no se sap si juguen, fora. Retorna (lb, pick, cap, entry) o None."""
+    i si d'una posició no n'hi ha, els del 80–90% (com el Pro). Poden jugar abans o després del porter, però l'Arena es
+    tanca quan comença el primer partit de qualsevol jugador: s'envia 5 min abans d'aquest primer partit (submit_at).
+    Amb final=True (en enviar-la), els d'un partit que ja hauria de tenir onze i encara no se sap si juguen, fora.
+    Retorna (lb, pick, cap, entry) o None."""
     import datetime as dt
     fx = gql(FIXTURE_SLUG, {"s": gk["fixture"]}, token=token())["so5"]["so5Fixture"]
     arena = next((l for l in fx["so5Leaderboards"] if l["isArena"] and "beginner" in l["slug"]), None)
     if not arena:
         return None
-    G = dt.datetime.fromisoformat(gk["date"].replace("Z", "+00:00"))
+    now = dt.datetime.now(dt.timezone.utc)
     busy = {a["anyCard"]["slug"] for l in fx.get("mySo5Lineups") or [] for a in l["so5Appearances"]}
     busy_p = {a["anyPlayer"].get("slug") for l in fx.get("mySo5Lineups") or [] for a in l["so5Appearances"]}  # sense repetir jugadors
     hi = {n["anyCard"]["slug"] for n in bench(arena["slug"], {"min": 8000})}
@@ -413,14 +434,14 @@ def gk_arena(gk, final=False):
             if not gkq or q["xp"] > gkq["xp"]:
                 gkq = q
             continue
-        if pos == "Goalkeeper" or D < G or q["girona"] or "gazzaniga" in p["slug"]:
-            continue  # el porter és el vigilat; Girona i Gazzaniga són per a l'Arena manual del David
-        xi = lineup_status(game["id"], cache)
+        if pos == "Goalkeeper" or D < now + dt.timedelta(minutes=10 if not final else 3) or q["girona"] or "gazzaniga" in p["slug"]:
+            continue  # el porter és el vigilat; partits ja començats (o a punt) fora; Girona i Gazzaniga: Arena manual del David
+        xi = lineup_status(game, cache)
         if xi is not None:
-            if p["slug"] not in xi:
+            if not starts(xi, p["slug"], p["displayName"]):
                 continue
             q["tier"] = 0  # titular confirmat
-        elif c["slug"] in hi and not (final and D - G < dt.timedelta(minutes=50)):
+        elif c["slug"] in hi and not (final and D - now < dt.timedelta(minutes=50)):
             q["tier"] = 1  # encara sense onze: 80–90%
         else:
             continue
@@ -465,12 +486,12 @@ def yes_after(ts):
     return False
 
 
-def gk_arena_final(gid):
-    """5 min abans del partit del porter: si el David ha dit «sí» a la proposta, es refà l'Arena amb les dades del
-    moment (titulars confirmats) i s'envia."""
+def gk_arena_final(key):
+    """5 min abans del primer partit de l'Arena proposada: si el David ha dit «sí», es refà amb les dades del moment
+    (titulars confirmats) i s'envia."""
     from bot.web import load_json, save_json
     st = load_json("sorare_gkarena.json", {})
-    pend = [(k, v) for k, v in st.items() if v.get("game") == gid and v.get("status") == "proposed"]
+    pend = [(k, v) for k, v in st.items() if k == key and v.get("status") == "proposed"]
     for k, v in pend:
         if not yes_after(v["at"]):
             v["status"] = "no"

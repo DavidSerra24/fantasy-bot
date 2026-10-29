@@ -15,7 +15,15 @@ only = sys.argv[1] if len(sys.argv) > 1 else None  # executar només una acció 
 if only:
     acts = [a for a in acts if a["key"] == only]
 done = set()
-for a in acts:
+save_json("dyn_actions.json", [])
+queue = list(acts)
+while queue:
+    dyn = load_json("dyn_actions.json", [])  # accions afegides durant l'execució (p. ex. l'Arena d'un porter titular)
+    if dyn:
+        save_json("dyn_actions.json", [])
+        queue += [d for d in dyn if d["key"] not in load_json("done.json", [])]
+        queue.sort(key=lambda a: (a["at"], a.get("deadline", "")))
+    a = queue.pop(0)
     key = (a["do"], a["comp"])
     if key in done:
         continue

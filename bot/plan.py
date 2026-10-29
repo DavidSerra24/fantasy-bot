@@ -160,10 +160,10 @@ def plan(now=None, done=None):
                 add(k, G - dt.timedelta(minutes=mins), "sorarexi", f"{g['game']}|{mins}", G)
     for key_, v in load_json("sorare_gkarena.json", {}).items():
         if v.get("status") == "proposed":
-            G = dt.datetime.fromisoformat(v["gk"]["date"].replace("Z", "+00:00"))
+            S = dt.datetime.fromisoformat(v["submit_at"])
             k = f"sorarearena:{key_}"
-            if due(k, G - dt.timedelta(minutes=5), G):
-                add(k, G - dt.timedelta(minutes=5), "sorarearena", v["game"], G)
+            if due(k, S, S + dt.timedelta(minutes=5)):
+                add(k, S, "sorarearena", key_, S + dt.timedelta(minutes=5))
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
