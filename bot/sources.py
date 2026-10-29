@@ -21,6 +21,9 @@ def best_name(full, names):
         nn = norm(n)
         if sc == 60 and not (nn and nf and nn[-1] == nf[-1] and nn[0][0] == nf[0][0]):
             sc = 0
+        # sobrenom d'un sol mot que és l'inici del nom de pila («Rober» = Roberto González): el filtre d'equip evita confusions
+        if not sc and len(nn) == 1 and len(nn[0]) >= 4 and nf and nf[0].startswith(nn[0]):
+            sc = 60
         if sc > bs:
             best, bs = n, sc
     return best if bs >= 60 else None

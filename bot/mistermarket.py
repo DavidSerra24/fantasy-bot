@@ -173,7 +173,10 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
                     cache['jp'] = sources.jp_starters(new_context(b, "jp").new_page())
                 except Exception as e:
                     cache['jp'] = []; report.append(f"⚠️ Jornada Perfecta: {type(e).__name__}")
-            nodata = [q for q in squad + market if q["pct"] is None]
+            si_teams = [t for t in sidata.get("_order", []) if isinstance(sidata.get(t), list) and sidata.get(t)]
+            # Jornada Perfecta només per als equips que SorareInside no té (si l'equip hi és, mana SorareInside)
+            nodata = [q for q in squad + market if q["pct"] is None
+                      and not (q.get("team") and any(sources.team_ok(q["team"], t) for t in si_teams))]
             sources.assign(nodata, cache['jp'], "jp")
             for q in nodata:
                 if q["jp"]:
@@ -182,7 +185,7 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
     # (p. ex. Solozábal a l'Andorra). Si no hi ha dades de l'equip, es queden sense % (no es venen).
     keys = {e["key"] for e in (cache.get("ffp") or [])} if league == "Primera División" else \
            {t for t in sidata.get("_order", []) if isinstance(sidata.get(t), list) and sidata.get(t)}
-    for q in squad:
+    for q in squad + market:
         if q["pct"] is None and q.get("team") and any(sources.team_ok(q["team"], k) for k in keys):
             q["pct"], q["src"], q["absent"] = 0, (q.get("src") or "SI") + " (no hi surt)", True
     return bal, squad, market, have, cap
