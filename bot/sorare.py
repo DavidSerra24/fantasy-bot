@@ -189,20 +189,16 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): jornades DAILY i missions (tasks) de Sorare."""
-    for st in ("LIVE", "UPCOMING"):
+    """Prova (només lectura): la missió Decisive Picker per l'API."""
+    TQ = """... on DecisivePlayerPickerTask { id title description target maxAppearancesCount mode expired aasmState startDate
+        taskAppearances { index status anyCard { slug } anyPlayer { displayName } game { id date } }
+        pickableGames(first: 30) { nodes { id date homeTeam { name } awayTeam { name } } } }"""
+    for q in ("featuredTasks(rarity: limited, sport: FOOTBALL)", "setPlayTasks(sport: FOOTBALL)"):
         try:
-            fx = gql("""query($t: So5State) { so5 { so5Fixture(sport: FOOTBALL, type: $t, eventType: DAILY) { slug displayName cutOffDate endDate
-                so5Leaderboards { slug displayName mainRarityType isArena format { title } rulesSummary
-                  myTasks { name description progress genre periodicity expired aasmState } } } } }""", {"t": st}, token=token())["so5"]["so5Fixture"]
-            print(f"::notice title=DAILY {st}::" + json.dumps(fx)[:6000])
+            d = gql("query { currentUser { t: %s { __typename name genre ... on DecisivePlayerPickerTask { id } %s } } }" % (q, TQ), token=token())
+            print(f"::notice title={q[:20]}::" + json.dumps(d)[:5000])
         except Exception as e:
-            print(f"::notice title=DAILY {st} error::{e}"[:1500])
-    try:
-        d = gql("""query { currentUser { dailyRunTask(sport: FOOTBALL) { name description progress genre periodicity expired aasmState } } }""", token=token())
-        print("::notice title=dailyRunTask::" + json.dumps(d)[:3000])
-    except Exception as e:
-        print(f"::notice title=dailyRunTask error::{e}"[:1500])
+            print(f"::notice title={q[:20]} error::{e}"[:1500])
 
 
 if __name__ == "__main__":
