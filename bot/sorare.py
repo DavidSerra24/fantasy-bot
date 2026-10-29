@@ -163,11 +163,11 @@ def bench(slug):
 
 def explore():
     """Només lectura: competicions Classic de la propera jornada (Limited i Rare) i, per a una, les cartes elegibles."""
-    lbs = [l for l in leaderboards() if not l["isArena"]]
+    lbs = [l for l in leaderboards() if not l["isArena"] and l["slug"].startswith("football")]
     print("::notice title=leaderboards::" + " ¶ ".join(f"{l['displayName']} | {l['mainRarityType']} | div{l['division']} | GW{l['gameWeek']} | {l['cutOffDate'][:16]} | {l['format']['title']} | compose={l['canCompose']['value']} {l['canCompose'].get('reason') or ''} | {l['slug']}" for l in lbs)[:9000])
-    arenas = [l for l in leaderboards() if l["isArena"]]
+    arenas = [l for l in leaderboards() if l["isArena"] and "beginner" in l["slug"]]
     print("::notice title=arenas::" + " ¶ ".join(f"{l['displayName']} | {l['mainRarityType']} | {l['slug']}" for l in arenas)[:3000])
-    champ = next((l for l in lbs if re.search(r"champion", l["displayName"], re.I) and l["mainRarityType"] == "limited"), lbs[0] if lbs else None)
+    champ = next((l for l in lbs if l["displayName"].startswith("Champion") and l["mainRarityType"] == "limited"), lbs[0] if lbs else None)
     if champ:
         nodes = [n for n in bench(champ["slug"]) if n]
         rows = []
