@@ -225,8 +225,8 @@ def run(dry=True):
                 continue
             allstar = name == "All Star"
             pool = [q for q in cards(lb) if q["player"] not in used[rarity]]
-            if allstar and not (rarity == "rare" and girona_rare_allstar):
-                pool = [q for q in pool if not q["girona"]]
+            if allstar and not (rarity == "rare" and girona_rare_allstar):  # Girona fora (els Gazzaniga Limited que sobren sí)
+                pool = [q for q in pool if not q["girona"] or (rarity == "limited" and q["gazza"])]
             if rarity == "rare" and not allstar:  # el Rare de Gazzaniga es reserva si no va a All Star Rare
                 pool = [q for q in pool if not q["gazza"]]
             if name == "U23" and not any(q["pos"] == "Goalkeeper" for q in pool):
@@ -247,10 +247,10 @@ def run(dry=True):
                 rep.append(f"{lb['displayName']}: no hi ha prou jugadors amb ≥80% per a una alineació")
             elif n < 4 and not total:
                 rep.append(f"{lb['displayName']}: {n} alineacions (no queden jugadors per a més)")
-    # Arena Beginner (5 jugadors, límit 260): proposta amb els sobrants Limited (≥80%, sense Girona ni Gazzaniga: Arena manual del David)
+    # Arena Beginner (5 jugadors, límit 260): proposta amb els sobrants Limited (≥80%; sense Girona, excepte els Gazzaniga que sobren dels 2 reservats)
     arena = next((l for l in fx["so5Leaderboards"] if l["isArena"] and "beginner" in l["slug"]), None)
     if arena:
-        pool = [q for q in cards(arena) if q["player"] not in used["limited"] and not q["girona"] and not q["gazza"]]
+        pool = [q for q in cards(arena) if q["player"] not in used["limited"] and (not q["girona"] or q["gazza"])]
         props = []
         while True:
             pick = build(pool, ARENA, ARENA_CAP, "avg15", hard=True)
