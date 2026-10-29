@@ -32,7 +32,7 @@ SHORT = {"Goalkeeper": "POR", "Defender": "DEF", "Midfielder": "MIG", "Forward":
 
 FIXTURE = """query { so5 { so5Fixture(sport: FOOTBALL, type: UPCOMING, eventType: CLASSIC) { slug gameWeek cutOffDate
   so5Leaderboards { id slug displayName mainRarityType isArena format { title entryItem { id myEntryItemId ... on So5CardShardsEntryItem { quantity rarity } } } }
-  mySo5Lineups { id so5Leaderboard { slug displayName isArena format { title } } so5Appearances { captain anyCard { slug } anyPlayer { displayName } } } } } }"""
+  mySo5Lineups { id so5Leaderboard { slug displayName isArena format { title } } so5Appearances { captain anyCard { slug } anyPlayer { displayName slug } } } } } }"""
 
 SAVE = """mutation($input: createOrUpdateSo5LineupInput!) { createOrUpdateSo5Lineup(input: $input) {
   so5Lineup { id } errors { message code } } }"""
@@ -391,11 +391,12 @@ def gk_arena(gk, final=False):
         return None
     G = dt.datetime.fromisoformat(gk["date"].replace("Z", "+00:00"))
     busy = {a["anyCard"]["slug"] for l in fx.get("mySo5Lineups") or [] for a in l["so5Appearances"]}
+    busy_p = {a["anyPlayer"].get("slug") for l in fx.get("mySo5Lineups") or [] for a in l["so5Appearances"]}  # sense repetir jugadors
     hi = {n["anyCard"]["slug"] for n in bench(arena["slug"], {"min": 8000})}
     cache, pool, gkq = {}, [], None
     for i, n in enumerate(bench(arena["slug"]) + bench(arena["slug"], None, ["Goalkeeper"])):
         c, p = n["anyCard"], n["anyPlayer"]
-        if c["rarityTyped"].lower() != "limited" or c["slug"] in busy:
+        if c["rarityTyped"].lower() != "limited" or c["slug"] in busy or (p["slug"] in busy_p and p["slug"] != gk["slug"]):
             continue
         g = (n.get("eligiblePlayerGameScores") or [{}])[0] or {}
         game = g.get("anyGame") or {}
