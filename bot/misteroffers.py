@@ -95,11 +95,15 @@ def accept(pg, pid):
     if not btn.count():
         btn = pop.locator("button").filter(has_text=re.compile(r"^\s*(Vendre|Vender)\s*$"))
     btn.first.click()
-    pg.wait_for_timeout(3000)
-    if pid not in offers(pg):
-        return True
-    pg.goto(U + "/team", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)  # ja no és a la plantilla = venut
-    return not pg.locator(f'a.player[href^="players/{pid}/"]').count()
+    # El Mister triga una mica a actualitzar-ho: es comprova fins a 4 vegades (≈40 s) abans de dir que ha fallat
+    for i in range(4):
+        pg.wait_for_timeout(5000 + 5000 * i)
+        pg.goto(U + "/team", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
+        if not pg.locator(f'a.player[href^="players/{pid}/"]').count():  # ja no és a la plantilla = venut
+            return True
+        if pid not in offers(pg):
+            return True
+    return False
 
 
 def run(dry=False):
