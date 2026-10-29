@@ -56,9 +56,12 @@ def bench(slug, rng=None):
 
 def cards(lb):
     """Cartes de la competició (de la seva raresa) amb ≥80%, una per jugador (la de més XP), en ordre de la llista."""
-    ok = {n["anyCard"]["slug"] for n in bench(lb["slug"], {"min": 8000})}
+    hi = bench(lb["slug"], {"min": 8000})
+    ok = {n["anyCard"]["slug"] for n in hi}
+    allc = bench(lb["slug"])
+    print(f"::notice title=bench {lb['displayName']}::{len(allc)} cartes, {len(ok)} amb ≥80% · rareses {sorted({n['anyCard']['rarityTyped'] for n in allc})} vs {lb['mainRarityType']} · posicions {sorted({str(n['anyPlayer'].get('position')) for n in allc})}")
     seen, copies = {}, {}
-    for i, n in enumerate(bench(lb["slug"])):
+    for i, n in enumerate(allc):
         c, p = n["anyCard"], n["anyPlayer"]
         if c["rarityTyped"].lower() != (lb["mainRarityType"] or "").lower() or c["slug"] not in ok:
             continue
