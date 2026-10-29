@@ -4,6 +4,8 @@ on:
     inputs:
       module:
         default: "bot.p11debug"
+permissions:
+  contents: write
 jobs:
   dbg:
     runs-on: ubuntu-24.04

@@ -1,26 +1,14 @@
-"""Diagnosi: baixa l'esquema GraphQL de Sorare i en mostra les parts d'alineacions (només lectura)."""
-import re
+"""Diagnosi: baixa l'esquema GraphQL de Sorare i el desa a la branca «sorare-schema» (només lectura de l'API)."""
+import os
+import subprocess
 import requests
 
-import os
-os.makedirs("state", exist_ok=True)
-rr = requests.get("https://api.sorare.com/graphql/schema", timeout=60)
-print(f"::notice title=http::{rr.status_code} {rr.text[:200]}")
-s = rr.text
-open("state/sorare_schema.graphql", "w").write(s)
-print(f"::notice title=size::{len(s)} caràcters")
-
-
-def block(name):
-    m = re.search(r"\n(type|input|enum) " + re.escape(name) + r"\b[^{]*\{(.*?)\n\}", s, re.S)
-    return (m.group(0) if m else f"(no {name})").replace("\n", " ¶ ")
-
-
-mut = block("Mutation")
-lines = [l for l in mut.split(" ¶ ") if re.search(r"lineup|so5|fantasy|compose", l, re.I)]
-print("::notice title=mutations::" + " ¶ ".join(lines)[:6000])
-for n in re.findall(r"input: (\w+Input)", " ".join(lines))[:6]:
-    print(f"::notice title={n}::" + block(n)[:3000])
-for n in ["CurrentUser", "FootballRoot", "So5Root", "So5Leaderboard", "So5Lineup", "So5Fixture"]:
-    b = block(n)
-    print(f"::notice title={n}::" + " ¶ ".join(x for x in b.split(" ¶ ") if not x.strip().startswith('"'))[:3500])
+s = requests.get("https://api.sorare.com/graphql/schema", timeout=60).text
+os.makedirs("docs", exist_ok=True)
+open("docs/sorare_schema.graphql", "w").write(s)
+cmds = [["git", "config", "user.name", "fantasy-bot"], ["git", "config", "user.email", "bot@users.noreply.github.com"],
+        ["git", "checkout", "-B", "sorare-schema"], ["git", "add", "docs/sorare_schema.graphql"],
+        ["git", "commit", "-qm", "Esquema de Sorare"], ["git", "push", "-qf", "origin", "sorare-schema"]]
+for c in cmds:
+    print(c, subprocess.run(c, capture_output=True, text=True).stderr[:200])
+print(f"::notice title=schema::{len(s)} caràcters a la branca sorare-schema")

@@ -39,6 +39,20 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - Especials de partit: els N jugadors amb més PS (≥80%) dels dos equips.
 - Extra de gols de Copa del Rey (`bot/copa.py`, manual: `debug.yml` amb `bot.copa [--joc ID]`): un davanter per equip, el de l'onze probable de FutbolFantasy (`/copa-del-rey/posibles-alineaciones`; a la Copa no hi ha %, s'agafa el primer davanter titular).
 
+## Sorare Pro (en preparació; per l'API, `bot/sorare.py`)
+- Accés: API GraphQL (api.sorare.com/graphql). Entrada amb SORARE_EMAIL/SORARE_PASSWORD (bcrypt + sal) i codi de l'Authenticator que el David envia per Telegram quan el bot el demana (`sorare.yml`, cmd=login). JWT de 30 dies xifrat a `state/sorare_token.enc` (clau derivada de la contrasenya); 3 dies abans de caducar, avís per renovar. Esquema: https://api.sorare.com/graphql/schema (introspecció desactivada). Alineacions: mutació `createOrUpdateSo5Lineup`. **Mai** mutacions de comprar/vendre/ofertes/retirades.
+- Només Classic (Pro i In Season encara no: cal tenir ≥4 jugadors de la temporada actual).
+- Ordre: primer **Rare** (normalment 1 alineació, a la primera competició possible segons la prioritat), després **Limited**. Prioritat de competicions: **U23** (només si hi ha porter U23 titular) → **Champion** → **All Star**. Fins a 4 alineacions de cada.
+- Una alineació només es fa si **tots** els jugadors tenen ≥80% de ser titulars (el % de Sorare; 80 o 90 és igual). Ordre: **impacte previst** (A → F); a igualtat, l'ordre en què surt a la llista (mirant des de la posició Extra). Quan no queden jugadors per fer-ne més, es passa a la competició següent.
+- No repetir jugadors entre alineacions. No posar jugadors d'equips que s'enfrontin.
+- Capità: el d'impacte més alt; si empaten i un és porter, el de camp; si no, el primer de la llista.
+- Cartes repetides: la de més XP (les més antigues).
+- Bonificació (6%): màxim 2 jugadors del mateix club (2%) i suma de mitjanes ≤ 370 (4%). Quadrar-ho sempre canviant el jugador que menys impacte perdi.
+- **Girona**: no a All Star (es reserven per a Arena), excepte si l'essència Rare és < 100 (llavors sí, a All Star Rare).
+- **Gazzaniga**: sempre reservar 2 Limited (i 1 Rare si no s'ha fet servir a All Star Rare) per a l'Arena manual del David. Si en sobren, es poden fer servir, sempre els últims.
+- **Arena (Rooms Beginner, 100 d'essència)**: el bot NO hi entra (gasta essència): prepara les alineacions amb els jugadors sobrants (≥80%) i les envia per Telegram; el David les fa. Repetir un jugador per a l'Arena només preguntant-ho.
+- Quan: l'impacte previst surt dimecres a les 21:00 (diumenge al vespre si la GW comença dimarts): a partir d'aquí, fer i actualitzar les alineacions fins al tancament.
+
 ## Sorare Set (mode gratuït; en preparació, encara no automatitzat)
 - Obre sobres cada dia. Dos taulers: el **personal** i el **d'equip** (amb 9 persones més, cal arribar a uns punts per avançar).
 - Fins a 4 alineacions per nivell. No es repeteixen jugadors entre alineacions (si ja hi ha un jugador, a la següent se salta encara que en tingui una altra carta).
