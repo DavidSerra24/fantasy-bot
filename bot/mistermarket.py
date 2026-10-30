@@ -224,6 +224,7 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
         for q in squad + market:
             q["pct"] = q["ff"]["pct"] if q["ff"] else None
             q["src"] = "FF"
+            q["bmode"] = "ff"  # alineació: del 70 al 95% és la mateixa franja (mana el PS)
     else:  # Quique: SorareInside i, si l'equip no hi és, Jornada Perfecta (si surt a l'onze, compta com a titular)
         resolve_by_search(pg, squad + [m for m in market if not m.get("si")][:5], sources.si_entries(sidata), "si", report)
         for q in squad + market:

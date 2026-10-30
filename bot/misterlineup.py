@@ -45,6 +45,15 @@ def clash(q, pick):
     return False
 
 
+def lband(q):
+    """Franja de % per a l'alineació. Fentaniños (% de futbolfantasy.com): del 70 al 95% és tot la mateixa franja
+    i mana el PS (decisió del David, 30/10). Quique: 80–90% → 70% → 60%."""
+    p = q.get("xpct")
+    if q.get("bmode") == "ff" and p is not None:
+        return 0 if p >= 70 else 2 if p >= 60 else 3
+    return band(p)
+
+
 def best_lineup(squad):
     """(tàctica, onze, capità). Ordre: no en venda, franja de %, amb PS, més PS."""
     for q in squad:
@@ -53,7 +62,7 @@ def best_lineup(squad):
         q["xpct"] = q.get("pct")  # el % de la font de la lliga: FutbolFantasy (Fentaniños) o SorareInside/Jornada Perfecta (Quique)
         q["xps"] = si.get("ps")
     order = sorted([q for q in squad if not q.get("loaned")],
-                   key=lambda q: (q["onsale"], band(q["xpct"]), q["xps"] is None, -(q["xps"] or 0)))
+                   key=lambda q: (q["onsale"], lband(q), q["xps"] is None, -(q["xps"] or 0)))
     best = None
     for tac in TACTICS:
         d, m, f = map(int, tac.split("-"))
@@ -65,7 +74,7 @@ def best_lineup(squad):
         for q in order:  # si no hi ha prou jugadors per completar l'onze, es salta la norma
             if need.get(q["P"], 0) and q not in pick:
                 pick.append(q); need[q["P"]] -= 1; q["rule_skip"] = True
-        key = (-sum(need.values()), -sum(q["onsale"] for q in pick), -sum(band(q["xpct"]) for q in pick), sum(q["xps"] or 0 for q in pick))
+        key = (-sum(need.values()), -sum(q["onsale"] for q in pick), -sum(lband(q) for q in pick), sum(q["xps"] or 0 for q in pick))
         if best is None or key > best[0]:
             best = (key, tac, pick)
     if not best:
@@ -108,7 +117,7 @@ def exhaustive(order):
                         if not ok(M, base2):
                             continue
                         pick = base2 + list(M)
-                        key = (0, -sum(q["onsale"] for q in pick), -sum(band(q["xpct"]) for q in pick), sum(q["xps"] or 0 for q in pick))
+                        key = (0, -sum(q["onsale"] for q in pick), -sum(lband(q) for q in pick), sum(q["xps"] or 0 for q in pick))
                         if best is None or key > best[0]:
                             best = (key, tac, pick)
     return best
