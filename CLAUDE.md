@@ -34,6 +34,7 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 ## FutbolFantasy (Fantasy✨)
 - Jocs: LaLiga, LaLiga 2, Premier, Serie A, Champions, Europa League, extres (Trío revulsivo, Trío antagonista, Resiliencia de portero) i especials de partit ("Puntos en el X - Y").
 - Criteris: només jugadors amb **≥80%** de titularitat, respectar els usos (0 usos = no pot entrar), tàctica vàlida segons les REGLES del joc, cap **porter o defensa** amb cap jugador de l'equip rival (només resten punts els gols encajats als porters i defenses; migcampistes i davanters de dos equips rivals sí que poden anar junts — decisió del David, 28/10), i **maximitzar els punts projectats de SorareInside**.
+- **LaLiga i extres de LaLiga** (decisió del David, 30/10): el % de titularitat és el de **futbolfantasy.com** (alineacions probables de la jornada, `sources.ff_probs`) amb mínim **70%** per posar i per mantenir (només es canvia amb <70%); el PS sempre de SorareInside. Si un jugador no surt a futbolfantasy.com, SorareInside ≥80%. La resta de competicions continuen amb el % de SorareInside (≥80%).
 - **Empats de PS: el que surti primer a la llista de punts projectats. El % NO compta.**
 - Ítems: fer clic a l'ítem, veure a qui es pot assignar i posar-lo a l'elegible amb més PS.
 - Especials de partit: els N jugadors amb més PS (≥80%) dels dos equips.
