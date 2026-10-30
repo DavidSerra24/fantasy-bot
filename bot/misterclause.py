@@ -13,7 +13,7 @@ LOANDBG = []
 POS = {"POR": 1, "DEF": 2, "MIG": 3, "DAV": 4}
 
 
-def main(league="Quique", pos="POR", minimum=60):
+def main(league="Quique", pos="POR", minimum=60, loan_only=None, maxpct=None, send=True):
     from playwright.sync_api import sync_playwright
     from bot.ff import name_score, team_score
     from bot.misterapi import MisterAPI
@@ -33,7 +33,7 @@ def main(league="Quique", pos="POR", minimum=60):
     mm = re.search(r'"id_uc"\s*:\s*(\d+)', feed) or re.search(r'"id_user"\s*:\s*(\d+)', feed)
     me = mm.group(1) if mm else None
     cands, seen = [], set()
-    loan_only = "--cedibles" in sys.argv
+    loan_only = ("--cedibles" in sys.argv) if loan_only is None else loan_only
     sources = [api.page("/" + path) for path, uid in users]
     loanable = set()
     market = api.page("/market")
@@ -89,7 +89,7 @@ def main(league="Quique", pos="POR", minimum=60):
                 best = (sc, e)
         e = best[1] if best else {}
         c["pct"], c["ps"], c["si"] = e.get("pct"), e.get("ps"), e.get("name")
-    ok = sorted([c for c in cands if (c["pct"] or 0) >= minimum], key=lambda c: (-(c["ps"] or 0), -(c["pct"] or 0)))
+    ok = sorted([c for c in cands if (c["pct"] or 0) >= minimum and (maxpct is None or (c["pct"] or 0) <= maxpct)], key=lambda c: (-(c["ps"] or 0), -(c["pct"] or 0)))
     rest = [c for c in cands if (c["pct"] or 0) < minimum]
     lines = [f"🔎 {league} · {pos} {'CEDIBLES ' if loan_only else ''}dels altres mànagers amb ≥{minimum}% (SorareInside), per punts projectats",
              f"Saldo: {bal.get('current', 0) / 1e6:.2f}M (màx. deute {bal.get('maxDebt', 0) / 1e6:.2f}M)"]
@@ -104,7 +104,9 @@ def main(league="Quique", pos="POR", minimum=60):
     msg = "\n".join(lines)
     print("::notice title=clausula::" + msg.replace("\n", " ¶ ")[:8000])
     print(f"::notice title=debug::usuaris {len(users)}, jugadors mirats {len(seen)}, candidats {len(cands)}, cedibles al mercat {len(loanable)}, camps {keys_dbg} · loan: {LOANDBG}")
-    telegram(msg)
+    if send:
+        telegram(msg)
+    return ok
 
 
 if __name__ == "__main__":

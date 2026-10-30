@@ -174,6 +174,17 @@ def plan(now=None, done=None):
         k = f"soraremission:{gd}"
         if due(k, G - dt.timedelta(minutes=15), G):
             add(k, G - dt.timedelta(minutes=15), "soraremission", gd, G)
+    # Mister: vigilància de cessions (Quique, 80–90%) cada hora fins a l'hora de config/mister_loanwatch.json
+    try:
+        lw = json.load(open("config/mister_loanwatch.json"))
+        until = dt.datetime.fromisoformat(lw["until"]).astimezone(UTC)
+        for h in range(0, 3):
+            T = (now + dt.timedelta(hours=h)).replace(minute=10, second=0, microsecond=0)
+            k = f"misterloan:{T.isoformat()}"
+            if T <= until and due(k, T, T + dt.timedelta(minutes=50)):
+                add(k, T, "misterloan", None, T + dt.timedelta(minutes=50))
+    except FileNotFoundError:
+        pass
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
