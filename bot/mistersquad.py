@@ -13,7 +13,7 @@ from bot.notify import telegram
 from bot.web import login_sorareinside, new_context, save_session
 
 name = sys.argv[1] if len(sys.argv) > 1 else "Quique"
-extra = sys.argv[2:]
+extra = [a for a in sys.argv[2:] if a != "--quiet"]
 with sync_playwright() as p:
     b = p.chromium.launch()
     sctx = new_context(b, "sorareinside"); spg = sctx.new_page(); login_sorareinside(spg); save_session(sctx, "sorareinside")
@@ -41,5 +41,6 @@ with sync_playwright() as p:
                                                                           for q in sorted(pick, key=lambda q: o[q['P']])) + (f" · ⚠️ falten {11 - len(pick)}" if len(pick) < 11 else ""))
         msg = "\n".join(lines)
         print("::notice title=plantilla::" + msg.replace("\n", " ¶ ")[:8000])
-        telegram(msg)
+        if "--quiet" not in sys.argv:
+            telegram(msg)
     b.close()
