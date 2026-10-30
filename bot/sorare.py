@@ -197,22 +197,17 @@ def probe():
     def T(n):
         m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
         return _re.sub(r"\s+", " ", m.group(1)) if m else f"{n}: ?"
-    impl = _re.findall(r"\ntype (\w+) implements [^{]*LineupInterface", sdl1)
-    print("::notice title=lineups::" + ", ".join(impl) + " ¶ " + T("So5Lineup")[:2500] + " ¶ " + T("PlayerRecommendation")[:800] + " ¶ " + T("RecommendationEngine"))
-    for sp in ("NBA", "FOOTBALL"):
-        for mode in ("CAREER", "SQUAD"):
-            try:
-                d = gql("""query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, sport: $sp) { __typename id title description endDate
-                    ... on CareerBoard { canUnlockNextBoard hasNextBoard rarities }
-                    ... on SquadBoard { nextMatchdayAt }
-                    myCurrentStep { __typename id level state target
-                      ... on CareerStep { title maxLineupsCount remainingLineupsCount pendingLineupsCount lockedLineupsCount averageMode }
-                      ... on SquadStep { totalLineups totalScore minimumLineupsToStartStep }
-                      myLineups { __typename id } }
-                    steps { id level state target } } } }""", {"sp": sp, "m": mode}, token=token())
-                print("::notice title=" + sp + " " + mode + "::" + json.dumps(d)[:3000])
-            except Exception as e:
-                print("::notice title=" + sp + " " + mode + "::" + str(e)[:500])
+    print("::notice title=tipus::" + T("TaskLineup")[:2500] + " ¶ " + T("PlayerGameScoreInterface")[:1500] + " ¶ " + T("So5RuleInterface")[:600])
+    out = []
+    for sp, mode in (("NBA", "CAREER"), ("NBA", "SQUAD")):
+        d = gql("""query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, sport: $sp) { myCurrentStep { id
+            engineConfiguration { lineup positions captain averageScores scarcity xpMultiplier player activeClubs sameActiveClub }
+            displayedTypedRules { __typename }
+            myFilteredBench(filters: {}, first: 60) { nodes { ... on ComposeTeamBenchCard { position anyCard { slug xp rarityTyped }
+              anyPlayer { displayName slug ... on NBAPlayer { nextDailyFixtureProjectedScore gameplayTierStars } }
+              l10: averageScore(type: LAST_TEN_PLAYED_SO5_AVERAGE_SCORE) } } } } } } }""", {"sp": sp, "m": mode}, token=token())
+        out.append(sp + " " + mode + ": " + json.dumps(d)[:4500])
+    print("::notice title=nba set::" + " ¶ ".join(out))
 
 
 
