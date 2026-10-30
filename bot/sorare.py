@@ -196,7 +196,7 @@ def probe():
     def T(n):
         m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl, _re.S)
         return _re.sub(r'\s*"""[\s\S]*?"""', "", m.group(1)).replace("\n", " ") if m else f"{n}: ?"
-    for n in ("DecisivePlayerPickerMode", "GameWithCardsPreview", "OverperformAverageScoreConfig", "Stat"):
+    for n in ("AnyCardWithPlayerGameScore",):
         print("::notice title=" + n + "::" + T(n)[:3000])
     from bot.soraremissions import TASKS, TASK, UPSERT
     for r in ("limited", "rare"):
@@ -204,7 +204,7 @@ def probe():
             if t["__typename"] != "DecisivePlayerPickerTask":
                 continue
             tid = t["id"].split(":")[-1]
-            d = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title mode decisiveActions decisiveStats maxAppearancesCount
+            d = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title mode decisiveActions decisiveStats { name shortName } overperform { averageType by } maxAppearancesCount
                 taskAppearances { index status anyCard { slug } game { id } } } } } }""", {"id": tid}, token=token())["currentUser"]["task"]
             print("::notice title=task " + r + "::" + json.dumps(d)[:2000])
     # prova de picks (permès: només la missió) amb diverses formes de l'id del partit
