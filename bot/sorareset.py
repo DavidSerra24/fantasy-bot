@@ -191,9 +191,9 @@ LINEUPS = """query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $
 
 
 def review(sports=("NBA",), dry=False):
-    """Abans de cada partit: si un jugador d'una alineació ja feta deixa de jugar (previsió 0 o lesionat) i el seu partit
-    encara no ha començat, es canvia pel millor jugador lliure del mateix dia que encaixi a la casella i al límit
-    d'estrelles (decisió del David, 31/10)."""
+    """Abans de cada partit: per a cada jugador d'una alineació ja feta que encara no ha començat, si deixa de jugar
+    (previsió 0 o lesionat) o hi ha un jugador lliure del mateix dia amb més punts previstos (més de 2) que encaixi a la
+    casella i al límit d'estrelles, es canvia (decisió del David, 31/10)."""
     now = dt.datetime.now(dt.timezone.utc)
     rep = []
     D = lambda x: dt.datetime.fromisoformat(x.replace("Z", "+00:00"))
@@ -246,21 +246,26 @@ def review(sports=("NBA",), dry=False):
                     started = not a.get("game") or D(a["game"]["date"]) <= now + dt.timedelta(minutes=3)
                     plays = (g.get("projectedScore") or 0) > 0 and not c.get("inj")
                     keep = {"index": a["index"], "cardSlug": a["anyCard"]["slug"], "gameId": (gid or "").split(":")[-1]}
-                    if started or plays:
+                    if started:
                         new_apps.append(keep)
                         continue
+                    curp = (g.get("projectedScore") or 0) if plays else 0
                     slotpos = set((slots[a["index"]] if a["index"] < len(slots) else {}).get("positions") or [])
+                    # també si un jugador lliure (que no ha començat) ara té més punts previstos (p. ex. abans tenia 0)
                     opts = [f for f in free.values() if (not slotpos or set(f["positions"]) & slotpos)
-                            and (cap is None or stars - c.get("stars", 0) + f["stars"] <= cap)]
+                            and (cap is None or stars - c.get("stars", 0) + f["stars"] <= cap) and f["proj"] > curp + 2]
                     if not opts:
                         new_apps.append(keep)
-                        changes.append(f"⚠️ {a['anyPlayer']['displayName']} no juga i no hi ha cap substitut que hi càpiga")
+                        if not plays:
+                            changes.append(f"⚠️ {a['anyPlayer']['displayName']} no juga i no hi ha cap substitut que hi càpiga")
                         continue
                     f = max(opts, key=lambda f: f["proj"])
                     free.pop(f["player"])
+                    if plays and c.get("player"):  # el que surt torna a quedar lliure per a una altra alineació
+                        free[c["player"]] = dict(c, proj=curp, game=a["game"])
                     stars += f["stars"] - c.get("stars", 0)
                     new_apps.append({"index": a["index"], "cardSlug": f["card"], "gameId": f["game"]["id"].split(":")[-1]})
-                    changes.append(f"{a['anyPlayer']['displayName']} (no juga) → {f['name']} ({f['proj']:.0f} previstos)")
+                    changes.append(f"{a['anyPlayer']['displayName']} ({'no juga' if not plays else f'{curp:.0f} previstos'}) → {f['name']} ({f['proj']:.0f} previstos)")
                 real = [c_ for c_ in changes if "→" in c_]
                 if real and not dry:
                     try:
