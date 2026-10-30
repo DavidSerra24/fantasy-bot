@@ -9,6 +9,7 @@ import sys
 from bot.notify import telegram
 
 LEAGUE = {"Quique": (2499621, "Spain", "Segunda División"), "Fentaniños": (2519290, "Spain", "Primera División")}
+LOANDBG = []
 POS = {"POR": 1, "DEF": 2, "MIG": 3, "DAV": 4}
 
 
@@ -39,7 +40,7 @@ def main(league="Quique", pos="POR", minimum=60):
     for li in re.findall(r"<li[^>]*data-loanable=\"1\"[^>]*>.*?</li>", market, re.S):
         loanable |= set(re.findall(r'data-id_player="(\d+)"', li)) | set(re.findall(r'players/(\d+)/', li))
     if loan_only:
-        sources = [market]
+        sources = sources + [market]
     keys_dbg = None
     for page in sources:
         for pid in dict.fromkeys(re.findall(r'players/(\d+)/', page) + re.findall(r'data-id_player="(\d+)"', page)):
@@ -53,7 +54,10 @@ def main(league="Quique", pos="POR", minimum=60):
             keys_dbg = keys_dbg or sorted(d.keys())
             if d.get("position") != POS[pos]:
                 continue
-            is_loan = pid in loanable or bool(d.get("loanable") or (d.get("loan") or {}).get("loanable") if isinstance(d.get("loan"), dict) else d.get("loanable"))
+            ln = d.get("loan")
+            if pos and d.get("position") == POS[pos] and len(LOANDBG) < 6:
+                LOANDBG.append(f"{d.get('name')}: {ln}")
+            is_loan = pid in loanable or (isinstance(ln, dict) and any(ln.get(k) for k in ("loanable", "isLoanable", "available", "enabled", "price")))
             if loan_only and not is_loan:
                 continue
             owner = d.get("owner") or {}
@@ -94,7 +98,7 @@ def main(league="Quique", pos="POR", minimum=60):
         lines.append("Per sota del mínim: " + ", ".join(f"{c['name']} ({c['team']}, {c['pct'] if c['pct'] is not None else '?'}%)" for c in rest))
     msg = "\n".join(lines)
     print("::notice title=clausula::" + msg.replace("\n", " ¶ ")[:8000])
-    print(f"::notice title=debug::usuaris {len(users)}, jugadors mirats {len(seen)}, candidats {len(cands)}, cedibles al mercat {len(loanable)}, camps {keys_dbg}")
+    print(f"::notice title=debug::usuaris {len(users)}, jugadors mirats {len(seen)}, candidats {len(cands)}, cedibles al mercat {len(loanable)}, camps {keys_dbg} · loan: {LOANDBG}")
     telegram(msg)
 
 
