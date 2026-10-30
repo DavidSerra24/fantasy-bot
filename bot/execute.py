@@ -42,8 +42,8 @@ while queue:
             "misterxi": "Mister: alineació i capità" + (f" ({names.get(a['comp'], a['comp'])}, revisió final)" if a["comp"] else ""),
             "fffinal": f"revisió final del Fantasy {names.get(a['comp'], a['comp'])} (onzes oficials)",
             "sorare": "Sorare: " + ("revisió final de les alineacions + Arenes" if a["comp"] == "final" else "omplir/revisar les alineacions"),
-            "sorarexi": "Sorare: porters", "sorarearena": "Sorare: Arena amb porter", "soraremission": "Sorare: Decisive Picker", "misterloan": "Mister: cessions", "soraresetscan": "Sorare Set: partits", "soraresetgo": "Sorare Set: alineacions"}[a["do"]]
-    if a["do"] not in ("quinrem", "sorarexi", "sorarearena", "soraremission", "misterloan", "soraresetscan", "soraresetgo"):  # el recordatori ja envia el seu missatge (només si cal)
+            "sorarexi": "Sorare: porters", "sorarearena": "Sorare: Arena amb porter", "soraremission": "Sorare: Decisive Picker", "misterloan": "Mister: cessions", "soraresetscan": "Sorare Set: partits", "soraresetgo": "Sorare Set: alineacions", "soraresetrev": "Sorare Set: revisió"}[a["do"]]
+    if a["do"] not in ("quinrem", "sorarexi", "sorarearena", "soraremission", "misterloan", "soraresetscan", "soraresetgo", "soraresetrev"):  # el recordatori ja envia el seu missatge (només si cal)
         telegram(f"▶️ Començo: {what}")
     try:
         if a["do"] == "p11":
@@ -78,7 +78,7 @@ while queue:
         elif a["do"] == "sorare":
             from bot import sorarelineup
             sorarelineup.run(a["comp"])
-        elif a["do"] in ("soraresetscan", "soraresetgo"):
+        elif a["do"] in ("soraresetscan", "soraresetgo", "soraresetrev"):
             from bot import sorareset
             sorareset.run(dry=False, scan=a["do"] == "soraresetscan")
         elif a["do"] == "misterloan":

@@ -26,7 +26,7 @@ STEP = """query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, 
     myLineups { ... on TaskLineup { id aasmState taskAppearances { ... on TaskAppearanceInterface { anyPlayer { slug displayName } anyCard { slug } } } } }
     displayedTypedRules { key ... on So5AverageScoresRule { averageType max }
       ... on So5AppearancesRule { appearances { name positions sub } } } } } } }"""
-BENCH = """query($st: String!, $after: String) { currentUser { step(id: $st) { myFilteredBench(filters: {}, first: 100, after: $after) {
+BENCH = """query($st: String!, $after: String, $f: BenchFilterInput!) { currentUser { step(id: $st) { myFilteredBench(filters: $f, first: 100, after: $after) {
   pageInfo { hasNextPage endCursor }
   nodes { ... on ComposeTeamBenchCard { position positions bonus anyCard { slug xp }
     anyPlayer { displayName slug ... on NBAPlayer { gameplayTierStars activeInjuries { id } } }
@@ -34,10 +34,10 @@ BENCH = """query($st: String!, $after: String) { currentUser { step(id: $st) { m
 UPSERT = """mutation($input: upsertStepLineupInput!) { upsertStepLineup(input: $input) { errors { message } lineup { id } } }"""
 
 
-def bench(step_id):
+def bench(step_id, used=False):
     out, after = [], None
     for _ in range(10):
-        d = gql(BENCH, {"st": step_id, "after": after}, token=token())["currentUser"]["step"]["myFilteredBench"]
+        d = gql(BENCH, {"st": step_id, "after": after, "f": {"includeUsed": True} if used else {}}, token=token())["currentUser"]["step"]["myFilteredBench"]
         out += [n for n in d["nodes"] if n]
         if not d["pageInfo"]["hasNextPage"]:
             break
@@ -67,7 +67,7 @@ def best(cands, slots, cap):
 def run(dry=False, sports=("NBA",), scan=False):
     """scan=True: no fa res, només desa l'hora del primer partit amb jugadors (state/sorare_set.json) per al planificador."""
     now = dt.datetime.now(dt.timezone.utc)
-    rep, firsts = [], []
+    rep, firsts, games_used = [], [], []
     for sp in sports:
         for mode in ("CAREER", "SQUAD"):
             label = f"{'🏀' if sp == 'NBA' else '⚽'} Set {sp} · {'personal' if mode == 'CAREER' else 'equip'}"
@@ -150,10 +150,13 @@ def run(dry=False, sports=("NBA",), scan=False):
                     except Exception as e:
                         lines.append(f"   ❌ alineació {k + 1}: {str(e)[:200]}")
                         break
+                games_used.extend(c["game"]["date"] for c in perm)
                 chosen = {c["player"] for c in perm}
                 pool = [c for c in pool if c["player"] not in chosen]
             rep.append("\n".join(lines))
     stt = load_json("sorare_set.json", {})
+    if games_used:
+        stt["games"] = sorted(set(games_used) | {g for g in stt.get("games", []) if g > now.isoformat()[:19]})
     if firsts:
         stt["first"] = min(firsts)
     stt["at"] = now.isoformat()
@@ -173,5 +176,107 @@ if __name__ == "__main__":
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--sport", nargs="*", default=["NBA"])
     ap.add_argument("--scan", action="store_true")
+    ap.add_argument("--review", action="store_true")
     a = ap.parse_args()
-    run(a.dry, tuple(a.sport), a.scan)
+    if a.review:
+        review(tuple(a.sport), a.dry)
+    else:
+        run(a.dry, tuple(a.sport), a.scan)
+
+
+LINEUPS = """query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, sport: $sp) { title
+  myCurrentStep { id state
+    myLineups { ... on TaskLineup { id aasmState taskAppearances { ... on TaskAppearanceInterface { index anyCard { slug } anyPlayer { slug displayName } game { id date } } } } }
+    displayedTypedRules { key ... on So5AverageScoresRule { averageType max } ... on So5AppearancesRule { appearances { name positions sub } } } } } } }"""
+
+
+def review(sports=("NBA",), dry=False):
+    """Abans de cada partit: si un jugador d'una alineació ja feta deixa de jugar (previsió 0 o lesionat) i el seu partit
+    encara no ha començat, es canvia pel millor jugador lliure del mateix dia que encaixi a la casella i al límit
+    d'estrelles (decisió del David, 31/10)."""
+    now = dt.datetime.now(dt.timezone.utc)
+    rep = []
+    D = lambda x: dt.datetime.fromisoformat(x.replace("Z", "+00:00"))
+    for sp in sports:
+        for mode in ("CAREER", "SQUAD"):
+            label = f"{'🏀' if sp == 'NBA' else '⚽'} Set {sp} · {'personal' if mode == 'CAREER' else 'equip'}"
+            try:
+                st = gql(LINEUPS, {"sp": sp, "m": mode}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
+            except Exception as e:
+                rep.append(f"⚠️ {label}: {str(e)[:200]}")
+                continue
+            lineups = [l for l in (st or {}).get("myLineups") or [] if l and l.get("taskAppearances")]
+            if not lineups:
+                continue
+            rules = {r["key"]: r for r in st.get("displayedTypedRules") or []}
+            slots = [a for a in (rules.get("Appearances") or {}).get("appearances") or [] if not a.get("sub")]
+            cap = (rules.get("AverageScores") or {}).get("max") if (rules.get("AverageScores") or {}).get("averageType") == "STARS" else None
+            info = {}
+            for n in bench(st["id"], used=True):
+                p = n["anyPlayer"]
+                gs = {g["anyGame"]["id"]: g for g in n.get("eligiblePlayerGameScores") or [] if g and g.get("anyGame")}
+                info[n["anyCard"]["slug"]] = {"card": n["anyCard"]["slug"], "player": p["slug"], "name": p["displayName"], "stars": p.get("gameplayTierStars") or 0,
+                                              "inj": bool(p.get("activeInjuries")), "positions": n.get("positions") or [n.get("position")],
+                                              "bonus": n.get("bonus") or 0, "xp": n["anyCard"].get("xp") or 0, "games": gs}
+            used = {a["anyPlayer"]["slug"] for l in lineups for a in l["taskAppearances"] if a}
+            dates = [D(a["game"]["date"]) for l in lineups for a in l["taskAppearances"] if a and a.get("game")]
+            if not dates:
+                continue
+            start = min(dates)
+            free = {}
+            for c in info.values():
+                if c["player"] in used or c["inj"]:
+                    continue
+                for gid, g in c["games"].items():
+                    d = D(g["anyGame"]["date"])
+                    if now + dt.timedelta(minutes=3) < d < start + dt.timedelta(hours=12) and (g.get("projectedScore") or 0) > 0:
+                        cur = free.get(c["player"])
+                        cand = dict(c, proj=g["projectedScore"], game=g["anyGame"])
+                        if not cur or (cand["bonus"], cand["xp"], cand["proj"]) > (cur["bonus"], cur["xp"], cur["proj"]):
+                            free[c["player"]] = cand
+            lines = []
+            for l in lineups:
+                apps = sorted([a for a in l["taskAppearances"] if a], key=lambda a: a["index"])
+                stars = sum((info.get(a["anyCard"]["slug"]) or {}).get("stars", 0) for a in apps)
+                new_apps, changes = [], []
+                for a in apps:
+                    c = info.get(a["anyCard"]["slug"]) or {}
+                    gid = a["game"]["id"] if a.get("game") else None
+                    g = (c.get("games") or {}).get(gid) or {}
+                    started = not a.get("game") or D(a["game"]["date"]) <= now + dt.timedelta(minutes=3)
+                    plays = (g.get("projectedScore") or 0) > 0 and not c.get("inj")
+                    keep = {"index": a["index"], "cardSlug": a["anyCard"]["slug"], "gameId": (gid or "").split(":")[-1]}
+                    if started or plays:
+                        new_apps.append(keep)
+                        continue
+                    slotpos = set((slots[a["index"]] if a["index"] < len(slots) else {}).get("positions") or [])
+                    opts = [f for f in free.values() if (not slotpos or set(f["positions"]) & slotpos)
+                            and (cap is None or stars - c.get("stars", 0) + f["stars"] <= cap)]
+                    if not opts:
+                        new_apps.append(keep)
+                        changes.append(f"⚠️ {a['anyPlayer']['displayName']} no juga i no hi ha cap substitut que hi càpiga")
+                        continue
+                    f = max(opts, key=lambda f: f["proj"])
+                    free.pop(f["player"])
+                    stars += f["stars"] - c.get("stars", 0)
+                    new_apps.append({"index": a["index"], "cardSlug": f["card"], "gameId": f["game"]["id"].split(":")[-1]})
+                    changes.append(f"{a['anyPlayer']['displayName']} (no juga) → {f['name']} ({f['proj']:.0f} previstos)")
+                real = [c_ for c_ in changes if "→" in c_]
+                if real and not dry:
+                    try:
+                        d = gql(UPSERT, {"input": {"stepId": st["id"], "lineupId": l["id"], "appearances": new_apps}}, token=token())["upsertStepLineup"]
+                        if d.get("errors"):
+                            raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
+                        lines.append("   🔁 " + "; ".join(changes))
+                    except Exception as e:
+                        lines.append(f"   ❌ {'; '.join(changes)}: {str(e)[:200]}")
+                elif changes:
+                    lines.append(("   (prova) " if dry else "   ") + "; ".join(changes))
+            if lines:
+                rep.append(label + "\n" + "\n".join(lines))
+    for k, r in enumerate(rep):
+        print(f"::notice title=set revisió {k + 1}::" + r.replace("\n", " ¶ ")[:3900])
+    if rep:
+        telegram("Sorare · Set · revisió" + (" (prova)" if dry else "") + "\n" + "\n".join(rep))
+    else:
+        print("::notice title=set revisió::tots els jugadors pendents juguen; sense canvis")

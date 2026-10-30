@@ -199,6 +199,13 @@ def plan(now=None, done=None):
         # l'NBA es juga un cop al dia: s'apura fins a l'últim moment (previsions de RotoWire més fresques; decisió del David, 30/10)
         if due(k, F - dt.timedelta(minutes=12), F - dt.timedelta(minutes=2)):
             add(k, F - dt.timedelta(minutes=12), "soraresetgo", None, F - dt.timedelta(minutes=2))
+    # Set NBA: revisió de les alineacions ja fetes abans de cada partit (si un jugador deixa de jugar, es canvia; decisió del David, 31/10)
+    for gd in load_json("sorare_set.json", {}).get("games", []):
+        G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
+        for mins in (20, 8):
+            k = f"soraresetrev:{gd}:{mins}"
+            if due(k, G - dt.timedelta(minutes=mins), G - dt.timedelta(minutes=3)):
+                add(k, G - dt.timedelta(minutes=mins), "soraresetrev", None, G - dt.timedelta(minutes=3))
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
