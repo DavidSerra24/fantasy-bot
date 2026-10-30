@@ -171,9 +171,11 @@ def plan(now=None, done=None):
         add(k, t10, "soraremission", "mati", t10 + dt.timedelta(hours=12))
     for gd in load_json("sorare_missions.json", {}).get("games", []):
         G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
-        k = f"soraremission:{gd}"
-        if due(k, G - dt.timedelta(minutes=15), G):
-            add(k, G - dt.timedelta(minutes=15), "soraremission", gd, G)
+        # 45 min abans (l'onze de Sorare surt ~1 h abans: els de <80% que juguen abans entren si són titulars) i 15 min abans
+        for mins in (45, 15):
+            k = f"soraremission:{gd}" + ("" if mins == 15 else f":{mins}")
+            if due(k, G - dt.timedelta(minutes=mins), G):
+                add(k, G - dt.timedelta(minutes=mins), "soraremission", gd, G)
     # Mister: vigilància de cessions (Quique, 80–90%) cada hora fins a l'hora de config/mister_loanwatch.json
     try:
         lw = json.load(open("config/mister_loanwatch.json"))
