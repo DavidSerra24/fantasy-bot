@@ -103,12 +103,20 @@ def run(dry=False, sports=("NBA",), scan=False):
                     continue
                 games = [g for g in n.get("eligiblePlayerGameScores") or [] if g and g.get("anyGame")
                          and dt.datetime.fromisoformat(g["anyGame"]["date"].replace("Z", "+00:00")) > now + dt.timedelta(minutes=5)]
-                g = max(games, key=lambda g: g.get("projectedScore") or 0, default=None)
-                if not g or not (g.get("projectedScore") or 0) > 0:
-                    continue
-                cands.append({"card": n["anyCard"]["slug"], "xp": n["anyCard"].get("xp") or 0, "player": p["slug"], "name": p["displayName"],
-                              "stars": p.get("gameplayTierStars") or 0, "positions": n.get("positions") or [n.get("position")],
-                              "proj": g["projectedScore"], "game": g["anyGame"]})
+                for g in games:
+                    if (g.get("projectedScore") or 0) > 0:
+                        cands.append({"card": n["anyCard"]["slug"], "xp": n["anyCard"].get("xp") or 0, "player": p["slug"], "name": p["displayName"],
+                                      "stars": p.get("gameplayTierStars") or 0, "positions": n.get("positions") or [n.get("position")],
+                                      "proj": g["projectedScore"], "game": g["anyGame"]})
+            # només els partits del mateix dia (decisió del David, 30/10): la jornada del primer partit (12 h des de l'inici)
+            if cands:
+                start = min(dt.datetime.fromisoformat(c["game"]["date"].replace("Z", "+00:00")) for c in cands)
+                cands = [c for c in cands if dt.datetime.fromisoformat(c["game"]["date"].replace("Z", "+00:00")) < start + dt.timedelta(hours=12)]
+                one = {}
+                for c in cands:  # un partit per carta (el de més punts previstos dins del dia)
+                    if c["card"] not in one or c["proj"] > one[c["card"]]["proj"]:
+                        one[c["card"]] = c
+                cands = list(one.values())
             if cands:
                 firsts.append(min(c["game"]["date"] for c in cands))
             if scan:
