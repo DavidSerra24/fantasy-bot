@@ -41,6 +41,11 @@ def main(league="Quique", pos="POR", minimum=60):
         loanable |= set(re.findall(r'data-id_player="(\d+)"', li)) | set(re.findall(r'players/(\d+)/', li))
     if loan_only:
         sources = sources + [market]
+        for pg_ in sources:  # a les plantilles, el que es pot cedir també porta una marca «loanable»
+            for blk in re.findall(r"<(?:li|div|button|a)[^>]*loanable[^>]*>", pg_):
+                if re.search(r'loanable(?:=|-)"?(1|true)', blk) or 'btn-loan' in blk or 'loanable"' in blk:
+                    loanable |= set(re.findall(r'data-id_player="(\d+)"', blk))
+        LOANDBG.append("marques: " + str(sum(pg_.count("loanable") for pg_ in sources)) + " · " + " | ".join(set(re.findall(r"<[^>]{0,120}loanable[^>]{0,120}>", "".join(sources[:3]))))[:600])
     keys_dbg = None
     for page in sources:
         for pid in dict.fromkeys(re.findall(r'players/(\d+)/', page) + re.findall(r'data-id_player="(\d+)"', page)):
