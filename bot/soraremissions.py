@@ -260,6 +260,7 @@ def run(dry=False):
             pl["want"].append(q)
             pl["extra"].add(q["slug"])
             used_cards.add(q["card"])
+    pending = []
     for pl in sorted(plans, key=lambda pl: pl["pri"]):
         task, tid, nba, stat, need, apps, locked, free, want = (pl[k] for k in ("task", "tid", "nba", "stat", "need", "apps", "locked", "free", "want"))
         cur = {i: apps[i] for i in free if i in apps}
@@ -290,19 +291,47 @@ def run(dry=False):
             if dry:
                 line.append("   (prova) canviaria: " + ", ".join(q["name"] for q in new) + (" en lloc de " + ", ".join(a["anyPlayer"]["displayName"] for i, a in cur.items() if i not in keep) if len(cur) > len(keep) else ""))
             else:
-                try:
-                    d = gql(UPSERT, {"input": {"taskId": task["id"], "taskAppearances": payload}}, token=token())["upsertTaskAppearances"]
-                    if d.get("errors"):
-                        raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
-                    after = gql(TASK, {"id": tid}, token=token())["currentUser"]["task"]["taskAppearances"]
-                    line.append("   ✅ picks ara: " + ", ".join(a["anyPlayer"]["displayName"] for a in sorted(after, key=lambda a: a["index"])))
-                except Exception as e:
-                    line.append(f"   ❌ no he pogut posar els picks: {str(e)[:200]}")
+                pending.append({"task": task, "tid": tid, "payload": payload, "line": line})
         else:
             if not want and not cur and not locked:
                 continue  # cap carta d'aquesta raresa/esport: no cal dir res
             line.append("   sense canvis")
-        rep.append("\n".join(line))
+        rep.append(line)
+    # Una carta només pot ser en una missió: si la que volem encara és en una altra, primer s'ha de canviar aquella.
+    # Es repeteix fins que tot entra; si es queden encallades (intercanvi), s'alliberen les cartes posant només els
+    # picks que no xoquen i es torna a provar.
+    def upsert(p_, payload):
+        d = gql(UPSERT, {"input": {"taskId": p_["task"]["id"], "taskAppearances": payload}}, token=token())["upsertTaskAppearances"]
+        if d.get("errors"):
+            raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
+    for rnd in range(6):
+        progress, errs = False, {}
+        for p_ in [p_ for p_ in pending if not p_.get("done")]:
+            try:
+                upsert(p_, p_["payload"])
+                p_["done"], progress = True, True
+            except Exception as e:
+                errs[id(p_)] = str(e)
+                p_["err"] = str(e)[:200]
+        if all(p_.get("done") for p_ in pending):
+            break
+        if not progress:
+            for p_ in [p_ for p_ in pending if not p_.get("done")]:
+                held = {a["anyCard"]["slug"] for a in gql(TASK, {"id": p_["tid"]}, token=token())["currentUser"]["task"]["taskAppearances"]}
+                wanted_elsewhere = {x["cardSlug"] for o_ in pending if o_ is not p_ for x in o_["payload"]}
+                if held & wanted_elsewhere:  # treu d'aquesta missió les cartes que una altra necessita
+                    try:
+                        upsert(p_, [x for x in p_["payload"] if x["cardSlug"] in held and x["cardSlug"] not in wanted_elsewhere]
+                               or [x for x in p_["payload"] if x["cardSlug"] not in wanted_elsewhere][:1])
+                    except Exception:
+                        pass
+    for p_ in pending:
+        if p_.get("done"):
+            after = gql(TASK, {"id": p_["tid"]}, token=token())["currentUser"]["task"]["taskAppearances"]
+            p_["line"].append("   ✅ picks ara: " + ", ".join(a["anyPlayer"]["displayName"] for a in sorted(after, key=lambda a: a["index"])))
+        else:
+            p_["line"].append(f"   ❌ no he pogut posar els picks: {p_.get('err')}")
+    rep[:] = ["\n".join(r) if isinstance(r, list) else r for r in rep]
     save_json("sorare_missions.json", {"games": sorted(set(games_seen)), "at": now.isoformat()})
     msg = "Sorare · missions" + (" (prova)" if dry else "") + "\n" + ("\n".join(rep) or "Cap missió de Decisive Picker avui.")
     for k, r in enumerate(rep):  # una anotació per missió (cada anotació es talla als ~4000 caràcters)
