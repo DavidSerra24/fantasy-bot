@@ -217,6 +217,8 @@ if __name__ == "__main__":
          "final": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("final"),
          "missions": lambda: __import__("bot.soraremissions", fromlist=["run"]).run(dry=True),
          "missionsgo": lambda: __import__("bot.soraremissions", fromlist=["run"]).run(dry=False),
+         "set": lambda: __import__("bot.sorareset", fromlist=["run"]).run(dry=True),
+         "setgo": lambda: __import__("bot.sorareset", fromlist=["run"]).run(dry=False),
          "plandry": lambda: __import__("bot.plandry")}[cmd]()
     except Exception as e:
         import traceback
