@@ -189,19 +189,24 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): esquema dels taulers del Set."""
+    """Prova (només lectura): on són els taulers del Set i com són els passos."""
     import re as _re
     import requests as _rq
     sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
+    sdl1 = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", sdl)
     def T(n):
-        m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl, _re.S)
-        return _re.sub(r'\s+', " ", _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", m.group(1))) if m else f"{n}: ?"
-    for n in ("Board", "CareerBoard", "SquadBoard", "SquadStep", "Squad", "BoardMode", "upsertStepLineupInput", "claimStepInput", "unlockNextBoardInput",
-              "StepLineupInput", "TasksTrack", "SetTasksTrack", "Step", "CareerStep", "BoardStep"):
+        m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
+        return _re.sub(r"\s+", " ", m.group(1)) if m else f"{n}: ?"
+    hits = []
+    for m in _re.finditer(r"\ntype (\w+)[^{]*\{(.*?)\n\}", sdl1, _re.S):
+        for f in _re.finditer(r"\n  (\w+)(\([^)]*\))?: \[?(\w+)", m.group(2)):
+            if f.group(3) in ("Board", "CareerBoard", "SquadBoard", "StepInterface", "Squad"):
+                hits.append(f"{m.group(1)}.{f.group(1)}{_re.sub(chr(92)+'s+', ' ', f.group(2) or '')}: {f.group(3)}")
+    print("::notice title=on::" + " || ".join(hits)[:6000])
+    impls = _re.findall(r"\ntype (\w+) implements [^{]*StepInterface", sdl1)
+    print("::notice title=steps::" + ", ".join(impls))
+    for n in impls[:4] + ["StepInterface", "AppearanceInput", "StepState"]:
         print("::notice title=" + n + "::" + T(n)[:3500])
-    for f in ("board", "boards", "careerBoard", "squadBoard", "mySquad", "currentBoard"):
-        for m in _re.finditer(r"\n  (" + f + r")(\([^)]*\))?: ([\w\[\]!]+)", sdl):
-            print("::notice title=camp " + f + "::" + m.group(0).strip()[:300])
 
 
 
