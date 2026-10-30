@@ -189,11 +189,28 @@ def explore():
 
 
 def probe():
-    """Prova: onzes per equip de FotMob."""
-    import datetime as dt
-    from bot import fotmob
-    r = fotmob.starters_by_team("Everton", "Newcastle United", dt.datetime(2026, 10, 29, 19, 45, tzinfo=dt.timezone.utc))
-    print("::notice title=fotmob::" + json.dumps(r)[:1500])
+    """Prova (només lectura): tipus de les missions i de les estadístiques per partit."""
+    def T(n):
+        d = gql("""query($n: String!) { __type(name: $n) { kind fields { name args { name } type { name kind ofType { name kind ofType { name } } } }
+            inputFields { name type { name kind ofType { name kind ofType { name } } } } enumValues { name } } }""", {"n": n}, token=token())["__type"]
+        if not d:
+            return f"{n}: ?"
+        fs = d.get("fields") or d.get("inputFields") or []
+        return f"{n}({d['kind']}): " + ", ".join(f["name"] + ":" + str(f["type"].get("name") or (f["type"].get("ofType") or {}).get("name") or ((f["type"].get("ofType") or {}).get("ofType") or {}).get("name")) for f in fs) + (" | enum " + ",".join(e["name"] for e in d["enumValues"]) if d.get("enumValues") else "")
+    for n in ("upsertTaskAppearancesInput", "TaskAppearanceInput", "TaskAppearanceAttributes", "DecisivePlayerPickerTask", "TaskAppearance", "PickableGame",
+              "DecisivePlayerPickerTaskMode", "PlayerGameScore", "PlayerGameStats", "StatScore", "TaskReward", "TaskRewardConfig"):
+        print("::notice title=" + n + "::" + T(n)[:6000])
+    from bot.soraremissions import TASKS
+    for r in ("limited", "rare"):
+        for t in gql(TASKS, {"r": r, "sp": "FOOTBALL"}, token=token())["currentUser"]["featuredTasks"]:
+            tid = t["id"].split(":")[-1]
+            try:
+                d = gql("""query($id: ID!) { currentUser { task(id: $id) { __typename ... on DecisivePlayerPickerTask { id title mode decisiveActions maxAppearancesCount
+                    taskAppearances { index status anyCard { slug } game { id } } } } } }""", {"id": tid}, token=token())["currentUser"]["task"]
+            except Exception as e:
+                d = str(e)[:300]
+            print("::notice title=task " + r + "::" + json.dumps({"t": t, "d": d})[:3000])
+
 
 
 if __name__ == "__main__":
