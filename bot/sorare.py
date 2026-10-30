@@ -197,11 +197,8 @@ def probe():
     def T(n):
         m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
         return _re.sub(r"\s+", " ", m.group(1)) if m else f"{n}: ?"
-    for n in ("BenchFilterInput", "ComposeTeamBenchObjectInterface", "ComposeTeamBenchCard", "LineupInterface", "StepLineup", "BenchSort", "EngineConfiguration",
-              "So5RuleInterface", "PlayerRecommendation", "RecommendationEngine"):
-        print("::notice title=" + n + "::" + T(n)[:2500])
     impl = _re.findall(r"\ntype (\w+) implements [^{]*LineupInterface", sdl1)
-    print("::notice title=lineups::" + ", ".join(impl))
+    print("::notice title=lineups::" + ", ".join(impl) + " ¶ " + T("So5Lineup")[:2500] + " ¶ " + T("PlayerRecommendation")[:800] + " ¶ " + T("RecommendationEngine"))
     for sp in ("NBA", "FOOTBALL"):
         for mode in ("CAREER", "SQUAD"):
             try:
