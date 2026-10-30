@@ -198,7 +198,10 @@ def probe():
         return _re.sub(r'\s*"""[\s\S]*?"""', "", m.group(1)).replace("\n", " ") if m else f"{n}: ?"
     cu = _re.search(r"\ntype CurrentUser [^{]*\{(.*?)\n\}", sdl, _re.S).group(1)
     cu = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", cu)
-    print("::notice title=CurrentUser tasks::" + " | ".join(l.strip() for l in _re.split(r"\n  (?=\w)", cu) if _re.search(r"task|mission|picker", l, _re.I))[:6000])
+    cu1 = _re.sub(r"\s+", " ", cu)
+    print("::notice title=CurrentUser tasks::" + " || ".join(m.group(0)[:400] for m in _re.finditer(r"\b\w*(?:[Tt]ask|[Mm]ission|[Pp]icker)\w*(?:\([^)]*\))?: [\w\[\]!]+", cu1))[:8000])
+    for n in ("TaskGroup", "ManagerTaskPeriodicity", "TaskGenre", "CalendarTasksTrack"):
+        print("::notice title=" + n + "::" + T(n)[:2000])
     from bot.soraremissions import TASKS
     for sp in ("FOOTBALL",):
         for r in ("limited", "rare"):
