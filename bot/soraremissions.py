@@ -5,7 +5,8 @@ Criteri (com SorareBuddy, decisió del David 29/10): «opcions» = probabilitat 
   onze, el % de SorareInside (filtre del banc de Sorare): només entren els del 80–90%. Els de menys del 80% es
   miren igualment i només entren si surten titulars a l'onze oficial (revisió 15 min abans de cada partit).
 - Diverses missions (caps de setmana, Champions): essència → pistes de crafteig → crèdits de mercat → experiència;
-  una carta triada en una missió no es fa servir en una altra.
+  una carta triada en una missió no es fa servir en una altra. Les places que queden buides s'omplen igualment amb
+  les cartes que sobren (primer a les d'acció decisiva, després per prioritat).
 - Forma: partits amb acció decisiva positiva dels últims 20 (desempat: últims 10 i últims 5); a les missions
   d'estadística («3+ tackles», «2+ shots on target»), partits en què va arribar a la xifra.
 Es trien els N millors (N = places de la missió, normalment 3), un per jugador. Els picks d'un partit ja començat
@@ -158,114 +159,156 @@ def form(slug, stat=None, need=1):
     return sum(dec[:5]), sum(dec[:10]), sum(dec[:20]), (sum(st) / len(st) if st else 0)
 
 
-def run(dry=False):
-    from bot.sorarelineup import lineup_status, starts
-    now = dt.datetime.now(dt.timezone.utc)
-    rep, games_seen = [], []
-    all_tasks = []
+DAILY = """query($sp: Sport!) { currentUser { tasks(periodicity: DAILY, sport: $sp) { __typename ... on DecisivePlayerPickerTask { id title description rarity
+  rewardConfigs { __typename ... on InGameCurrencyRewardConfig { currency amount } ... on CardShardRewardConfig { quantity rarity } } } } } }"""
+
+
+def list_tasks(rep):
+    """Totes les missions diàries (no només les destacades: p. ex. «Shot» Limited no surt a featuredTasks)."""
+    out, seen = [], set()
     for sport in ("FOOTBALL", "NBA"):  # MLB: fora de temporada (es pot afegir quan torni)
+        found = []
+        try:
+            for t in gql(DAILY, {"sp": sport}, token=token())["currentUser"]["tasks"]:
+                if t.get("__typename") == "DecisivePlayerPickerTask" and t.get("id"):
+                    found.append(((t.get("rarity") or "").lower(), t))
+        except Exception as e:
+            rep.append(f"⚠️ {sport}: llista de missions diàries ({str(e)[:150]})")
         for rarity in ("limited", "rare", "super_rare", "unique"):
             try:
                 for t in gql(TASKS, {"r": rarity, "sp": sport}, token=token())["currentUser"]["featuredTasks"]:
                     if t["__typename"] == "DecisivePlayerPickerTask":
-                        all_tasks.append((priority(t), rarity, dict(t, sport=sport)))
+                        found.append((rarity, t))
             except Exception as e:
                 rep.append(f"⚠️ {sport} {rarity}: {str(e)[:150]}")
-    all_tasks.sort(key=lambda x: x[0])  # primer les d'essència, després pistes, després experiència
+        for rarity, t in found:
+            if t["id"] not in seen:
+                seen.add(t["id"])
+                out.append((priority(t), rarity, dict(t, sport=sport)))
+    out.sort(key=lambda x: x[0])  # essència → pistes → crèdits de mercat → experiència
+    return out
+
+
+def run(dry=False):
+    from bot.sorarelineup import lineup_status, starts
+    import re as _re
+    import zoneinfo
+    MAD = zoneinfo.ZoneInfo("Europe/Madrid")
+    now = dt.datetime.now(dt.timezone.utc)
+    rep, games_seen = [], []
+    all_tasks = list_tasks(rep)
     odds = si_odds() if all_tasks else {}
     used_cards = set()
     PRI = {0: "essència", 1: "pistes de crafteig", 2: "crèdits de mercat", 3: "experiència", 4: "altres"}
-    if True:
-        for pri, rarity, t in all_tasks:
-            tid = t["id"].split(":")[-1]
-            task = gql(TASK, {"id": tid}, token=token())["currentUser"]["task"]
-            nba = t["sport"] == "NBA"
-            if task.get("expired"):
-                continue  # caducada (la d'ahir)
-            if task.get("mode") != "DECISIVE" and not nba:
-                rep.append(f"ℹ️ {task['title']} ({rarity}): {task['description']} — mode {task.get('mode')}, no la toco")
+    plans = []
+    for pri, rarity, t in all_tasks:
+        tid = t["id"].split(":")[-1]
+        task = gql(TASK, {"id": tid}, token=token())["currentUser"]["task"]
+        nba = t["sport"] == "NBA"
+        if task.get("expired"):
+            continue  # caducada (la d'ahir)
+        if task.get("mode") != "DECISIVE" and not nba:
+            rep.append(f"ℹ️ {task['title']} ({rarity}): {task['description']} — mode {task.get('mode')}, no la toco")
+            continue
+        stat = (task.get("decisiveActions") or [None])[0] if not nba else None
+        mneed = _re.search(r"(\d+)\+", task.get("description") or "")
+        need = int(mneed.group(1)) if (stat and mneed) else 1
+        n_max = task["maxAppearancesCount"]
+        apps = {a["index"]: a for a in task["taskAppearances"]}
+
+        def started(a):
+            return dt.datetime.fromisoformat(a["game"]["date"].replace("Z", "+00:00")) <= now + dt.timedelta(minutes=2) or a["status"] != "READY"
+        locked = {i: a for i, a in apps.items() if started(a)}
+        used_cards |= {a["anyCard"]["slug"] for a in locked.values()}
+        cache, cand = {}, {}
+        for gnode in task["pickableGames"]["nodes"]:
+            g = gnode["game"]
+            D = dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00"))
+            if D <= now + dt.timedelta(minutes=2):
                 continue
-            import re as _re
-            stat = (task.get("decisiveActions") or [None])[0] if not nba else None
-            mneed = _re.search(r"(\d+)\+", task.get("description") or "")
-            need = int(mneed.group(1)) if (stat and mneed) else 1
-            n_max = task["maxAppearancesCount"]
-            apps = {a["index"]: a for a in task["taskAppearances"]}
-            def started(a):
-                return dt.datetime.fromisoformat(a["game"]["date"].replace("Z", "+00:00")) <= now + dt.timedelta(minutes=2) or a["status"] != "READY"
-            locked = {i: a for i, a in apps.items() if started(a)}
-            used_cards |= {a["anyCard"]["slug"] for a in apps.values()}
-            # candidats: un per jugador (la carta de més XP), partits que encara no han començat
-            cache, cand = {}, {}
-            for gnode in task["pickableGames"]["nodes"]:
-                g = gnode["game"]
-                D = dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00"))
-                if D <= now + dt.timedelta(minutes=2):
+            games_seen.append(g["date"])
+            for c in gnode["cards"]:
+                p = c["anyPlayer"]
+                if any(a["anyPlayer"]["slug"] == p["slug"] for a in locked.values()):
                     continue
-                games_seen.append(g["date"])
-                for c in gnode["cards"]:
-                    p = c["anyPlayer"]
-                    if c["slug"] in used_cards and not any(a["anyCard"]["slug"] == c["slug"] for a in apps.values()):
-                        continue  # carta ja triada en una missió de més prioritat
-                    if any(a["anyPlayer"]["slug"] == p["slug"] for a in locked.values()):
-                        continue
-                    if p["slug"] not in cand or (c.get("xp") or 0) > cand[p["slug"]]["xp"]:
-                        cand[p["slug"]] = {"slug": p["slug"], "name": p["displayName"], "card": c["slug"], "xp": c.get("xp") or 0, "game": g, "date": D}
-            for q in (cand.values() if nba else []):
-                plays, margin, info = nba_score(q["slug"], task)
-                q.update(l5=0, l10=0, l20=0, tit=float(plays), confirmed=False, chance=margin if plays else -99, info=info)
-            for q in (cand.values() if not nba else []):
-                l5, l10, l20, st10 = form(q["slug"], stat, need)
-                xi = lineup_status(q["game"], cache)
-                # titular: amb l'onze oficial, 100% o 0%; si no, el % de SorareInside (només compten els del 80–90%)
-                tit = (1.0 if starts(xi, q["slug"], q["name"]) else 0.0) if xi else odds.get(q["slug"], 0.0)
-                q.update(l5=l5, l10=l10, l20=l20, tit=tit, confirmed=bool(xi), chance=tit * l20 / 20)
-            ranked = sorted(cand.values(), key=lambda q: (-q["chance"], -q["l10"], -q["l5"], q["date"]))
-            free = [i for i in range(n_max) if i not in locked]
-            want = [q for q in ranked if q["tit"] > 0][:len(free)]
-            cur = {i: apps[i] for i in free if i in apps}
-            cur_slugs = {a["anyPlayer"]["slug"] for a in cur.values()}
-            want_slugs = {q["slug"] for q in want}
-            used_cards |= {q["card"] for q in want}
-            line = [f"🎯 {'🏀 ' if nba else ''}{task['title']} ({rarity}, {n_max} places, recompensa: {PRI[pri]}): {task['description']}"]
-            for i, a in sorted(locked.items()):
-                line.append(f"   🔒 {a['anyPlayer']['displayName']} ({a['status'].lower()})")
-            if cur:
-                line.append("   ara triats: " + ", ".join(a["anyPlayer"]["displayName"] for a in cur.values()))
-            for q in ranked[:6]:
-                M = q["date"].astimezone(__import__("zoneinfo").ZoneInfo("Europe/Madrid"))
-                if nba:
-                    line.append(f"   {'✅' if q['slug'] in want_slugs else '·'} {q['name']} · {M:%H:%M} · {q['info']}{'' if q['tit'] else ' · no juga'}")
-                    continue
-                line.append(f"   {'✅' if q['slug'] in want_slugs else '·'} {q['name']} · {M:%H:%M} · titular {q['tit'] * 100:.0f}%{' (onze oficial)' if q['confirmed'] else ' (SorareInside)'}"
-                            f" · {(str(need) + '+ ' + stat) if stat else 'decisiu'} {q['l5']}/5 {q['l10']}/10 {q['l20']}/20 · opcions {q['chance'] * 100:.0f}%")
-            if want_slugs != cur_slugs and want:
-                # es mantenen a la seva casella els que ja hi són; els nous ocupen les caselles que queden
-                keep = {i: a for i, a in cur.items() if a["anyPlayer"]["slug"] in want_slugs}
-                new = [q for q in want if q["slug"] not in {a["anyPlayer"]["slug"] for a in keep.values()}]
-                slots = [i for i in free if i not in keep]
-                payload = [{"index": i, "cardSlug": q["card"], "gameId": q["game"]["id"].split(":")[-1]} for i, q in zip(slots, new)]
-                payload += [{"index": i, "cardSlug": a["anyCard"]["slug"], "gameId": a["game"]["id"].split(":")[-1]} for i, a in keep.items()]  # id sense «Game:» (amb el prefix: «No se encontró puntuación»)
-                if dry:
-                    line.append("   (prova) canviaria: " + ", ".join(q["name"] for q in new) + (" en lloc de " + ", ".join(a["anyPlayer"]["displayName"] for i, a in cur.items() if i not in keep) if len(cur) > len(keep) else ""))
-                else:
-                    try:
-                        d = gql(UPSERT, {"input": {"taskId": task["id"], "taskAppearances": payload}}, token=token())["upsertTaskAppearances"]
-                        if d.get("errors"):
-                            raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
-                        after = gql(TASK, {"id": tid}, token=token())["currentUser"]["task"]["taskAppearances"]
-                        line.append("   ✅ picks ara: " + ", ".join(a["anyPlayer"]["displayName"] for a in sorted(after, key=lambda a: a["index"])))
-                    except Exception as e:
-                        line.append(f"   ❌ no he pogut posar els picks: {str(e)[:200]}")
+                if p["slug"] not in cand or (c.get("xp") or 0) > cand[p["slug"]]["xp"]:
+                    cand[p["slug"]] = {"slug": p["slug"], "name": p["displayName"], "card": c["slug"], "xp": c.get("xp") or 0, "game": g, "date": D}
+        for q in (cand.values() if nba else []):
+            plays, margin, info = nba_score(q["slug"], task)
+            q.update(l5=0, l10=0, l20=0, tit=float(plays), confirmed=False, chance=margin if plays else -99, info=info, margin=margin)
+        for q in (cand.values() if not nba else []):
+            l5, l10, l20, st10 = form(q["slug"], stat, need)
+            xi = lineup_status(q["game"], cache)
+            # titular: amb l'onze oficial, 100% o 0%; si no, el % de SorareInside (només compten els del 80–90%)
+            tit = (1.0 if starts(xi, q["slug"], q["name"]) else 0.0) if xi else odds.get(q["slug"], 0.0)
+            q.update(l5=l5, l10=l10, l20=l20, tit=tit, confirmed=bool(xi), chance=tit * l20 / 20)
+        ranked = sorted(cand.values(), key=lambda q: (-q["chance"], -q["l10"], -q["l5"], q["date"]))
+        free = [i for i in range(n_max) if i not in locked]
+        want = []
+        for q in ranked:  # 1a passada: només els que juguen (80–90% o titulars a l'onze oficial)
+            if q["tit"] > 0 and q["card"] not in used_cards and len(want) < len(free):
+                want.append(q)
+                used_cards.add(q["card"])
+        plans.append(dict(task=task, tid=tid, pri=pri, rarity=rarity, nba=nba, stat=stat, need=need, n_max=n_max, apps=apps, locked=locked,
+                          free=free, ranked=ranked, want=want, extra=set()))
+    # 2a passada (decisió del David, 30/10): les places que queden buides s'omplen igualment amb les cartes que sobren
+    # («per si de cas», p. ex. suplents que poden entrar a la segona part). Primer a les missions d'acció decisiva
+    # (un suplent té més opcions de fer una acció decisiva que no pas xuts o tackles), després per prioritat.
+    for pl in sorted(plans, key=lambda pl: (0 if (not pl["stat"] and not pl["nba"]) else 1, pl["pri"])):
+        rest = sorted([q for q in pl["ranked"] if q["card"] not in used_cards and q not in pl["want"]],
+                      key=lambda q: (-(q.get("margin", 0) if pl["nba"] else 0), -q["l20"], -q["l10"], -q["l5"], q["date"]))
+        for q in rest:
+            if len(pl["want"]) >= len(pl["free"]):
+                break
+            pl["want"].append(q)
+            pl["extra"].add(q["slug"])
+            used_cards.add(q["card"])
+    for pl in sorted(plans, key=lambda pl: pl["pri"]):
+        task, tid, nba, stat, need, apps, locked, free, want = (pl[k] for k in ("task", "tid", "nba", "stat", "need", "apps", "locked", "free", "want"))
+        cur = {i: apps[i] for i in free if i in apps}
+        cur_slugs = {a["anyPlayer"]["slug"] for a in cur.values()}
+        want_slugs = {q["slug"] for q in want}
+        line = [f"🎯 {'🏀 ' if nba else ''}{task['title']} ({pl['rarity']}, {pl['n_max']} places, recompensa: {PRI[pl['pri']]}): {task['description']}"]
+        for i, a in sorted(locked.items()):
+            line.append(f"   🔒 {a['anyPlayer']['displayName']} ({a['status'].lower()})")
+        if cur:
+            line.append("   ara triats: " + ", ".join(a["anyPlayer"]["displayName"] for a in cur.values()))
+        shown = [q for q in pl["ranked"] if q["slug"] in want_slugs] + [q for q in pl["ranked"] if q["slug"] not in want_slugs][:3]
+        for q in shown:
+            M = q["date"].astimezone(MAD)
+            mark = ("🔸" if q["slug"] in pl["extra"] else "✅") if q["slug"] in want_slugs else "·"
+            if nba:
+                line.append(f"   {mark} {q['name']} · {M:%H:%M} · {q['info']}{'' if q['tit'] else ' · no juga'}")
+                continue
+            line.append(f"   {mark} {q['name']} · {M:%H:%M} · titular {q['tit'] * 100:.0f}%{' (onze oficial)' if q['confirmed'] else ' (SorareInside)'}"
+                        f" · {(str(need) + '+ ' + stat) if stat else 'decisiu'} {q['l5']}/5 {q['l10']}/10 {q['l20']}/20 · opcions {q['chance'] * 100:.0f}%")
+        if pl["extra"]:
+            line.append("   🔸 = carta que sobrava, posada per si de cas")
+        if want_slugs != cur_slugs and want:
+            keep = {i: a for i, a in cur.items() if a["anyPlayer"]["slug"] in want_slugs}
+            new = [q for q in want if q["slug"] not in {a["anyPlayer"]["slug"] for a in keep.values()}]
+            slots = [i for i in free if i not in keep]
+            payload = [{"index": i, "cardSlug": q["card"], "gameId": q["game"]["id"].split(":")[-1]} for i, q in zip(slots, new)]
+            payload += [{"index": i, "cardSlug": a["anyCard"]["slug"], "gameId": a["game"]["id"].split(":")[-1]} for i, a in keep.items()]  # id sense «Game:»
+            if dry:
+                line.append("   (prova) canviaria: " + ", ".join(q["name"] for q in new) + (" en lloc de " + ", ".join(a["anyPlayer"]["displayName"] for i, a in cur.items() if i not in keep) if len(cur) > len(keep) else ""))
             else:
-                line.append("   sense canvis")
-            rep.append("\n".join(line))
+                try:
+                    d = gql(UPSERT, {"input": {"taskId": task["id"], "taskAppearances": payload}}, token=token())["upsertTaskAppearances"]
+                    if d.get("errors"):
+                        raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
+                    after = gql(TASK, {"id": tid}, token=token())["currentUser"]["task"]["taskAppearances"]
+                    line.append("   ✅ picks ara: " + ", ".join(a["anyPlayer"]["displayName"] for a in sorted(after, key=lambda a: a["index"])))
+                except Exception as e:
+                    line.append(f"   ❌ no he pogut posar els picks: {str(e)[:200]}")
+        else:
+            line.append("   sense canvis" if want or cur else "   cap carta per posar")
+        rep.append("\n".join(line))
     save_json("sorare_missions.json", {"games": sorted(set(games_seen)), "at": now.isoformat()})
     msg = "Sorare · missions" + (" (prova)" if dry else "") + "\n" + ("\n".join(rep) or "Cap missió de Decisive Picker avui.")
     print("::notice title=missions::" + msg.replace("\n", " ¶ ")[:20000])
     if any("✅ picks ara" in r or "❌" in r or dry for r in rep) or not rep:
         telegram(msg)
-
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
