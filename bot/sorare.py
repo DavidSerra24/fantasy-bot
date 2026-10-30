@@ -189,23 +189,9 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): on són els taulers del Set i com són els passos."""
-    import re as _re
-    import requests as _rq
-    sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
-    sdl1 = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", sdl)
-    def T(n):
-        m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
-        return _re.sub(r"\s+", " ", m.group(1)) if m else f"{n}: ?"
-    print("::notice title=tipus::" + " ¶ ".join(T(n)[:900] for n in ("AppearanceRule", "So5RuleDescriptionItem", "BudgetType", "So5Rarity", "ThresholdPickerTaskAppearance", "upsertStepLineupPayload", "TaskLineupType")))
-    out = []
-    for sp, mode in (("NBA", "CAREER"), ("NBA", "SQUAD"), ("FOOTBALL", "CAREER")):
-        st = gql("""query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, sport: $sp) { myCurrentStep { id
-            displayedTypedRules { key descriptions { title items { __typename } }
-              ... on So5AverageScoresRule { averageType max immuneAppearances }
-              ... on So5AppearancesRule { appearances { __typename } } } } } } }""", {"sp": sp, "m": mode}, token=token())
-        out.append(sp + " " + mode + ": " + json.dumps(st)[:1800])
-    print("::notice title=set::" + " ¶ ".join(out))
+    """Prova (només lectura): diagnosi del Set d'NBA."""
+    import runpy
+    runpy.run_module("bot.soraresetdbg", run_name="__main__")
 
 
 
