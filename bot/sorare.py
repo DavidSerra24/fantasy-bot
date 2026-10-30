@@ -196,17 +196,23 @@ def probe():
     def T(n):
         m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl, _re.S)
         return _re.sub(r'\s*"""[\s\S]*?"""', "", m.group(1)).replace("\n", " ") if m else f"{n}: ?"
-    cu = _re.search(r"\ntype CurrentUser [^{]*\{(.*?)\n\}", sdl, _re.S).group(1)
-    cu = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", cu)
-    cu1 = _re.sub(r"\s+", " ", cu)
-    print("::notice title=CurrentUser tasks::" + " || ".join(m.group(0)[:400] for m in _re.finditer(r"\b\w*(?:[Tt]ask|[Mm]ission|[Pp]icker)\w*(?:\([^)]*\))?: [\w\[\]!]+", cu1))[:8000])
-    for n in ("TaskGroup", "ManagerTaskPeriodicity", "TaskGenre", "CalendarTasksTrack"):
-        print("::notice title=" + n + "::" + T(n)[:2000])
-    from bot.soraremissions import TASKS
-    for sp in ("FOOTBALL",):
+    q = """query($sp: Sport!, $p: ManagerTaskPeriodicity!) { currentUser { tasks(periodicity: $p, sport: $sp) { __typename ... on DecisivePlayerPickerTask { title rarity expired } }
+        taskGroups { slug } } }"""
+    for per in ("DAILY", "GAME_WEEKLY", "WEEKLY"):
+        d = gql(q, {"sp": "FOOTBALL", "p": per}, token=token())["currentUser"]
+        print("::notice title=tasks " + per + "::" + " | ".join(f"{t['__typename']} {t.get('title')} {t.get('rarity')} exp={t.get('expired')}" for t in d["tasks"])[:3000])
+    groups = [g["slug"] for g in d["taskGroups"]]
+    print("::notice title=groups::" + ", ".join(groups))
+    for gs in groups:
         for r in ("limited", "rare"):
-            ts = gql(TASKS, {"r": r, "sp": sp}, token=token())["currentUser"]["featuredTasks"]
-            print("::notice title=featured " + r + "::" + " | ".join(f"{t['__typename']} {t['title']}" for t in ts))
+            try:
+                ts = gql("""query($g: String!, $r: Rarity, $sp: Sport!) { currentUser { taskGroup(slug: $g) { myTasks(rarity: $r, sport: $sp) { __typename ... on DecisivePlayerPickerTask { title rarity expired } } } } }""",
+                         {"g": gs, "r": r, "sp": "FOOTBALL"}, token=token())["currentUser"]["taskGroup"]["myTasks"]
+                pk = [f"{t.get('title')} {t.get('rarity')} exp={t.get('expired')}" for t in ts if t["__typename"] == "DecisivePlayerPickerTask"]
+                if pk:
+                    print("::notice title=group " + gs + " " + r + "::" + " | ".join(pk)[:2000])
+            except Exception as e:
+                print("::notice title=group " + gs + "::" + str(e)[:200])
 
 
 
