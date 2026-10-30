@@ -159,32 +159,29 @@ def form(slug, stat=None, need=1):
     return sum(dec[:5]), sum(dec[:10]), sum(dec[:20]), (sum(st) / len(st) if st else 0)
 
 
-DAILY = """query($sp: Sport!) { currentUser { tasks(periodicity: DAILY, sport: $sp) { __typename ... on DecisivePlayerPickerTask { id title description rarity
-  rewardConfigs { __typename ... on InGameCurrencyRewardConfig { currency amount } ... on CardShardRewardConfig { quantity rarity } } } } } }"""
+PLAY = """query($r: Rarity, $sp: Sport!) { currentUser { taskGroup(slug: "play") { myTasks(rarity: $r, sport: $sp) { __typename
+  ... on DecisivePlayerPickerTask { id title description rarity expired
+    rewardConfigs { __typename ... on InGameCurrencyRewardConfig { currency amount } ... on CardShardRewardConfig { quantity rarity } } } } } } }"""
 
 
 def list_tasks(rep):
-    """Totes les missions diàries (no només les destacades: p. ex. «Shot» Limited no surt a featuredTasks)."""
+    """Totes les missions de la pestanya «Play» (featuredTasks només en dona algunes: p. ex. no hi surt «Shot» Limited)."""
     out, seen = [], set()
     for sport in ("FOOTBALL", "NBA"):  # MLB: fora de temporada (es pot afegir quan torni)
-        found = []
-        try:
-            for t in gql(DAILY, {"sp": sport}, token=token())["currentUser"]["tasks"]:
-                if t.get("__typename") == "DecisivePlayerPickerTask" and t.get("id"):
-                    found.append(((t.get("rarity") or "").lower(), t))
-        except Exception as e:
-            rep.append(f"⚠️ {sport}: llista de missions diàries ({str(e)[:150]})")
         for rarity in ("limited", "rare", "super_rare", "unique"):
-            try:
-                for t in gql(TASKS, {"r": rarity, "sp": sport}, token=token())["currentUser"]["featuredTasks"]:
-                    if t["__typename"] == "DecisivePlayerPickerTask":
-                        found.append((rarity, t))
-            except Exception as e:
-                rep.append(f"⚠️ {sport} {rarity}: {str(e)[:150]}")
-        for rarity, t in found:
-            if t["id"] not in seen:
-                seen.add(t["id"])
-                out.append((priority(t), rarity, dict(t, sport=sport)))
+            found = []
+            for q, path in ((PLAY, ("taskGroup", "myTasks")), (TASKS, ("featuredTasks",))):
+                try:
+                    d = gql(q, {"r": rarity, "sp": sport}, token=token())["currentUser"]
+                    for k in path:
+                        d = d[k]
+                    found += [t for t in d if t.get("__typename") == "DecisivePlayerPickerTask" and t.get("id") and not t.get("expired")]
+                except Exception as e:
+                    rep.append(f"⚠️ {sport} {rarity}: {str(e)[:150]}")
+            for t in found:
+                if t["id"] not in seen:
+                    seen.add(t["id"])
+                    out.append((priority(t), rarity, dict(t, sport=sport)))
     out.sort(key=lambda x: x[0])  # essència → pistes → crèdits de mercat → experiència
     return out
 
