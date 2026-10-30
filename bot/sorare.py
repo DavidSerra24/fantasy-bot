@@ -189,30 +189,17 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): tipus de les missions i de les estadístiques per partit."""
-    import re as _re
-    import requests as _rq
-    sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
-    def T(n):
-        m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl, _re.S)
-        return _re.sub(r'\s*"""[\s\S]*?"""', "", m.group(1)).replace("\n", " ") if m else f"{n}: ?"
-    q = """query($sp: Sport!, $p: ManagerTaskPeriodicity!) { currentUser { tasks(periodicity: $p, sport: $sp) { __typename ... on DecisivePlayerPickerTask { title rarity expired } }
-        taskGroups { slug } } }"""
-    for per in ("DAILY", "GAME_WEEKLY", "WEEKLY"):
-        d = gql(q, {"sp": "FOOTBALL", "p": per}, token=token())["currentUser"]
-        print("::notice title=tasks " + per + "::" + " | ".join(f"{t['__typename']} {t.get('title')} {t.get('rarity')} exp={t.get('expired')}" for t in d["tasks"])[:3000])
-    groups = [g["slug"] for g in d["taskGroups"]]
-    print("::notice title=groups::" + ", ".join(groups))
-    for gs in groups:
-        for r in ("limited", "rare"):
-            try:
-                ts = gql("""query($g: String!, $r: Rarity, $sp: Sport!) { currentUser { taskGroup(slug: $g) { myTasks(rarity: $r, sport: $sp) { __typename ... on DecisivePlayerPickerTask { title rarity expired } } } } }""",
-                         {"g": gs, "r": r, "sp": "FOOTBALL"}, token=token())["currentUser"]["taskGroup"]["myTasks"]
-                pk = [f"{t.get('title')} {t.get('rarity')} exp={t.get('expired')}" for t in ts if t["__typename"] == "DecisivePlayerPickerTask"]
-                if pk:
-                    print("::notice title=group " + gs + " " + r + "::" + " | ".join(pk)[:2000])
-            except Exception as e:
-                print("::notice title=group " + gs + "::" + str(e)[:200])
+    """Prova (només lectura): on surt un jugador a les missions (partit, hora, carta)."""
+    import datetime as dt
+    from bot.soraremissions import list_tasks, TASK
+    q = (sys.argv[2] if len(sys.argv) > 2 else "fabian").lower()
+    for pri, r, t in list_tasks([]):
+        task = gql(TASK, {"id": t["id"].split(":")[-1]}, token=token())["currentUser"]["task"]
+        for n in task["pickableGames"]["nodes"]:
+            for c in n["cards"]:
+                if q in c["anyPlayer"]["slug"]:
+                    print(f"::notice title={task['title']} {r}::{c['anyPlayer']['displayName']} · {n['game']['date']} · {n['game']['homeTeam']['name']}-{n['game']['awayTeam']['name']} · {c['slug']}")
+        print(f"::notice title=picks {task['title']} {r}::" + ", ".join(a["anyPlayer"]["displayName"] for a in task["taskAppearances"]))
 
 
 
