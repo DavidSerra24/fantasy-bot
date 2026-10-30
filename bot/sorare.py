@@ -189,15 +189,21 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): onze oficial del Le Havre–PSG a Sorare i FotMob."""
-    import datetime as dt
-    from bot.sorarelineup import GAME, lineup_status
-    q = gql("""query($s: String!) { anyPlayer(slug: $s) { ... on Player { allPlayerGameScores(first: 2) { nodes { anyGame { id date } anyPlayerGameStats { ... on PlayerGameStats { gameStarted minsPlayed } } } } } } }""",
-            {"s": "vitor-machado-ferreira"}, token=token())
-    print("::notice title=games::" + json.dumps(q)[:800])
-    g = q["anyPlayer"]["allPlayerGameScores"]["nodes"][0]["anyGame"]
-    gm = gql(GAME, {"id": g["id"].split(":", 1)[-1]}, token=token())["football"]["game"]
-    print("::notice title=sorare::" + json.dumps({k: (v if k not in ("homeFormation", "awayFormation") else {"avail": (v or {}).get("startingLineupAvailable"), "n": sum(len(r) for r in (v or {}).get("startingLineup") or []), "vit": any(p["slug"] in ("vitor-machado-ferreira", "fabian-ruiz-pena") for r in (v or {}).get("startingLineup") or [] for p in r)}) for k, v in gm.items()})[:1500])
+    """Prova (només lectura): què hi ha a l'API sobre el «Set» (series) i l'NBA."""
+    import re as _re
+    import requests as _rq
+    sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
+    names = sorted(set(_re.findall(r"\n(?:type|input|enum|union|interface) (\w*(?:Set|Series|Board|Squad)\w*)", sdl)))
+    print("::notice title=tipus Set::" + ", ".join(names)[:6000])
+    mt = _re.search(r"\ntype Mutation \{(.*?)\n\}", sdl, _re.S).group(1)
+    muts = [m for m in _re.findall(r"\n  (\w+)\(", mt) if _re.search(r"set|series|board|squad|compose|lineup|pack|claim", m, _re.I)]
+    print("::notice title=mutacions::" + ", ".join(muts)[:6000])
+    for sp in ("NBA", "FOOTBALL"):
+        try:
+            d = gql("""query($sp: Sport!) { currentUser { setPlayTasks(first: 5, sport: $sp) { __typename id } setTasksTrack(sport: $sp) { __typename } showMissionPage(sport: $sp) } }""", {"sp": sp}, token=token())
+            print("::notice title=set " + sp + "::" + json.dumps(d)[:1500])
+        except Exception as e:
+            print("::notice title=set " + sp + "::" + str(e)[:400])
 
 
 
