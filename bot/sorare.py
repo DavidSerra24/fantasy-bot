@@ -189,19 +189,14 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): forma de jugadors a les missions (xuts a porta, tackles i decisiu)."""
-    from bot.soraremissions import list_tasks, TASK, form
-    names = (sys.argv[2] if len(sys.argv) > 2 else "vitinha,machado-ferreira,fabian").lower().split(",")
-    seen = set()
+    """Prova (només lectura): picks actuals de les missions i onze oficial del partit d'un jugador."""
+    from bot.soraremissions import list_tasks, TASK
+    from bot.sorarelineup import lineup_status, starts
+    q = gql("""query($s: String!) { anyPlayer(slug: $s) { displayName ... on Player { activeClub { upcomingGames(first: 1) { id date } } } } }""", {"s": "vitor-machado-ferreira"}, token=token())
+    print("::notice title=vitinha::" + json.dumps(q)[:500])
     for pri, r, t in list_tasks([]):
         task = gql(TASK, {"id": t["id"].split(":")[-1]}, token=token())["currentUser"]["task"]
-        for n in task["pickableGames"]["nodes"]:
-            for c in n["cards"]:
-                sl = c["anyPlayer"]["slug"]
-                if any(q in sl for q in names) and sl not in seen:
-                    seen.add(sl)
-                    f1 = form(sl, "ontarget_scoring_att", 2); f2 = form(sl, "won_tackle", 3); f3 = form(sl)
-                    print(f"::notice title={c['anyPlayer']['displayName']}::{n['game']['date']} · xuts 2+ {f1[:3]} · tackles 3+ {f2[:3]} · decisiu {f3[:3]} · titular10 {f3[3]:.0%} · {c['slug']}")
+        print(f"::notice title=picks {task['title']} {r}::" + ", ".join(f"{a['anyPlayer']['displayName']} ({a['status']}, {a['game']['date'][11:16]}Z)" for a in sorted(task["taskAppearances"], key=lambda a: a["index"])))
 
 
 
