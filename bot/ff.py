@@ -38,11 +38,16 @@ TRANSLIT = str.maketrans({"ø": "o", "Ø": "O", "æ": "ae", "Æ": "Ae", "ß": "s
 
 
 def plain(s):
-    return unicodedata.normalize("NFD", (s or "").translate(TRANSLIT)).encode("ascii", "ignore").decode()
+    s = re.sub(r"\s", " ", s or "")  # espais no separables («De\xa0Frutos» de SorareInside) → espai normal
+    return unicodedata.normalize("NFD", s.translate(TRANSLIT)).encode("ascii", "ignore").decode()
+
+
+ABBR = {"fdez": "fernandez", "fdz": "fernandez", "glez": "gonzalez", "gonzlez": "gonzalez", "rguez": "rodriguez", "rdguez": "rodriguez",
+        "hdez": "hernandez", "mtnez": "martinez", "mtz": "martinez", "glz": "gonzalez", "snchez": "sanchez", "dguez": "dominguez"}
 
 
 def norm(s):
-    return re.sub(r"[^a-z0-9 ]+", " ", plain(s).lower()).split()
+    return [ABBR.get(w, w) for w in re.sub(r"[^a-z0-9 ]+", " ", plain(s).lower()).split()]
 
 
 def name_score(a, b):
