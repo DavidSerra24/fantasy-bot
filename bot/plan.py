@@ -187,7 +187,7 @@ def plan(now=None, done=None):
                 add(k, T, "misterloan", None, T + dt.timedelta(minutes=50))
     except FileNotFoundError:
         pass
-    # Sorare Set NBA (decisió del David, 30/10): escaneig a les 9:35 i alineacions 50 min abans del primer partit
+    # Sorare Set NBA (decisió del David, 30/10): escaneig a les 9:35 i alineacions 12 min abans del primer partit
     t935 = local.replace(hour=9, minute=35, second=0, microsecond=0).astimezone(UTC)
     k = f"soraresetscan:{local.date()}"
     if due(k, t935, t935 + dt.timedelta(hours=12)):
@@ -196,8 +196,9 @@ def plan(now=None, done=None):
     if fs:
         F = dt.datetime.fromisoformat(fs.replace("Z", "+00:00"))
         k = f"soraresetgo:{fs}"
-        if due(k, F - dt.timedelta(minutes=50), F - dt.timedelta(minutes=3)):
-            add(k, F - dt.timedelta(minutes=50), "soraresetgo", None, F - dt.timedelta(minutes=3))
+        # l'NBA es juga un cop al dia: s'apura fins a l'últim moment (previsions de RotoWire més fresques; decisió del David, 30/10)
+        if due(k, F - dt.timedelta(minutes=12), F - dt.timedelta(minutes=2)):
+            add(k, F - dt.timedelta(minutes=12), "soraresetgo", None, F - dt.timedelta(minutes=2))
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))

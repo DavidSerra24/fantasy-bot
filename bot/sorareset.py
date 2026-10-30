@@ -5,7 +5,7 @@ NBA (decisió del David, 30/10): per punts previstos de Sorare (RotoWire) per al
 (regla «AverageScores», p. ex. 16 estrelles), sense repetir jugadors entre alineacions del mateix tauler, fins a les
 alineacions que permeti el pas (Career: remainingLineupsCount; Squad: fins que Sorare no en deixi més, màx. 4).
 Quan: el planificador mira cada dia a les 9:35 quin és el primer partit amb jugadors (scan) i fa les alineacions
-50 min abans d'aquell partit (per tenir les lesions i previsions del dia).
+12 min abans d'aquell partit (per tenir les lesions i previsions del dia).
 Només es fan alineacions noves: les que ja hi ha (fetes pel David o pel bot) no es toquen.
 Seguretat: només upsertStepLineup (alineacions del Set). Res de comprar sobres ni reclamar res.
 Ús: python -m bot.sorareset [--dry] [--sport NBA]
@@ -128,7 +128,7 @@ def run(dry=False, sports=("NBA",), scan=False):
                     break
                 v, perm = r
                 apps = [{"index": i, "cardSlug": c["card"], "gameId": c["game"]["id"].split(":")[-1]} for i, c in enumerate(perm)]
-                txt = ", ".join(f"{c['name']} ({c['proj']:.0f}, {c['stars']}★)" for c in perm)
+                txt = ", ".join(f"{c['name']} ({c['proj']:.0f}, {c['stars']}★, {c['game']['date'][5:16].replace('T', ' ')}Z)" for c in perm)
                 if dry:
                     lines.append(f"   (prova) alineació {k + 1}: {txt} · {v:.0f} previstos · {sum(c['stars'] for c in perm)}★")
                 else:
