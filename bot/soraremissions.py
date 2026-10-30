@@ -299,11 +299,14 @@ def run(dry=False):
                 except Exception as e:
                     line.append(f"   ❌ no he pogut posar els picks: {str(e)[:200]}")
         else:
-            line.append("   sense canvis" if want or cur else "   cap carta per posar")
+            if not want and not cur and not locked:
+                continue  # cap carta d'aquesta raresa/esport: no cal dir res
+            line.append("   sense canvis")
         rep.append("\n".join(line))
     save_json("sorare_missions.json", {"games": sorted(set(games_seen)), "at": now.isoformat()})
     msg = "Sorare · missions" + (" (prova)" if dry else "") + "\n" + ("\n".join(rep) or "Cap missió de Decisive Picker avui.")
-    print("::notice title=missions::" + msg.replace("\n", " ¶ ")[:20000])
+    for k, r in enumerate(rep):  # una anotació per missió (cada anotació es talla als ~4000 caràcters)
+        print(f"::notice title=missió {k + 1}::" + r.replace("\n", " ¶ ")[:3900])
     if any("✅ picks ara" in r or "❌" in r or dry for r in rep) or not rep:
         telegram(msg)
 
