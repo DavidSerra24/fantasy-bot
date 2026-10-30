@@ -28,7 +28,7 @@ STEP = """query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, 
       ... on So5AppearancesRule { appearances { name positions sub } } } } } } }"""
 BENCH = """query($st: String!, $after: String) { currentUser { step(id: $st) { myFilteredBench(filters: {}, first: 100, after: $after) {
   pageInfo { hasNextPage endCursor }
-  nodes { ... on ComposeTeamBenchCard { position positions anyCard { slug xp }
+  nodes { ... on ComposeTeamBenchCard { position positions bonus anyCard { slug xp }
     anyPlayer { displayName slug ... on NBAPlayer { gameplayTierStars activeInjuries { id } } }
     eligiblePlayerGameScores(stepId: $st) { anyGame { id date } projectedScore } } } } } } }"""
 UPSERT = """mutation($input: upsertStepLineupInput!) { upsertStepLineup(input: $input) { errors { message } lineup { id } } }"""
@@ -105,7 +105,7 @@ def run(dry=False, sports=("NBA",), scan=False):
                          and dt.datetime.fromisoformat(g["anyGame"]["date"].replace("Z", "+00:00")) > now + dt.timedelta(minutes=5)]
                 for g in games:  # també els de previsió 0: només omplen les alineacions que sobren (decisió del David, 30/10)
                     if True:
-                        cands.append({"card": n["anyCard"]["slug"], "xp": n["anyCard"].get("xp") or 0, "player": p["slug"], "name": p["displayName"],
+                        cands.append({"card": n["anyCard"]["slug"], "xp": n["anyCard"].get("xp") or 0, "bonus": n.get("bonus") or 0, "player": p["slug"], "name": p["displayName"],
                                       "stars": p.get("gameplayTierStars") or 0, "positions": n.get("positions") or [n.get("position")],
                                       "proj": g.get("projectedScore") or 0, "game": g["anyGame"]})
             # només els partits del mateix dia (decisió del David, 30/10): la jornada del primer partit (12 h des de l'inici)
@@ -121,10 +121,10 @@ def run(dry=False, sports=("NBA",), scan=False):
                 firsts.append(min(c["game"]["date"] for c in cands))
             if scan:
                 continue
-            # una carta per jugador: la de més XP
+            # una carta per jugador: la de més bonificació (%), després la de més XP (decisió del David, 30/10)
             byp = {}
             for c in cands:
-                if c["player"] not in byp or c["xp"] > byp[c["player"]]["xp"]:
+                if c["player"] not in byp or (c["bonus"], c["xp"]) > (byp[c["player"]]["bonus"], byp[c["player"]]["xp"]):
                     byp[c["player"]] = c
             pool = list(byp.values())
             nproj = sum(1 for c in pool if c["proj"] > 0)
