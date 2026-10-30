@@ -171,18 +171,6 @@ def run(dry=False, sports=("NBA",), scan=False):
         telegram(msg)
 
 
-if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--dry", action="store_true")
-    ap.add_argument("--sport", nargs="*", default=["NBA"])
-    ap.add_argument("--scan", action="store_true")
-    ap.add_argument("--review", action="store_true")
-    a = ap.parse_args()
-    if a.review:
-        review(tuple(a.sport), a.dry)
-    else:
-        run(a.dry, tuple(a.sport), a.scan)
-
 
 LINEUPS = """query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, sport: $sp) { title
   myCurrentStep { id state
@@ -190,10 +178,35 @@ LINEUPS = """query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $
     displayedTypedRules { key ... on So5AverageScoresRule { averageType max } ... on So5AppearancesRule { appearances { name positions sub } } } } } } }"""
 
 
+def best_fill(pool, slots, cap, fixed):
+    """Millor manera d'omplir les caselles lliures (les de `fixed` ja estan bloquejades: partit començat)."""
+    free_idx = [i for i in range(len(slots)) if i not in fixed]
+    if not free_idx:
+        return 0, {}
+    fstars = sum(c["stars"] for c in fixed.values())
+    fplayers = {c["player"] for c in fixed.values()}
+    top = sorted([c for c in pool if c["player"] not in fplayers], key=lambda c: -c["proj"])[:18]
+    bestv = None
+    for combo in itertools.combinations(top, len(free_idx)):
+        if cap is not None and fstars + sum(c["stars"] for c in combo) > cap:
+            continue
+        if len({c["player"] for c in combo}) < len(combo):
+            continue
+        v = sum(c["proj"] for c in combo)
+        if bestv is not None and v <= bestv[0]:
+            continue
+        for perm in itertools.permutations(combo):
+            if all(not slots[i]["positions"] or set(c["positions"]) & set(slots[i]["positions"]) for c, i in zip(perm, free_idx)):
+                bestv = (v, dict(zip(free_idx, perm)))
+                break
+    return bestv
+
+
 def review(sports=("NBA",), dry=False):
-    """Abans de cada partit: per a cada jugador d'una alineació ja feta que encara no ha començat, si deixa de jugar
-    (previsió 0 o lesionat) o hi ha un jugador lliure del mateix dia amb més punts previstos (més de 2) que encaixi a la
-    casella i al límit d'estrelles, es canvia (decisió del David, 31/10)."""
+    """Abans de cada partit es tornen a calcular les alineacions **de zero, com si fos la primera vegada** (decisió del
+    David, 31/10): els jugadors amb el partit ja començat es queden; la resta de caselles s'omplen amb el millor que hi
+    ha ara (punts previstos actuals, lesions, límit d'estrelles, sense repetir jugadors). Si el resultat millora una
+    alineació, es canvia."""
     now = dt.datetime.now(dt.timezone.utc)
     rep = []
     D = lambda x: dt.datetime.fromisoformat(x.replace("Z", "+00:00"))
@@ -214,69 +227,85 @@ def review(sports=("NBA",), dry=False):
             info = {}
             for n in bench(st["id"], used=True):
                 p = n["anyPlayer"]
-                gs = {g["anyGame"]["id"]: g for g in n.get("eligiblePlayerGameScores") or [] if g and g.get("anyGame")}
                 info[n["anyCard"]["slug"]] = {"card": n["anyCard"]["slug"], "player": p["slug"], "name": p["displayName"], "stars": p.get("gameplayTierStars") or 0,
                                               "inj": bool(p.get("activeInjuries")), "positions": n.get("positions") or [n.get("position")],
-                                              "bonus": n.get("bonus") or 0, "xp": n["anyCard"].get("xp") or 0, "games": gs}
-            used = {a["anyPlayer"]["slug"] for l in lineups for a in l["taskAppearances"] if a}
+                                              "bonus": n.get("bonus") or 0, "xp": n["anyCard"].get("xp") or 0,
+                                              "games": [g for g in n.get("eligiblePlayerGameScores") or [] if g and g.get("anyGame")]}
             dates = [D(a["game"]["date"]) for l in lineups for a in l["taskAppearances"] if a and a.get("game")]
             if not dates:
                 continue
             start = min(dates)
-            free = {}
-            for c in info.values():
-                if c["player"] in used or c["inj"]:
-                    continue
-                for gid, g in c["games"].items():
-                    d = D(g["anyGame"]["date"])
-                    if now + dt.timedelta(minutes=3) < d < start + dt.timedelta(hours=12) and (g.get("projectedScore") or 0) > 0:
-                        cur = free.get(c["player"])
-                        cand = dict(c, proj=g["projectedScore"], game=g["anyGame"])
-                        if not cur or (cand["bonus"], cand["xp"], cand["proj"]) > (cur["bonus"], cur["xp"], cur["proj"]):
-                            free[c["player"]] = cand
-            lines = []
+            # caselles bloquejades (partit començat) i punts previstos actuals de cada alineació
+            fixed_all, cur_val = {}, {}
             for l in lineups:
-                apps = sorted([a for a in l["taskAppearances"] if a], key=lambda a: a["index"])
-                stars = sum((info.get(a["anyCard"]["slug"]) or {}).get("stars", 0) for a in apps)
-                new_apps, changes = [], []
-                for a in apps:
-                    c = info.get(a["anyCard"]["slug"]) or {}
-                    gid = a["game"]["id"] if a.get("game") else None
-                    g = (c.get("games") or {}).get(gid) or {}
-                    started = not a.get("game") or D(a["game"]["date"]) <= now + dt.timedelta(minutes=3)
-                    plays = (g.get("projectedScore") or 0) > 0 and not c.get("inj")
-                    keep = {"index": a["index"], "cardSlug": a["anyCard"]["slug"], "gameId": (gid or "").split(":")[-1]}
-                    if started:
-                        new_apps.append(keep)
+                fx, val = {}, 0
+                for a in l["taskAppearances"]:
+                    if not a:
                         continue
-                    curp = (g.get("projectedScore") or 0) if plays else 0
-                    slotpos = set((slots[a["index"]] if a["index"] < len(slots) else {}).get("positions") or [])
-                    # també si un jugador lliure (que no ha començat) ara té més punts previstos (p. ex. abans tenia 0)
-                    opts = [f for f in free.values() if (not slotpos or set(f["positions"]) & slotpos)
-                            and (cap is None or stars - c.get("stars", 0) + f["stars"] <= cap) and f["proj"] > curp + 2]
-                    if not opts:
-                        new_apps.append(keep)
-                        if not plays:
-                            changes.append(f"⚠️ {a['anyPlayer']['displayName']} no juga i no hi ha cap substitut que hi càpiga")
-                        continue
-                    f = max(opts, key=lambda f: f["proj"])
-                    free.pop(f["player"])
-                    if plays and c.get("player"):  # el que surt torna a quedar lliure per a una altra alineació
-                        free[c["player"]] = dict(c, proj=curp, game=a["game"])
-                    stars += f["stars"] - c.get("stars", 0)
-                    new_apps.append({"index": a["index"], "cardSlug": f["card"], "gameId": f["game"]["id"].split(":")[-1]})
-                    changes.append(f"{a['anyPlayer']['displayName']} ({'no juga' if not plays else f'{curp:.0f} previstos'}) → {f['name']} ({f['proj']:.0f} previstos)")
-                real = [c_ for c_ in changes if "→" in c_]
-                if real and not dry:
-                    try:
-                        d = gql(UPSERT, {"input": {"stepId": st["id"], "lineupId": l["id"], "appearances": new_apps}}, token=token())["upsertStepLineup"]
-                        if d.get("errors"):
-                            raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
-                        lines.append("   🔁 " + "; ".join(changes))
-                    except Exception as e:
-                        lines.append(f"   ❌ {'; '.join(changes)}: {str(e)[:200]}")
-                elif changes:
-                    lines.append(("   (prova) " if dry else "   ") + "; ".join(changes))
+                    c = info.get(a["anyCard"]["slug"]) or {"card": a["anyCard"]["slug"], "player": a["anyPlayer"]["slug"], "name": a["anyPlayer"]["displayName"], "stars": 0, "positions": [], "games": []}
+                    g = next((g for g in c["games"] if a.get("game") and g["anyGame"]["id"] == a["game"]["id"]), {})
+                    proj = 0 if c.get("inj") else (g.get("projectedScore") or 0)
+                    val += proj
+                    if not a.get("game") or D(a["game"]["date"]) <= now + dt.timedelta(minutes=3):
+                        fx[a["index"]] = dict(c, proj=proj, game=a["game"])
+                fixed_all[l["id"]], cur_val[l["id"]] = fx, val
+            locked_players = {c["player"] for fx in fixed_all.values() for c in fx.values()}
+            # tots els jugadors disponibles ara (partit del dia no començat), una carta per jugador (més bonificació, després XP)
+            pool = {}
+            for c in info.values():
+                if c["player"] in locked_players:
+                    continue
+                for g in c["games"]:
+                    d = D(g["anyGame"]["date"])
+                    if now + dt.timedelta(minutes=3) < d < start + dt.timedelta(hours=12):
+                        cand = dict(c, proj=0 if c["inj"] else (g.get("projectedScore") or 0), game=g["anyGame"])
+                        cur = pool.get(c["player"])
+                        if not cur or (cand["bonus"], cand["xp"], cand["proj"]) > (cur["bonus"], cur["xp"], cur["proj"]):
+                            pool[c["player"]] = cand
+            pool = list(pool.values())
+            lines, plan = [], []
+            for l in sorted(lineups, key=lambda l: -cur_val[l["id"]]):  # primer la millor (la que ha d'arribar a l'objectiu)
+                fx = fixed_all[l["id"]]
+                r = best_fill(pool, slots, cap, fx)
+                if not r:
+                    plan.append((l, None, cur_val[l["id"]]))
+                    continue
+                v, fill = r
+                pool = [c for c in pool if c["player"] not in {c_["player"] for c_ in fill.values()}]
+                plan.append((l, fill, v + sum(c["proj"] for c in fx.values())))
+            old_total = sum(cur_val[l["id"]] for l in lineups)
+            new_total = sum(nv if f is not None else cur_val[l["id"]] for l, f, nv in plan)
+            if new_total <= old_total + 2:
+                continue  # el que hi ha ja és (pràcticament) el millor
+            todo = []
+            for l, fill, nv in plan:
+                if fill is None:
+                    continue
+                old = {a["index"]: a for a in l["taskAppearances"] if a}
+                if all(old.get(i_) and old[i_]["anyCard"]["slug"] == c["card"] for i_, c in fill.items()):
+                    continue
+                fx = fixed_all[l["id"]]
+                apps = [{"index": i_, "cardSlug": c["card"], "gameId": c["game"]["id"].split(":")[-1]} for i_, c in sorted({**fx, **fill}.items())]
+                outs = [old[i_]["anyPlayer"]["displayName"] for i_, c in fill.items() if old.get(i_) and old[i_]["anyCard"]["slug"] != c["card"]]
+                ins = [f"{c['name']} ({c['proj']:.0f})" for i_, c in fill.items() if not old.get(i_) or old[i_]["anyCard"]["slug"] != c["card"]]
+                todo.append({"l": l, "apps": apps, "txt": f"{cur_val[l['id']]:.0f} → {nv:.0f} previstos · surten {', '.join(outs)} · entren {', '.join(ins)}"})
+            if dry:
+                lines += ["   (prova) " + t["txt"] for t in todo]
+            else:
+                for _ in range(len(todo) + 1):  # una carta no pot ser a dues alineacions: es repeteix fins que tot entra
+                    for t in [t for t in todo if not t.get("done")]:
+                        try:
+                            d = gql(UPSERT, {"input": {"stepId": st["id"], "lineupId": t["l"]["id"], "appearances": t["apps"]}}, token=token())["upsertStepLineup"]
+                            if d.get("errors"):
+                                raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
+                            t["done"] = True
+                        except Exception as e:
+                            t["err"] = str(e)[:200]
+                    if all(t.get("done") for t in todo):
+                        break
+                lines += [("   🔁 " if t.get("done") else "   ❌ ") + t["txt"] + ("" if t.get("done") else f": {t.get('err')}") for t in todo]
+            if lines:
+                lines.insert(0, f"   total {old_total:.0f} → {new_total:.0f} previstos")
             if lines:
                 rep.append(label + "\n" + "\n".join(lines))
     for k, r in enumerate(rep):
@@ -284,4 +313,17 @@ def review(sports=("NBA",), dry=False):
     if rep:
         telegram("Sorare · Set · revisió" + (" (prova)" if dry else "") + "\n" + "\n".join(rep))
     else:
-        print("::notice title=set revisió::tots els jugadors pendents juguen; sense canvis")
+        print("::notice title=set revisió::cap alineació millorable; sense canvis")
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--sport", nargs="*", default=["NBA"])
+    ap.add_argument("--scan", action="store_true")
+    ap.add_argument("--review", action="store_true")
+    a = ap.parse_args()
+    if a.review:
+        review(tuple(a.sport), a.dry)
+    else:
+        run(a.dry, tuple(a.sport), a.scan)
