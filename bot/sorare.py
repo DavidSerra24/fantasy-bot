@@ -189,14 +189,15 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): picks actuals de les missions i onze oficial del partit d'un jugador."""
-    from bot.soraremissions import list_tasks, TASK
-    from bot.sorarelineup import lineup_status, starts
-    q = gql("""query($s: String!) { anyPlayer(slug: $s) { displayName ... on Player { activeClub { upcomingGames(first: 1) { id date } } } } }""", {"s": "vitor-machado-ferreira"}, token=token())
-    print("::notice title=vitinha::" + json.dumps(q)[:500])
-    for pri, r, t in list_tasks([]):
-        task = gql(TASK, {"id": t["id"].split(":")[-1]}, token=token())["currentUser"]["task"]
-        print(f"::notice title=picks {task['title']} {r}::" + ", ".join(f"{a['anyPlayer']['displayName']} ({a['status']}, {a['game']['date'][11:16]}Z)" for a in sorted(task["taskAppearances"], key=lambda a: a["index"])))
+    """Prova (només lectura): onze oficial del Le Havre–PSG a Sorare i FotMob."""
+    import datetime as dt
+    from bot.sorarelineup import GAME, lineup_status
+    q = gql("""query($s: String!) { anyPlayer(slug: $s) { ... on Player { allPlayerGameScores(first: 2) { nodes { anyGame { id date } anyPlayerGameStats { ... on PlayerGameStats { gameStarted minsPlayed } } } } } } }""",
+            {"s": "vitor-machado-ferreira"}, token=token())
+    print("::notice title=games::" + json.dumps(q)[:800])
+    g = q["anyPlayer"]["allPlayerGameScores"]["nodes"][0]["anyGame"]
+    gm = gql(GAME, {"id": g["id"].split(":", 1)[-1]}, token=token())["football"]["game"]
+    print("::notice title=sorare::" + json.dumps({k: (v if k not in ("homeFormation", "awayFormation") else {"avail": (v or {}).get("startingLineupAvailable"), "n": sum(len(r) for r in (v or {}).get("startingLineup") or []), "vit": any(p["slug"] in ("vitor-machado-ferreira", "fabian-ruiz-pena") for r in (v or {}).get("startingLineup") or [] for p in r)}) for k, v in gm.items()})[:1500])
 
 
 
