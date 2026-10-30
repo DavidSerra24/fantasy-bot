@@ -189,17 +189,19 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): on surt un jugador a les missions (partit, hora, carta)."""
-    import datetime as dt
-    from bot.soraremissions import list_tasks, TASK
-    q = (sys.argv[2] if len(sys.argv) > 2 else "fabian").lower()
+    """Prova (només lectura): forma de jugadors a les missions (xuts a porta, tackles i decisiu)."""
+    from bot.soraremissions import list_tasks, TASK, form
+    names = (sys.argv[2] if len(sys.argv) > 2 else "vitinha,fabian").lower().split(",")
+    seen = set()
     for pri, r, t in list_tasks([]):
         task = gql(TASK, {"id": t["id"].split(":")[-1]}, token=token())["currentUser"]["task"]
         for n in task["pickableGames"]["nodes"]:
             for c in n["cards"]:
-                if q in c["anyPlayer"]["slug"]:
-                    print(f"::notice title={task['title']} {r}::{c['anyPlayer']['displayName']} · {n['game']['date']} · {n['game']['homeTeam']['name']}-{n['game']['awayTeam']['name']} · {c['slug']}")
-        print(f"::notice title=picks {task['title']} {r}::" + ", ".join(a["anyPlayer"]["displayName"] for a in task["taskAppearances"]))
+                sl = c["anyPlayer"]["slug"]
+                if any(q in sl for q in names) and sl not in seen:
+                    seen.add(sl)
+                    f1 = form(sl, "ontarget_scoring_att", 2); f2 = form(sl, "won_tackle", 3); f3 = form(sl)
+                    print(f"::notice title={c['anyPlayer']['displayName']}::{n['game']['date']} · xuts 2+ {f1[:3]} · tackles 3+ {f2[:3]} · decisiu {f3[:3]} · titular10 {f3[3]:.0%} · {c['slug']}")
 
 
 
