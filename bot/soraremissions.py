@@ -91,6 +91,9 @@ def nba_score(slug, task, game_id=None):
         proj = p.get("nextDailyFixtureProjectedScore") or p.get("nextClassicFixtureProjectedScore") or 0
         thr = max(20, l10 + 7)
         return plays, proj - thr, f"previsió {fut.get('projectedPoints') or 0:.0f} punts reals · {proj:.0f} punts Sorare, cal {thr:.0f} (L10 {l10:.0f})"
+    if re.search(r"double[- ]double", desc, re.I) or "double_double" in [a.lower() for a in task.get("decisiveActions") or []]:
+        v = sorted([(fut.get("projectedPoints") or 0), (fut.get("projectedRebounds") or 0), (fut.get("projectedAssists") or 0)], reverse=True)
+        return plays, v[1] - 10, f"previsió {fut.get('projectedPoints') or 0:.0f} pts / {fut.get('projectedRebounds') or 0:.0f} reb / {fut.get('projectedAssists') or 0:.0f} ast (doble-doble: 2 de 3 ≥10)"
     acts = [a.lower() for a in task.get("decisiveActions") or []]
     key = next((NBA_STAT[a] for a in acts if a in NBA_STAT), None)
     n = re.search(r"(\d+)\+", desc)
