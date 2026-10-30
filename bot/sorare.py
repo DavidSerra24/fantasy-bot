@@ -191,7 +191,7 @@ def explore():
 def probe():
     """Prova (només lectura): forma de jugadors a les missions (xuts a porta, tackles i decisiu)."""
     from bot.soraremissions import list_tasks, TASK, form
-    names = (sys.argv[2] if len(sys.argv) > 2 else "vitinha,fabian").lower().split(",")
+    names = (sys.argv[2] if len(sys.argv) > 2 else "vitinha,machado-ferreira,fabian").lower().split(",")
     seen = set()
     for pri, r, t in list_tasks([]):
         task = gql(TASK, {"id": t["id"].split(":")[-1]}, token=token())["currentUser"]["task"]
