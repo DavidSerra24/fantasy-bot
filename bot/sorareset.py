@@ -103,11 +103,11 @@ def run(dry=False, sports=("NBA",), scan=False):
                     continue
                 games = [g for g in n.get("eligiblePlayerGameScores") or [] if g and g.get("anyGame")
                          and dt.datetime.fromisoformat(g["anyGame"]["date"].replace("Z", "+00:00")) > now + dt.timedelta(minutes=5)]
-                for g in games:
-                    if (g.get("projectedScore") or 0) > 0:
+                for g in games:  # també els de previsió 0: només omplen les alineacions que sobren (decisió del David, 30/10)
+                    if True:
                         cands.append({"card": n["anyCard"]["slug"], "xp": n["anyCard"].get("xp") or 0, "player": p["slug"], "name": p["displayName"],
                                       "stars": p.get("gameplayTierStars") or 0, "positions": n.get("positions") or [n.get("position")],
-                                      "proj": g["projectedScore"], "game": g["anyGame"]})
+                                      "proj": g.get("projectedScore") or 0, "game": g["anyGame"]})
             # només els partits del mateix dia (decisió del David, 30/10): la jornada del primer partit (12 h des de l'inici)
             if cands:
                 start = min(dt.datetime.fromisoformat(c["game"]["date"].replace("Z", "+00:00")) for c in cands)
@@ -127,7 +127,8 @@ def run(dry=False, sports=("NBA",), scan=False):
                 if c["player"] not in byp or c["xp"] > byp[c["player"]]["xp"]:
                     byp[c["player"]] = c
             pool = list(byp.values())
-            lines = [head + f" · {len(pool)} jugadors que juguen · límit {cap} estrelles" if cap else head]
+            nproj = sum(1 for c in pool if c["proj"] > 0)
+            lines = [head + f" · {len(pool)} jugadors amb partit ({nproj} amb previsió > 0; 🔸 = previsió 0, només per omplir)" + (f" · límit {cap} estrelles" if cap else "")]
             made = 0
             for k in range(room):
                 r = best(pool, slots, cap)
@@ -136,7 +137,7 @@ def run(dry=False, sports=("NBA",), scan=False):
                     break
                 v, perm = r
                 apps = [{"index": i, "cardSlug": c["card"], "gameId": c["game"]["id"].split(":")[-1]} for i, c in enumerate(perm)]
-                txt = ", ".join(f"{c['name']} ({c['proj']:.0f}, {c['stars']}★, {c['game']['date'][5:16].replace('T', ' ')}Z)" for c in perm)
+                txt = ", ".join(f"{'🔸' if not c['proj'] else ''}{c['name']} ({c['proj']:.0f}, {c['stars']}★, {c['game']['date'][5:16].replace('T', ' ')}Z)" for c in perm)
                 if dry:
                     lines.append(f"   (prova) alineació {k + 1}: {txt} · {v:.0f} previstos · {sum(c['stars'] for c in perm)}★")
                 else:
