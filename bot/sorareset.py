@@ -161,8 +161,20 @@ def run(dry=False, sports=("NBA",), scan=False):
         stt["first"] = min(firsts)
     stt["at"] = now.isoformat()
     save_json("sorare_set.json", stt)
-    if scan:
-        print(f"::notice title=set::primer partit amb jugadors del Set: {stt.get('first')}")
+    if scan:  # també les hores dels partits de les alineacions ja fetes (per a les revisions del planificador)
+        for sp in sports:
+            for mode in ("CAREER", "SQUAD"):
+                try:
+                    st = gql(LINEUPS, {"sp": sp, "m": mode}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
+                except Exception:
+                    continue
+                for l in (st or {}).get("myLineups") or []:
+                    for a in (l or {}).get("taskAppearances") or []:
+                        if a and a.get("game") and a["game"]["date"] > now.isoformat()[:19]:
+                            games_used.append(a["game"]["date"])
+        stt["games"] = sorted(set(games_used) | {g for g in stt.get("games", []) if g > now.isoformat()[:19]})
+        save_json("sorare_set.json", stt)
+        print(f"::notice title=set::primer partit amb jugadors del Set: {stt.get('first')} · partits de les alineacions: {', '.join(stt['games'])}")
         return
     msg = "Sorare · Set" + (" (prova)" if dry else "") + "\n" + "\n".join(rep)
     for k, r in enumerate(rep):

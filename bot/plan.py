@@ -192,6 +192,12 @@ def plan(now=None, done=None):
     k = f"soraresetscan:{local.date()}"
     if due(k, t935, t935 + dt.timedelta(hours=12)):
         add(k, t935, "soraresetscan", None, t935 + dt.timedelta(hours=12))
+    # i cada hora de la tarda i la nit (partits d'NBA): desa les hores dels partits de les alineacions per a les revisions
+    if local.hour >= 17 or local.hour < 5:
+        T = now.replace(minute=0, second=0, microsecond=0)
+        k = f"soraresetscan:{T.isoformat()}"
+        if due(k, T, T + dt.timedelta(minutes=59)):
+            add(k, T, "soraresetscan", None, T + dt.timedelta(minutes=59))
     fs = load_json("sorare_set.json", {}).get("first")
     if fs:
         F = dt.datetime.fromisoformat(fs.replace("Z", "+00:00"))
