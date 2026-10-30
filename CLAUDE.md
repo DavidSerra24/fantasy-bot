@@ -9,6 +9,9 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - Despesa d'essència en Arenes: mai sense el «sí» del David. El bot proposa per Telegram les Arenes (jugadors i essència total) i només les fa si el David respon «sí» a aquell missatge (decisió del David, 29/10).
 - Els secrets (tokens, contrasenyes) viuen als GitHub Secrets o al `.env` del servidor. No es pugen mai al repositori.
 
+## Principi general (decisió del David, 31/10)
+- **Revisar fins a l'últim moment**: a tot arreu on es pugui canviar un jugador fins que comença el seu partit (missions de Sorare, Set), el bot ha de tenir la llista ordenada de candidats i anar-la revisant abans de cada partit: si un posat deixa de jugar o n'hi ha un de lliure millor (més punts previstos / opcions), el canvia. Als jocs que es tanquen sencers en una hora (Sorare Pro, FutbolFantasy, Mister, Predicted11), la revisió final es fa just abans del tancament.
+
 ## Font de dades
 - Onzes previstos, % de titularitat, punts projectats (PS) i gols (vista DA): **SorareInside** (sorareinside.com/lineups, triant la gameweek correcta amb `?gwSlug=`).
 - Si un equip de SorareInside està incomplet, fer servir l'onze probable de FutbolFantasy (publicat a Predicted11, "Alineaciones probables de FutbolFantasy").
