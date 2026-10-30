@@ -207,21 +207,6 @@ def probe():
             d = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title mode decisiveActions decisiveStats { name shortName } overperform { averageType by } maxAppearancesCount
                 taskAppearances { index status anyCard { slug } game { id } } } } } }""", {"id": tid}, token=token())["currentUser"]["task"]
             print("::notice title=task " + r + "::" + json.dumps(d)[:2000])
-    # prova de picks (permès: només la missió) amb diverses formes de l'id del partit
-    import datetime as dt
-    t = next(t for t in gql(TASKS, {"r": "limited", "sp": "FOOTBALL"}, token=token())["currentUser"]["featuredTasks"] if "Tackle" in t["title"])
-    task = gql(TASK, {"id": t["id"].split(":")[-1]}, token=token())["currentUser"]["task"]
-    now = dt.datetime.now(dt.timezone.utc)
-    g = next(n for n in task["pickableGames"]["nodes"] if dt.datetime.fromisoformat(n["game"]["date"].replace("Z", "+00:00")) > now + dt.timedelta(hours=1) and n["cards"])
-    c = g["cards"][0]
-    for gid in (g["game"]["id"], g["game"]["id"].split(":")[-1], "Game:" + g["game"]["id"].split(":")[-1]):
-        for extra in ({}, {"composeTeamBenchObjectId": c["slug"]}):
-            try:
-                res = gql(UPSERT, {"input": {"taskId": task["id"], "taskAppearances": [dict({"index": 0, "cardSlug": c["slug"], "gameId": gid}, **extra)]}}, token=token())
-            except Exception as e:
-                res = str(e)[:300]
-            print("::notice title=upsert::" + json.dumps({"gid": gid, "extra": extra, "card": c["slug"], "res": res})[:800])
-
 
 
 if __name__ == "__main__":

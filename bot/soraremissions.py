@@ -4,9 +4,10 @@ Criteri (com SorareBuddy, decisió del David 29/10): «opcions» = probabilitat 
 - Titular: 100% si l'onze oficial ja és publicat i hi surt (Sorare o FotMob), 0% si no hi surt; si encara no hi ha
   onze, el % de SorareInside (filtre del banc de Sorare): només entren els del 80–90%. Els de menys del 80% es
   miren igualment i només entren si surten titulars a l'onze oficial (revisió 15 min abans de cada partit).
-- Diverses missions (caps de setmana, Champions): primer les que donen essència, després pistes de crafteig, després
-  experiència; una carta triada en una missió no es fa servir en una altra.
-- Forma: partits amb acció decisiva positiva dels últims 20 (desempat: últims 10 i últims 5).
+- Diverses missions (caps de setmana, Champions): essència → pistes de crafteig → crèdits de mercat → experiència;
+  una carta triada en una missió no es fa servir en una altra.
+- Forma: partits amb acció decisiva positiva dels últims 20 (desempat: últims 10 i últims 5); a les missions
+  d'estadística («3+ tackles», «2+ shots on target»), partits en què va arribar a la xifra.
 Es trien els N millors (N = places de la missió, normalment 3), un per jugador. Els picks d'un partit ja començat
 no es toquen. Es revisa al matí i abans de cada partit (amb els onzes oficials) i es canvia un pick si n'hi ha un de
 millor (p. ex. el triat no és titular).
@@ -100,38 +101,56 @@ def nba_score(slug, task, game_id=None):
 
 
 def priority(t):
-    """Essència (0) → pistes de crafteig (1) → experiència (2) → altres (3). Si la missió no diu les recompenses,
-    es miren a la descripció («Essence», «Clue», «XP»)."""
+    """Essència (0) → pistes de crafteig (1) → crèdits de mercat (2) → experiència (3) → altres (4) (decisió del David, 30/10).
+    Si la missió no diu les recompenses, es miren a la descripció («Essence», «Clue», «Market credit», «XP»)."""
     d = (t.get("description") or "").lower()
-    best = 0 if "essence" in d else 1 if "clue" in d else 2 if " xp" in d else 3
+    best = 0 if "essence" in d else 1 if "clue" in d else 2 if "credit" in d else 3 if " xp" in d else 4
     for r in t.get("rewardConfigs") or []:
-        cur = r.get("currency") or ""
-        if r["__typename"] == "CardShardRewardConfig" or "SHARD" in cur or "ESSENCE" in cur:
+        cur = (r.get("currency") or "").upper()
+        tn = r["__typename"]
+        if tn == "CardShardRewardConfig" or "SHARD" in cur or "ESSENCE" in cur:
             best = min(best, 0)
-        elif "CRAFT_CLUE" in cur:
+        elif "CLUE" in cur:
             best = min(best, 1)
-        elif r["__typename"] == "ExperienceRewardConfig" or cur.endswith("_XP"):
+        elif "CREDIT" in cur or "Credit" in tn or "MARKET" in cur:
             best = min(best, 2)
+        elif tn == "ExperienceRewardConfig" or cur.endswith("_XP") or cur == "XP":
+            best = min(best, 3)
     return best
-TASK = """query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title description maxAppearancesCount mode rarity expired aasmState decisiveActions
+
+
+TASK = """query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title description maxAppearancesCount mode rarity expired aasmState decisiveActions decisiveStats { name shortName }
   taskAppearances { id index status anyCard { slug } anyPlayer { displayName slug } game { id date } }
   pickableGames(first: 60) { nodes { game { id date homeTeam { name } awayTeam { name } } cards { slug xp rarityTyped anyPlayer { displayName slug } } } } } } } }"""
 FORM = """query($s: String!) { anyPlayer(slug: $s) { displayName
   ... on Player { allPlayerGameScores(first: 20) { nodes { anyGame { date } ... on PlayerGameScore { positiveDecisiveStats { stat statValue } }
-    anyPlayerGameStats { ... on PlayerGameStats { gameStarted minsPlayed } } } } } } }"""
+    anyPlayerGameStats { ... on PlayerGameStats { gameStarted minsPlayed %s } } } } } } }"""
+
+
+def camel(stat):
+    a = stat.split("_")
+    return a[0] + "".join(x.title() for x in a[1:])
+
+
 UPSERT = """mutation($input: upsertTaskAppearancesInput!) { upsertTaskAppearances(input: $input) { errors { message } } }"""
 
 
-def form(slug):
-    """(l5, l10, l20, titular10): partits amb acció decisiva positiva als últims 5/10/20 i titularitats dels últims 10."""
+def form(slug, stat=None, need=1):
+    """(l5, l10, l20, titular10): partits «encertats» als últims 5/10/20 i titularitats dels últims 10.
+    Encertat = acció decisiva positiva (Decisive Picker) o, a les missions d'estadística («3+ tackles», «2+ shots on
+    target»), haver arribat a la xifra (stat = nom de l'estadística de Sorare, p. ex. won_tackle)."""
+    fld = camel(stat) if stat else ""
     try:
-        nodes = gql(FORM, {"s": slug}, token=token())["anyPlayer"]["allPlayerGameScores"]["nodes"]
+        nodes = gql(FORM % fld, {"s": slug}, token=token())["anyPlayer"]["allPlayerGameScores"]["nodes"]
     except Exception as e:
         print(f"::warning title=forma {slug}::{str(e)[:300]}")
         return 0, 0, 0, 0
     now = dt.datetime.now(dt.timezone.utc)
     past = [n for n in nodes if n.get("anyGame") and dt.datetime.fromisoformat(n["anyGame"]["date"].replace("Z", "+00:00")) < now]
-    dec = [1 if any((x.get("statValue") or 0) > 0 for x in n.get("positiveDecisiveStats") or []) else 0 for n in past]
+    if stat:
+        dec = [1 if ((n.get("anyPlayerGameStats") or {}).get(fld) or 0) >= need else 0 for n in past]
+    else:
+        dec = [1 if any((x.get("statValue") or 0) > 0 for x in n.get("positiveDecisiveStats") or []) else 0 for n in past]
     st = [1 if ((n.get("anyPlayerGameStats") or {}).get("gameStarted") or 0) > 0 else 0 for n in past[:10]]
     return sum(dec[:5]), sum(dec[:10]), sum(dec[:20]), (sum(st) / len(st) if st else 0)
 
@@ -152,15 +171,21 @@ def run(dry=False):
     all_tasks.sort(key=lambda x: x[0])  # primer les d'essència, després pistes, després experiència
     odds = si_odds() if all_tasks else {}
     used_cards = set()
-    PRI = {0: "essència", 1: "pistes de crafteig", 2: "experiència", 3: "altres"}
+    PRI = {0: "essència", 1: "pistes de crafteig", 2: "crèdits de mercat", 3: "experiència", 4: "altres"}
     if True:
         for pri, rarity, t in all_tasks:
             tid = t["id"].split(":")[-1]
             task = gql(TASK, {"id": tid}, token=token())["currentUser"]["task"]
             nba = t["sport"] == "NBA"
-            if task.get("expired") or (task.get("mode") != "DECISIVE" and not nba):
-                rep.append(f"ℹ️ {task['title']} ({rarity}): {task['description']} — no és d'acció decisiva, no la toco")
+            if task.get("expired"):
+                continue  # caducada (la d'ahir)
+            if task.get("mode") != "DECISIVE" and not nba:
+                rep.append(f"ℹ️ {task['title']} ({rarity}): {task['description']} — mode {task.get('mode')}, no la toco")
                 continue
+            import re as _re
+            stat = (task.get("decisiveActions") or [None])[0] if not nba else None
+            mneed = _re.search(r"(\d+)\+", task.get("description") or "")
+            need = int(mneed.group(1)) if (stat and mneed) else 1
             n_max = task["maxAppearancesCount"]
             apps = {a["index"]: a for a in task["taskAppearances"]}
             def started(a):
@@ -187,7 +212,7 @@ def run(dry=False):
                 plays, margin, info = nba_score(q["slug"], task)
                 q.update(l5=0, l10=0, l20=0, tit=float(plays), confirmed=False, chance=margin if plays else -99, info=info)
             for q in (cand.values() if not nba else []):
-                l5, l10, l20, st10 = form(q["slug"])
+                l5, l10, l20, st10 = form(q["slug"], stat, need)
                 xi = lineup_status(q["game"], cache)
                 # titular: amb l'onze oficial, 100% o 0%; si no, el % de SorareInside (només compten els del 80–90%)
                 tit = (1.0 if starts(xi, q["slug"], q["name"]) else 0.0) if xi else odds.get(q["slug"], 0.0)
@@ -210,14 +235,14 @@ def run(dry=False):
                     line.append(f"   {'✅' if q['slug'] in want_slugs else '·'} {q['name']} · {M:%H:%M} · {q['info']}{'' if q['tit'] else ' · no juga'}")
                     continue
                 line.append(f"   {'✅' if q['slug'] in want_slugs else '·'} {q['name']} · {M:%H:%M} · titular {q['tit'] * 100:.0f}%{' (onze oficial)' if q['confirmed'] else ' (SorareInside)'}"
-                            f" · decisiu {q['l5']}/5 {q['l10']}/10 {q['l20']}/20 · opcions {q['chance'] * 100:.0f}%")
+                            f" · {(str(need) + '+ ' + stat) if stat else 'decisiu'} {q['l5']}/5 {q['l10']}/10 {q['l20']}/20 · opcions {q['chance'] * 100:.0f}%")
             if want_slugs != cur_slugs and want:
                 # es mantenen a la seva casella els que ja hi són; els nous ocupen les caselles que queden
                 keep = {i: a for i, a in cur.items() if a["anyPlayer"]["slug"] in want_slugs}
                 new = [q for q in want if q["slug"] not in {a["anyPlayer"]["slug"] for a in keep.values()}]
                 slots = [i for i in free if i not in keep]
-                payload = [{"index": i, "cardSlug": q["card"], "gameId": q["game"]["id"]} for i, q in zip(slots, new)]
-                payload += [{"index": i, "cardSlug": a["anyCard"]["slug"], "gameId": a["game"]["id"]} for i, a in keep.items()]
+                payload = [{"index": i, "cardSlug": q["card"], "gameId": q["game"]["id"].split(":")[-1]} for i, q in zip(slots, new)]
+                payload += [{"index": i, "cardSlug": a["anyCard"]["slug"], "gameId": a["game"]["id"].split(":")[-1]} for i, a in keep.items()]  # id sense «Game:» (amb el prefix: «No se encontró puntuación»)
                 if dry:
                     line.append("   (prova) canviaria: " + ", ".join(q["name"] for q in new) + (" en lloc de " + ", ".join(a["anyPlayer"]["displayName"] for i, a in cur.items() if i not in keep) if len(cur) > len(keep) else ""))
                 else:
