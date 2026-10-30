@@ -197,16 +197,25 @@ def probe():
     def T(n):
         m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
         return _re.sub(r"\s+", " ", m.group(1)) if m else f"{n}: ?"
-    hits = []
-    for m in _re.finditer(r"\ntype (\w+)[^{]*\{(.*?)\n\}", sdl1, _re.S):
-        for f in _re.finditer(r"\n  (\w+)(\([^)]*\))?: \[?(\w+)", m.group(2)):
-            if f.group(3) in ("Board", "CareerBoard", "SquadBoard", "StepInterface", "Squad"):
-                hits.append(f"{m.group(1)}.{f.group(1)}{_re.sub(chr(92)+'s+', ' ', f.group(2) or '')}: {f.group(3)}")
-    print("::notice title=on::" + " || ".join(hits)[:6000])
-    impls = _re.findall(r"\ntype (\w+) implements [^{]*StepInterface", sdl1)
-    print("::notice title=steps::" + ", ".join(impls))
-    for n in impls[:4] + ["StepInterface", "AppearanceInput", "StepState"]:
-        print("::notice title=" + n + "::" + T(n)[:3500])
+    for n in ("BenchFilterInput", "ComposeTeamBenchObjectInterface", "ComposeTeamBenchCard", "LineupInterface", "StepLineup", "BenchSort", "EngineConfiguration",
+              "So5RuleInterface", "PlayerRecommendation", "RecommendationEngine"):
+        print("::notice title=" + n + "::" + T(n)[:2500])
+    impl = _re.findall(r"\ntype (\w+) implements [^{]*LineupInterface", sdl1)
+    print("::notice title=lineups::" + ", ".join(impl))
+    for sp in ("NBA", "FOOTBALL"):
+        for mode in ("CAREER", "SQUAD"):
+            try:
+                d = gql("""query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, sport: $sp) { __typename id title description endDate
+                    ... on CareerBoard { canUnlockNextBoard hasNextBoard rarities }
+                    ... on SquadBoard { nextMatchdayAt }
+                    myCurrentStep { __typename id level state target
+                      ... on CareerStep { title maxLineupsCount remainingLineupsCount pendingLineupsCount lockedLineupsCount averageMode }
+                      ... on SquadStep { totalLineups totalScore minimumLineupsToStartStep }
+                      myLineups { __typename id } }
+                    steps { id level state target } } } }""", {"sp": sp, "m": mode}, token=token())
+                print("::notice title=" + sp + " " + mode + "::" + json.dumps(d)[:3000])
+            except Exception as e:
+                print("::notice title=" + sp + " " + mode + "::" + str(e)[:500])
 
 
 
