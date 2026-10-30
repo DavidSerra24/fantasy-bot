@@ -4,6 +4,8 @@ NBA (decisió del David, 30/10): per punts previstos de Sorare (RotoWire) per al
 (projecció > 0 i sense lesió). 5 jugadors (posició de cada casella segons la regla «Appearances»), límit d'estrelles
 (regla «AverageScores», p. ex. 16 estrelles), sense repetir jugadors entre alineacions del mateix tauler, fins a les
 alineacions que permeti el pas (Career: remainingLineupsCount; Squad: fins que Sorare no en deixi més, màx. 4).
+Quan: el planificador mira cada dia a les 9:35 quin és el primer partit amb jugadors (scan) i fa les alineacions
+50 min abans d'aquell partit (per tenir les lesions i previsions del dia).
 Només es fan alineacions noves: les que ja hi ha (fetes pel David o pel bot) no es toquen.
 Seguretat: només upsertStepLineup (alineacions del Set). Res de comprar sobres ni reclamar res.
 Ús: python -m bot.sorareset [--dry] [--sport NBA]
@@ -15,6 +17,7 @@ import json
 
 from bot.notify import telegram
 from bot.sorare import gql, token
+from bot.web import load_json, save_json
 
 STEP = """query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, sport: $sp) { id title
   myCurrentStep { __typename id level state target
@@ -61,9 +64,10 @@ def best(cands, slots, cap):
     return bestv
 
 
-def run(dry=False, sports=("NBA",)):
+def run(dry=False, sports=("NBA",), scan=False):
+    """scan=True: no fa res, només desa l'hora del primer partit amb jugadors (state/sorare_set.json) per al planificador."""
     now = dt.datetime.now(dt.timezone.utc)
-    rep = []
+    rep, firsts = [], []
     for sp in sports:
         for mode in ("CAREER", "SQUAD"):
             label = f"{'🏀' if sp == 'NBA' else '⚽'} Set {sp} · {'personal' if mode == 'CAREER' else 'equip'}"
@@ -105,6 +109,10 @@ def run(dry=False, sports=("NBA",)):
                 cands.append({"card": n["anyCard"]["slug"], "xp": n["anyCard"].get("xp") or 0, "player": p["slug"], "name": p["displayName"],
                               "stars": p.get("gameplayTierStars") or 0, "positions": n.get("positions") or [n.get("position")],
                               "proj": g["projectedScore"], "game": g["anyGame"]})
+            if cands:
+                firsts.append(min(c["game"]["date"] for c in cands))
+            if scan:
+                continue
             # una carta per jugador: la de més XP
             byp = {}
             for c in cands:
@@ -136,6 +144,14 @@ def run(dry=False, sports=("NBA",)):
                 chosen = {c["player"] for c in perm}
                 pool = [c for c in pool if c["player"] not in chosen]
             rep.append("\n".join(lines))
+    stt = load_json("sorare_set.json", {})
+    if firsts:
+        stt["first"] = min(firsts)
+    stt["at"] = now.isoformat()
+    save_json("sorare_set.json", stt)
+    if scan:
+        print(f"::notice title=set::primer partit amb jugadors del Set: {stt.get('first')}")
+        return
     msg = "Sorare · Set" + (" (prova)" if dry else "") + "\n" + "\n".join(rep)
     for k, r in enumerate(rep):
         print(f"::notice title=set {k + 1}::" + r.replace("\n", " ¶ ")[:3900])
@@ -147,5 +163,6 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--sport", nargs="*", default=["NBA"])
+    ap.add_argument("--scan", action="store_true")
     a = ap.parse_args()
-    run(a.dry, tuple(a.sport))
+    run(a.dry, tuple(a.sport), a.scan)
