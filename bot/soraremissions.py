@@ -164,6 +164,11 @@ PLAY = """query($r: Rarity, $sp: Sport!) { currentUser { taskGroup(slug: "play")
     rewardConfigs { __typename ... on InGameCurrencyRewardConfig { currency amount } ... on CardShardRewardConfig { quantity rarity } } } } } } }"""
 
 
+SETQ = """query($sp: Sport!) { currentUser { setPlayTasks(first: 10, sport: $sp) { __typename
+  ... on DecisivePlayerPickerTask { id title description rarity expired
+    rewardConfigs { __typename ... on InGameCurrencyRewardConfig { currency amount } ... on CardShardRewardConfig { quantity rarity } } } } } }"""
+
+
 def list_tasks(rep):
     """Totes les missions de la pestanya «Play» (featuredTasks només en dona algunes: p. ex. no hi surt «Shot» Limited)."""
     out, seen = [], set()
@@ -178,10 +183,17 @@ def list_tasks(rep):
                     found += [t for t in d if t.get("__typename") == "DecisivePlayerPickerTask" and t.get("id") and not t.get("expired")]
                 except Exception as e:
                     rep.append(f"⚠️ {sport} {rarity}: {str(e)[:150]}")
+            if rarity == "limited":  # missions diàries del Set (cartes comunes; decisió del David, 30/10)
+                try:
+                    d = gql(SETQ, {"sp": sport}, token=token())["currentUser"]["setPlayTasks"]
+                    found += [dict(t, rarity="common", setmission=True) for t in d
+                              if t.get("__typename") == "DecisivePlayerPickerTask" and t.get("id") and not t.get("expired")]
+                except Exception as e:
+                    rep.append(f"⚠️ {sport} Set: {str(e)[:150]}")
             for t in found:
                 if t["id"] not in seen:
                     seen.add(t["id"])
-                    out.append((priority(t), rarity, dict(t, sport=sport)))
+                    out.append((priority(t), "common (Set)" if t.get("setmission") else rarity, dict(t, sport=sport)))
     out.sort(key=lambda x: x[0])  # essència → pistes → crèdits de mercat → experiència
     return out
 
