@@ -88,7 +88,7 @@ def run(dry=False, sports=("NBA",), scan=False):
             if mode == "CAREER":
                 room = st.get("remainingLineupsCount") or 0
             else:
-                room = max(0, 4 - len(existing))
+                room = max(0, 1 - len(existing))  # tauler d'equip: 1 alineació per membre («cantidad máxima de alineaciones»)
             if room <= 0:
                 rep.append(f"✅ {head}: ja té {len(existing)} alineacions")
                 continue
