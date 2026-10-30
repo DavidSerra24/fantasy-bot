@@ -215,4 +215,15 @@ def final_extras(page, report, dry=False):
         page.wait_for_timeout(2500)
         inject(page, "ff")
         todo = [d for d in desired if not any(ff.name_score(s_["name"], d) >= 60 for s_ in keep)]
-        fill_names(page, card["id"], todo, report, f"{KINDS[kind]} (canvi: surten {', '.join(s_['name'] for s_ in out)})", want=len(out))
+        tmp = []
+        placed = fill_names(page, card["id"], todo, tmp, KINDS[kind], want=len(out))
+        # si els millors no tenen usos, pot tornar a entrar el mateix que s'havia tret: llavors no és cap canvi
+        back = [s_["name"] for s_ in out if any(ff.name_score(s_["name"], p_["n"]) >= 60 for p_ in placed)]
+        gone = [s_["name"] for s_ in out if s_["name"] not in back]
+        came = [p_["n"] for p_ in placed if not any(ff.name_score(p_["n"], b_) >= 60 for b_ in back)]
+        ok = len(placed) == len(out)
+        if not gone and ok:
+            report.append(f"✅ {KINDS[kind]}: sense canvis (els que tenen més PS no tenen usos o no es poden triar; es queden {', '.join(back)})")
+        else:
+            report.append(f"{'✅' if ok else '⚠️'} {KINDS[kind]}: " + (f"surten {', '.join(gone)} → entren {', '.join(came) or 'cap'}" if gone else "")
+                          + (f" (es queda {', '.join(back)})" if back else "") + ("" if ok else f" — REVISA-HO: només {len(placed)} de {len(out)}"))

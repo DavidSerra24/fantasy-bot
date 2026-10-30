@@ -171,8 +171,8 @@ def plan(now=None, done=None):
         add(k, t10, "soraremission", "mati", t10 + dt.timedelta(hours=12))
     for gd in load_json("sorare_missions.json", {}).get("games", []):
         G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
-        # 45 min abans (l'onze de Sorare surt ~1 h abans: els de <80% que juguen abans entren si són titulars) i 15 min abans
-        for mins in (45, 15):
+        # els de <80% que juguen abans entren si surten titulars a l'onze oficial
+        for mins in (50, 35, 25, 15, 8):  # l'onze surt ~1 h abans (de vegades més tard): es torna a mirar sovint
             k = f"soraremission:{gd}" + ("" if mins == 15 else f":{mins}")
             if due(k, G - dt.timedelta(minutes=mins), G):
                 add(k, G - dt.timedelta(minutes=mins), "soraremission", gd, G)
