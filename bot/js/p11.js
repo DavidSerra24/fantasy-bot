@@ -127,10 +127,19 @@ window.__p11 = (function () {
   // Quiniela: picks = [[local, visitant, gols_local, gols_visitant], ...]. Clics sense esperes (molt més ràpid).
   function quiniela(picks) {
     const n2 = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const boxes = [...document.querySelectorAll('.partido-quiniela')].map(b => ({ b, l: n2(b.querySelector('.equipo-local .equipo-nombre').textContent), v: n2(b.querySelector('.equipo-visitante .equipo-nombre').textContent) }));
+    const STOP = new Set(['fc', 'cf', 'ac', 'sc', 'afc', 'cd', 'ud', 'rc', 'ss', 'us', 'calcio', 'club', 'de', 'real', 'r', 'sd', 'ad', 'the']);
+    const toks = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(w => w && !STOP.has(w));
+    // paraules en comú (els noms escurçats compten: «Nott» = «Nottingham», mínim 4 lletres) i la «B» del filial ha de coincidir
+    const tsc = (name, xt) => { const t = toks(name); const b1 = t.includes('b'), b2 = xt.includes('b'); if (b1 !== b2) return 0;
+      return t.filter(w => w !== 'b' && xt.some(y => y === w || (w.length >= 4 && y.length >= 4 && (y.startsWith(w) || w.startsWith(y))))).length; };
+    const boxes = [...document.querySelectorAll('.partido-quiniela')].map(b => { const L = b.querySelector('.equipo-local .equipo-nombre').textContent, V = b.querySelector('.equipo-visitante .equipo-nombre').textContent;
+      return { b, l: n2(L), v: n2(V), lt: toks(L), vt: toks(V) }; });
     const log = [];
     for (const [h, a, gh, ga] of picks) { const H = n2(h), A = n2(a);
-      const bx = boxes.find(x => (x.l.includes(H) || H.includes(x.l)) && (x.v.includes(A) || A.includes(x.v))); if (!bx) { log.push('NOMATCH ' + h + '-' + a); continue; }
+      // primer el nom sencer (com abans); si no, per paraules: «R. Sociedad B» = «Real Sociedad B», «Nott. Forest» = «Nott'm Forest»
+      let bx = boxes.find(x => (x.l.includes(H) || H.includes(x.l)) && (x.v.includes(A) || A.includes(x.v)));
+      if (!bx) { let best = 0; for (const x of boxes) { const sc = Math.min(tsc(h, x.lt), tsc(a, x.vt)); if (sc > best) { best = sc; bx = x; } } }
+      if (!bx) { log.push('NOMATCH ' + h + '-' + a); continue; }
       const st = [...bx.b.querySelectorAll('.stepper-container')];
       for (const [c, t] of [[st[0], gh], [st[1], ga]]) { const inp = c.querySelector('input'); const btn = s => [...c.querySelectorAll('.stepper-btn')].find(b => b.textContent.trim() === s);
         for (let i = 0; i < 12; i++) { const v = inp.value; const n = v === '-' ? -1 : +v; if (n === t) break; (n < t ? btn('+') : btn('–')).click(); } }
