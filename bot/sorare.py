@@ -196,17 +196,15 @@ def probe():
     def T(n):
         m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl, _re.S)
         return _re.sub(r'\s*"""[\s\S]*?"""', "", m.group(1)).replace("\n", " ") if m else f"{n}: ?"
-    for n in ("AnyCardWithPlayerGameScore",):
-        print("::notice title=" + n + "::" + T(n)[:3000])
-    from bot.soraremissions import TASKS, TASK, UPSERT
-    for r in ("limited", "rare"):
-        for t in gql(TASKS, {"r": r, "sp": "FOOTBALL"}, token=token())["currentUser"]["featuredTasks"]:
-            if t["__typename"] != "DecisivePlayerPickerTask":
-                continue
-            tid = t["id"].split(":")[-1]
-            d = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title mode decisiveActions decisiveStats { name shortName } overperform { averageType by } maxAppearancesCount
-                taskAppearances { index status anyCard { slug } game { id } } } } } }""", {"id": tid}, token=token())["currentUser"]["task"]
-            print("::notice title=task " + r + "::" + json.dumps(d)[:2000])
+    cu = _re.search(r"\ntype CurrentUser [^{]*\{(.*?)\n\}", sdl, _re.S).group(1)
+    cu = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", cu)
+    print("::notice title=CurrentUser tasks::" + " | ".join(l.strip() for l in _re.split(r"\n  (?=\w)", cu) if _re.search(r"task|mission|picker", l, _re.I))[:6000])
+    from bot.soraremissions import TASKS
+    for sp in ("FOOTBALL",):
+        for r in ("limited", "rare"):
+            ts = gql(TASKS, {"r": r, "sp": sp}, token=token())["currentUser"]["featuredTasks"]
+            print("::notice title=featured " + r + "::" + " | ".join(f"{t['__typename']} {t['title']}" for t in ts))
+
 
 
 if __name__ == "__main__":
