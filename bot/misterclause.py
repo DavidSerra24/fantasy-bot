@@ -57,10 +57,10 @@ def main(league="Quique", pos="POR", minimum=60):
             except Exception:
                 continue
             keys_dbg = keys_dbg or sorted(d.keys())
-            if d.get("position") != POS[pos]:
+            if pos != "TOT" and d.get("position") != POS[pos]:
                 continue
             ln = d.get("loan")
-            if pos and d.get("position") == POS[pos] and len(LOANDBG) < 6:
+            if pos != "TOT" and d.get("position") == POS[pos] and len(LOANDBG) < 6:
                 LOANDBG.append(f"{d.get('name')}: {ln}")
             is_loan = pid in loanable or (isinstance(ln, dict) and any(ln.get(k) for k in ("loanable", "isLoanable", "available", "enabled", "price")))
             if loan_only and not is_loan:
@@ -68,7 +68,7 @@ def main(league="Quique", pos="POR", minimum=60):
             owner = d.get("owner") or {}
             if not owner or str(owner.get("id")) == str(me) or owner.get("name") == "David Serra":
                 continue
-            cands.append({"pid": pid, "name": d.get("name"), "team": (d.get("team") or {}).get("name"), "owner": owner.get("name"),
+            cands.append({"pid": pid, "P": d.get("position"), "name": d.get("name"), "team": (d.get("team") or {}).get("name"), "owner": owner.get("name"),
                           "value": d.get("value"), "clause": (d.get("clause") or {}).get("value"), "shield": (d.get("clause") or {}).get("shield"),
                           "price": (d.get("market") or {}).get("price"), "loan": d.get("loan")})
     bal = api.balance()
@@ -82,8 +82,8 @@ def main(league="Quique", pos="POR", minimum=60):
         for e in ents:
             if team_score(c["team"] or "", e["key"]) <= 0:
                 continue
-            if pos == "POR" and e.get("line") != "G":
-                continue
+            if (pos == "POR" or c.get("P") == 1) != (e.get("line") == "G"):
+                continue  # porters només amb la fila del porter, i a l'inrevés
             sc = name_score(c["name"] or "", e["name"])
             if sc >= 60 and (best is None or (sc, e["starter"]) > (best[0], best[1]["starter"])):
                 best = (sc, e)
@@ -94,7 +94,7 @@ def main(league="Quique", pos="POR", minimum=60):
     lines = [f"🔎 {league} · {pos} {'CEDIBLES ' if loan_only else ''}dels altres mànagers amb ≥{minimum}% (SorareInside), per punts projectats",
              f"Saldo: {bal.get('current', 0) / 1e6:.2f}M (màx. deute {bal.get('maxDebt', 0) / 1e6:.2f}M)"]
     for c in ok:
-        lines.append(f"• {c['name']} ({c['team']}) · {c['pct']}% · PS {c['ps'] if c['ps'] is not None else '-'} · "
+        lines.append(f"• {['', 'POR', 'DEF', 'MIG', 'DAV'][c['P'] or 0] if pos == 'TOT' else ''} {c['name']} ({c['team']}) · {c['pct']}% · PS {c['ps'] if c['ps'] is not None else '-'} · "
                      + (f"preu al mercat {(c['price'] or 0) / 1e6:.2f}M · cessió {c['loan']}" if loan_only else f"clàusula {(c['clause'] or 0) / 1e6:.2f}M")
                      + f"{' 🛡️ blindat' if c['shield'] else ''} · de {c['owner']}")
     if not ok:
