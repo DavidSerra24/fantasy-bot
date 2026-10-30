@@ -1,7 +1,7 @@
 """FutbolFantasy Fantasy✨: omple els onzes buits amb els punts projectats de SorareInside.
 
 Ús:  python -m bot.ff [--max-hours 20] [--only europa-league ...]
-Normes (CLAUDE.md): ≥80% titular, respectar usos, tàctica vàlida, cap parella de rivals,
+Normes (CLAUDE.md): ≥80% titular (LaLiga: ≥70% de futbolfantasy.com), respectar usos, tàctica vàlida, cap parella de rivals,
 màxims punts projectats; empat → el que surt primer a la llista. Ítems → elegible amb més PS.
 """
 import argparse
@@ -75,7 +75,23 @@ def team_score(a, b):
     return len(ta & tb) + (1 if any(len(x) >= 4 and (x.startswith(y) or y.startswith(x)) for x in ta for y in tb if len(y) >= 4) else 0)
 
 
-def candidates(sidata, official=None):
+FF_MIN = 70  # LaLiga: % de futbolfantasy.com, mínim 70% per posar i per mantenir (decisió del David, 30/10)
+
+
+def ff_pct(name, team, ffp):
+    """% de titularitat de futbolfantasy.com d'un jugador de SorareInside (mateix partit/equip i nom). None si no hi és."""
+    best = None
+    for e in ffp or []:
+        seg = (e.get("key") or e.get("url") or "").rstrip("/").split("/")[-1].replace("-", " ")
+        if team and team_score(team, seg) <= 0:
+            continue
+        sc = name_score(name, e["name"])
+        if sc >= 60 and (best is None or sc > best[0]):
+            best = (sc, e.get("pct"))
+    return best[1] if best else None
+
+
+def candidates(sidata, official=None, ffp=None):
     """Candidats ordenats per PS. official = {equip SorareInside: [titulars oficials]}: per a aquests equips
     només compten els titulars confirmats (i compten com a 100%, encara que abans tinguessin menys del 80%)."""
     official = official or {}
@@ -96,8 +112,14 @@ def candidates(sidata, official=None):
                 if off is not None:
                     if not any(name_score(p["name"], o) >= 60 for o in off):
                         continue  # no és titular oficial
-                elif (p.get("pct") or 0) < 80:
-                    continue
+                else:
+                    fp = ff_pct(p["name"], t, ffp) if ffp else None
+                    if fp is not None:  # LaLiga: el % de futbolfantasy.com (≥70%); el PS sempre de SorareInside
+                        if fp < FF_MIN:
+                            continue
+                        p = dict(p, pct=fp)
+                    elif (p.get("pct") or 0) < 80:
+                        continue
                 out.append({"si": p["name"], "team": t, "opp": opp.get(t), "ps": p["ps"], "pct": 100 if off is not None else p["pct"]})
     out.sort(key=lambda x: -x["ps"])  # ordenació estable: en cas d'empat, l'ordre de la llista
     for i, c in enumerate(out):
@@ -444,7 +466,16 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                     official = official_lineups(slug, kickoff, sidata, wait_until=kickoff.astimezone(dt.timezone.utc) - dt.timedelta(minutes=20), log=olog)
                     if official:  # dades fresques: els onzes poden haver canviat mentre esperàvem
                         sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
-                cands = candidates(sidata, official)
+                ffp = None
+                if slug == "laliga":  # % de futbolfantasy.com (alineacions probables de la jornada)
+                    try:
+                        from bot.sources import ff_probs
+                        ffp = ff_probs(pg)
+                        save_json("ff_probs_laliga.json", ffp)
+                        print(f"::notice title=FF %::{len(ffp)} jugadors amb % de futbolfantasy.com · " + ", ".join(f"{e['name']} {e['pct']}%" for e in ffp if "raph" in e["name"].lower()))
+                    except Exception as e:
+                        report.append(f"⚠️ LaLiga: no he pogut llegir el % de futbolfantasy.com ({type(e).__name__}); faig servir SorareInside")
+                cands = candidates(sidata, official, ffp)
                 pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded")
                 pg.wait_for_timeout(2500)
                 inject(pg, "ff")

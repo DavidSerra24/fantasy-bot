@@ -3,9 +3,9 @@
 Criteris (acordats amb el David):
   - Revulsivo: jugadors amb la marca "R" de revulsiu de FutbolFantasy, ≤50% de titularitat i sense lesió;
     els de millor mitjana de punts (desempat: menys % de titularitat).
-  - Antagonista: els 2 porters titulars (≥80%) amb MENYS punts projectats + el jugador de camp titular (≥80%)
+  - Antagonista: els 2 porters titulars (≥70% de futbolfantasy.com) amb MENYS punts projectats + el jugador de camp titular (≥70%)
     amb més targetes grogues per partit.
-  - Resiliencia de portero: els 3 porters titulars (≥80%) amb MÉS punts projectats.
+  - Resiliencia de portero: els 3 porters titulars (≥70%) amb MÉS punts projectats.
 """
 import datetime as dt
 import re
@@ -56,13 +56,16 @@ def pick_revulsivo(players):
     return c
 
 
-def gk_list(sidata):
+def gk_list(sidata, players=None):
+    """Porters titulars: % de futbolfantasy.com (≥70%) si hi són; si no, SorareInside (≥80%). PS de SorareInside."""
     out = []
+    ffp = [{"name": p["name"], "url": p.get("url"), "pct": p["pct"]} for p in players or [] if not p.get("suplente")]
     for t in sidata.get("_order", []):
         rows = sidata.get(t)
         if isinstance(rows, list) and rows and rows[0]:
             g = rows[0][0]
-            if g.get("ps") is not None and (g.get("pct") or 0) >= 80:
+            fp = ff.ff_pct(g["name"], t, ffp) if ffp else None
+            if g.get("ps") is not None and (fp >= ff.FF_MIN if fp is not None else (g.get("pct") or 0) >= 80):
                 out.append({"si": g["name"], "team": t, "ps": g["ps"]})
     return out
 
@@ -104,8 +107,8 @@ def kind_of(card):
 
 def orders(sidata, players):
     """Llista ordenada de candidats per a cada joc: [{'n': nom, 'team': equip SorareInside o None}]."""
-    gks = gk_list(sidata)
-    starters = [p for p in players if not p["suplente"] and p["pct"] >= 80]
+    gks = gk_list(sidata, players)
+    starters = [p for p in players if not p["suplente"] and p["pct"] >= ff.FF_MIN]
     low = sorted(gks, key=lambda x: x["ps"])
     hot = sorted([p for p in starters if p["pj"] > 0], key=lambda p: -(p["amarillas"] / p["pj"]))
     return {
