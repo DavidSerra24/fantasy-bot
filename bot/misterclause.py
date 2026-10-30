@@ -32,9 +32,17 @@ def main(league="Quique", pos="POR", minimum=60):
     mm = re.search(r'"id_uc"\s*:\s*(\d+)', feed) or re.search(r'"id_user"\s*:\s*(\d+)', feed)
     me = mm.group(1) if mm else None
     cands, seen = [], set()
-    for path, uid in users:
-        page = api.page("/" + path)
-        for pid in dict.fromkeys(re.findall(r'players/(\d+)/', page)):
+    loan_only = "--cedibles" in sys.argv
+    sources = [api.page("/" + path) for path, uid in users]
+    loanable = set()
+    market = api.page("/market")
+    for li in re.findall(r"<li[^>]*data-loanable=\"1\"[^>]*>.*?</li>", market, re.S):
+        loanable |= set(re.findall(r'data-id_player="(\d+)"', li)) | set(re.findall(r'players/(\d+)/', li))
+    if loan_only:
+        sources = [market]
+    keys_dbg = None
+    for page in sources:
+        for pid in dict.fromkeys(re.findall(r'players/(\d+)/', page) + re.findall(r'data-id_player="(\d+)"', page)):
             if pid in seen:
                 continue
             seen.add(pid)
@@ -42,13 +50,18 @@ def main(league="Quique", pos="POR", minimum=60):
                 d = api.ajax("player-community-info", {"id_player": pid, "popup": "bid"}).get("data") or {}
             except Exception:
                 continue
+            keys_dbg = keys_dbg or sorted(d.keys())
             if d.get("position") != POS[pos]:
+                continue
+            is_loan = pid in loanable or bool(d.get("loanable") or (d.get("loan") or {}).get("loanable") if isinstance(d.get("loan"), dict) else d.get("loanable"))
+            if loan_only and not is_loan:
                 continue
             owner = d.get("owner") or {}
             if not owner or str(owner.get("id")) == str(me) or owner.get("name") == "David Serra":
                 continue
             cands.append({"pid": pid, "name": d.get("name"), "team": (d.get("team") or {}).get("name"), "owner": owner.get("name"),
-                          "value": d.get("value"), "clause": (d.get("clause") or {}).get("value"), "shield": (d.get("clause") or {}).get("shield")})
+                          "value": d.get("value"), "clause": (d.get("clause") or {}).get("value"), "shield": (d.get("clause") or {}).get("shield"),
+                          "price": (d.get("market") or {}).get("price"), "loan": d.get("loan")})
     bal = api.balance()
     with sync_playwright() as p:
         b = p.chromium.launch()
@@ -69,21 +82,23 @@ def main(league="Quique", pos="POR", minimum=60):
         c["pct"], c["ps"], c["si"] = e.get("pct"), e.get("ps"), e.get("name")
     ok = sorted([c for c in cands if (c["pct"] or 0) >= minimum], key=lambda c: (-(c["ps"] or 0), -(c["pct"] or 0)))
     rest = [c for c in cands if (c["pct"] or 0) < minimum]
-    lines = [f"🔎 {league} · {pos} dels altres mànagers amb ≥{minimum}% (SorareInside), per punts projectats",
+    lines = [f"🔎 {league} · {pos} {'CEDIBLES ' if loan_only else ''}dels altres mànagers amb ≥{minimum}% (SorareInside), per punts projectats",
              f"Saldo: {bal.get('current', 0) / 1e6:.2f}M (màx. deute {bal.get('maxDebt', 0) / 1e6:.2f}M)"]
     for c in ok:
-        lines.append(f"• {c['name']} ({c['team']}) · {c['pct']}% · PS {c['ps'] if c['ps'] is not None else '-'} · clàusula {(c['clause'] or 0) / 1e6:.2f}M"
-                     f"{' 🛡️ blindat' if c['shield'] else ''} · de {c['owner']}")
+        lines.append(f"• {c['name']} ({c['team']}) · {c['pct']}% · PS {c['ps'] if c['ps'] is not None else '-'} · "
+                     + (f"preu al mercat {(c['price'] or 0) / 1e6:.2f}M · cessió {c['loan']}" if loan_only else f"clàusula {(c['clause'] or 0) / 1e6:.2f}M")
+                     + f"{' 🛡️ blindat' if c['shield'] else ''} · de {c['owner']}")
     if not ok:
         lines.append("Cap amb aquest %.")
     if rest:
         lines.append("Per sota del mínim: " + ", ".join(f"{c['name']} ({c['team']}, {c['pct'] if c['pct'] is not None else '?'}%)" for c in rest))
     msg = "\n".join(lines)
     print("::notice title=clausula::" + msg.replace("\n", " ¶ ")[:8000])
-    print(f"::notice title=debug::usuaris {len(users)}, jugadors mirats {len(seen)}, candidats {len(cands)}")
+    print(f"::notice title=debug::usuaris {len(users)}, jugadors mirats {len(seen)}, candidats {len(cands)}, cedibles al mercat {len(loanable)}, camps {keys_dbg}")
     telegram(msg)
 
 
 if __name__ == "__main__":
     a = sys.argv[1:]
+    a = [x for x in a if not x.startswith("--")]
     main(a[0] if a else "Quique", a[1] if len(a) > 1 else "POR", int(a[2]) if len(a) > 2 else 60)
