@@ -70,9 +70,48 @@ def best_lineup(squad):
             best = (key, tac, pick)
     if not best:
         return None
+    if any(q.get("rule_skip") for q in best[2]):  # l'ordre «golafre» no ha trobat cap onze sense rivals: es busquen tots
+        alt = exhaustive(order)
+        if alt and alt[0][0] >= best[0][0]:  # un onze complet que compleix la norma (decisió del David, 30/10)
+            for q in squad:
+                q.pop("rule_skip", None)
+            best = alt
     _, tac, pick = best
     cap = max(pick, key=lambda q: (q["xps"] or -1, q["xpct"] or 0))
     return tac, pick, cap
+
+
+def exhaustive(order):
+    """Tots els onzes possibles (per tàctica) que compleixen la norma de rivals; torna el millor amb la mateixa
+    clau que l'ordre normal (complet, no en venda, franja de %, PS). None si no n'hi ha cap."""
+    from itertools import combinations
+    byp = {P: [q for q in order if q["P"] == P] for P in "GDMF"}
+    bad = {(id(a), id(b)) for a in order for b in order if a is not b and clash(a, [b])}
+
+    def ok(group, base):
+        return all((id(a), id(b)) not in bad for a in group for b in base) and all((id(a), id(b)) not in bad for a, b in combinations(group, 2))
+    best = None
+    for tac in TACTICS:
+        d, m, f = map(int, tac.split("-"))
+        if len(byp["G"]) < 1 or len(byp["D"]) < d or len(byp["M"]) < m or len(byp["F"]) < f:
+            continue
+        for g in byp["G"]:
+            for D in combinations(byp["D"], d):
+                if not ok(D, [g]):
+                    continue
+                base = [g, *D]
+                for F in combinations(byp["F"], f):
+                    if not ok(F, base):
+                        continue
+                    base2 = base + list(F)
+                    for M in combinations(byp["M"], m):
+                        if not ok(M, base2):
+                            continue
+                        pick = base2 + list(M)
+                        key = (0, -sum(q["onsale"] for q in pick), -sum(band(q["xpct"]) for q in pick), sum(q["xps"] or 0 for q in pick))
+                        if best is None or key > best[0]:
+                            best = (key, tac, pick)
+    return best
 
 
 def open_next(pg):
