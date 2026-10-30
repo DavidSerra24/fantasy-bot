@@ -197,19 +197,14 @@ def probe():
     def T(n):
         m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
         return _re.sub(r"\s+", " ", m.group(1)) if m else f"{n}: ?"
-    print("::notice title=regles::" + " ¶ ".join(T(n)[:900] for n in ("So5AverageScoresRule", "So5ScarcityRule", "So5AppearancesRule", "So5CompetitionsRule", "So5RuleDescription", "TaskAppearanceInterface")))
+    print("::notice title=tipus::" + " ¶ ".join(T(n)[:900] for n in ("AppearanceRule", "So5RuleDescriptionItem", "BudgetType", "So5Rarity", "ThresholdPickerTaskAppearance", "upsertStepLineupPayload", "TaskLineupType")))
     out = []
-    for sp, mode in (("NBA", "CAREER"), ("NBA", "SQUAD"), ("FOOTBALL", "CAREER"), ("FOOTBALL", "SQUAD")):
+    for sp, mode in (("NBA", "CAREER"), ("NBA", "SQUAD"), ("FOOTBALL", "CAREER")):
         st = gql("""query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, sport: $sp) { myCurrentStep { id
-            displayedTypedRules { __typename key descriptions { __typename } ... on So5AverageScoresRule { __typename } } } } } }""", {"sp": sp, "m": mode}, token=token())
-        out.append(sp + " " + mode + " regles: " + json.dumps(st)[:1500])
-    d = gql("""query { currentUser { setBoard(mode: CAREER, sport: FOOTBALL) { myCurrentStep { myLineups { ... on TaskLineup { id aasmState score
-        taskAppearances { __typename ... on TaskAppearance { index captain anyCard { slug } anyPlayer { displayName } game { id date } } } } } } } } }""", token=token())
-    out.append("futbol career lineups: " + json.dumps(d)[:2500])
-    sid = gql("""query { currentUser { setBoard(mode: CAREER, sport: NBA) { myCurrentStep { id } } } }""", token=token())["currentUser"]["setBoard"]["myCurrentStep"]["id"]
-    d = gql("""query($st: String!) { currentUser { step(id: $st) { myFilteredBench(filters: {}, first: 6) { nodes { ... on ComposeTeamBenchCard { anyPlayer { displayName }
-        eligiblePlayerGameScores(stepId: $st) { anyGame { id date } projectedScore } } } } } } }""", {"st": sid}, token=token())
-    out.append("nba projeccions: " + json.dumps(d)[:2000])
+            displayedTypedRules { key descriptions { title items { __typename } }
+              ... on So5AverageScoresRule { averageType max immuneAppearances }
+              ... on So5AppearancesRule { appearances { __typename } } } } } } }""", {"sp": sp, "m": mode}, token=token())
+        out.append(sp + " " + mode + ": " + json.dumps(st)[:1800])
     print("::notice title=set::" + " ¶ ".join(out))
 
 
