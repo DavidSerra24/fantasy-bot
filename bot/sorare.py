@@ -196,21 +196,31 @@ def probe():
     def T(n):
         m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl, _re.S)
         return _re.sub(r'\s*"""[\s\S]*?"""', "", m.group(1)).replace("\n", " ") if m else f"{n}: ?"
-    for n in ("upsertTaskAppearancesInput", "TaskAppearanceInput", "DecisivePlayerPickerTask", "TaskAppearance", "PickableGame",
-              "DecisivePlayerPickerTaskMode", "PlayerGameScore", "PlayerGameStats", "StatScore"):
-        print("::notice title=" + n + "::" + T(n)[:6000])
-    for n in sorted(set(_re.findall(r"\n(?:type|input|enum) (\w*(?:Task|Picker)\w*)", sdl))):
-        print("::notice title=tipus::" + n)
-    from bot.soraremissions import TASKS
+    for n in ("DecisivePlayerPickerMode", "GameWithCardsPreview", "OverperformAverageScoreConfig", "Stat"):
+        print("::notice title=" + n + "::" + T(n)[:3000])
+    from bot.soraremissions import TASKS, TASK, UPSERT
     for r in ("limited", "rare"):
         for t in gql(TASKS, {"r": r, "sp": "FOOTBALL"}, token=token())["currentUser"]["featuredTasks"]:
+            if t["__typename"] != "DecisivePlayerPickerTask":
+                continue
             tid = t["id"].split(":")[-1]
+            d = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title mode decisiveActions decisiveStats maxAppearancesCount
+                taskAppearances { index status anyCard { slug } game { id } } } } } }""", {"id": tid}, token=token())["currentUser"]["task"]
+            print("::notice title=task " + r + "::" + json.dumps(d)[:2000])
+    # prova de picks (permès: només la missió) amb diverses formes de l'id del partit
+    import datetime as dt
+    t = next(t for t in gql(TASKS, {"r": "limited", "sp": "FOOTBALL"}, token=token())["currentUser"]["featuredTasks"] if "Tackle" in t["title"])
+    task = gql(TASK, {"id": t["id"].split(":")[-1]}, token=token())["currentUser"]["task"]
+    now = dt.datetime.now(dt.timezone.utc)
+    g = next(n for n in task["pickableGames"]["nodes"] if dt.datetime.fromisoformat(n["game"]["date"].replace("Z", "+00:00")) > now + dt.timedelta(hours=1) and n["cards"])
+    c = g["cards"][0]
+    for gid in (g["game"]["id"], g["game"]["id"].split(":")[-1], "Game:" + g["game"]["id"].split(":")[-1]):
+        for extra in ({}, {"composeTeamBenchObjectId": c["slug"]}):
             try:
-                d = gql("""query($id: ID!) { currentUser { task(id: $id) { __typename ... on DecisivePlayerPickerTask { id title mode decisiveActions maxAppearancesCount
-                    taskAppearances { index status anyCard { slug } game { id } } } } } }""", {"id": tid}, token=token())["currentUser"]["task"]
+                res = gql(UPSERT, {"input": {"taskId": task["id"], "taskAppearances": [dict({"index": 0, "cardSlug": c["slug"], "gameId": gid}, **extra)]}}, token=token())
             except Exception as e:
-                d = str(e)[:300]
-            print("::notice title=task " + r + "::" + json.dumps({"t": t, "d": d})[:3000])
+                res = str(e)[:300]
+            print("::notice title=upsert::" + json.dumps({"gid": gid, "extra": extra, "card": c["slug"], "res": res})[:800])
 
 
 
