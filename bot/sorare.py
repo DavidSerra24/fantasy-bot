@@ -190,16 +190,17 @@ def explore():
 
 def probe():
     """Prova (només lectura): tipus de les missions i de les estadístiques per partit."""
+    import re as _re
+    import requests as _rq
+    sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
     def T(n):
-        d = gql("""query($n: String!) { __type(name: $n) { kind fields { name args { name } type { name kind ofType { name kind ofType { name } } } }
-            inputFields { name type { name kind ofType { name kind ofType { name } } } } enumValues { name } } }""", {"n": n}, token=token())["__type"]
-        if not d:
-            return f"{n}: ?"
-        fs = d.get("fields") or d.get("inputFields") or []
-        return f"{n}({d['kind']}): " + ", ".join(f["name"] + ":" + str(f["type"].get("name") or (f["type"].get("ofType") or {}).get("name") or ((f["type"].get("ofType") or {}).get("ofType") or {}).get("name")) for f in fs) + (" | enum " + ",".join(e["name"] for e in d["enumValues"]) if d.get("enumValues") else "")
-    for n in ("upsertTaskAppearancesInput", "TaskAppearanceInput", "TaskAppearanceAttributes", "DecisivePlayerPickerTask", "TaskAppearance", "PickableGame",
-              "DecisivePlayerPickerTaskMode", "PlayerGameScore", "PlayerGameStats", "StatScore", "TaskReward", "TaskRewardConfig"):
+        m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl, _re.S)
+        return _re.sub(r'\s*"""[\s\S]*?"""', "", m.group(1)).replace("\n", " ") if m else f"{n}: ?"
+    for n in ("upsertTaskAppearancesInput", "TaskAppearanceInput", "DecisivePlayerPickerTask", "TaskAppearance", "PickableGame",
+              "DecisivePlayerPickerTaskMode", "PlayerGameScore", "PlayerGameStats", "StatScore"):
         print("::notice title=" + n + "::" + T(n)[:6000])
+    for n in sorted(set(_re.findall(r"\n(?:type|input|enum) (\w*(?:Task|Picker)\w*)", sdl))):
+        print("::notice title=tipus::" + n)
     from bot.soraremissions import TASKS
     for r in ("limited", "rare"):
         for t in gql(TASKS, {"r": r, "sp": "FOOTBALL"}, token=token())["currentUser"]["featuredTasks"]:
