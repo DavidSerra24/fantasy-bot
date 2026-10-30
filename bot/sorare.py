@@ -189,21 +189,19 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): què hi ha a l'API sobre el «Set» (series) i l'NBA."""
+    """Prova (només lectura): esquema dels taulers del Set."""
     import re as _re
     import requests as _rq
     sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
-    names = sorted(set(_re.findall(r"\n(?:type|input|enum|union|interface) (\w*(?:Set|Series|Board|Squad)\w*)", sdl)))
-    print("::notice title=tipus Set::" + ", ".join(names)[:6000])
-    mt = _re.search(r"\ntype Mutation \{(.*?)\n\}", sdl, _re.S).group(1)
-    muts = [m for m in _re.findall(r"\n  (\w+)\(", mt) if _re.search(r"set|series|board|squad|compose|lineup|pack|claim", m, _re.I)]
-    print("::notice title=mutacions::" + ", ".join(muts)[:6000])
-    for sp in ("NBA", "FOOTBALL"):
-        try:
-            d = gql("""query($sp: Sport!) { currentUser { setPlayTasks(first: 5, sport: $sp) { __typename id } setTasksTrack(sport: $sp) { __typename } showMissionPage(sport: $sp) } }""", {"sp": sp}, token=token())
-            print("::notice title=set " + sp + "::" + json.dumps(d)[:1500])
-        except Exception as e:
-            print("::notice title=set " + sp + "::" + str(e)[:400])
+    def T(n):
+        m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl, _re.S)
+        return _re.sub(r'\s+', " ", _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", m.group(1))) if m else f"{n}: ?"
+    for n in ("Board", "CareerBoard", "SquadBoard", "SquadStep", "Squad", "BoardMode", "upsertStepLineupInput", "claimStepInput", "unlockNextBoardInput",
+              "StepLineupInput", "TasksTrack", "SetTasksTrack", "Step", "CareerStep", "BoardStep"):
+        print("::notice title=" + n + "::" + T(n)[:3500])
+    for f in ("board", "boards", "careerBoard", "squadBoard", "mySquad", "currentBoard"):
+        for m in _re.finditer(r"\n  (" + f + r")(\([^)]*\))?: ([\w\[\]!]+)", sdl):
+            print("::notice title=camp " + f + "::" + m.group(0).strip()[:300])
 
 
 
