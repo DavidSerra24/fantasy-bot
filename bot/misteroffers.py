@@ -163,8 +163,9 @@ def accept_loans(pg, name, dry=False):
     return f"🔁 {name} · cessions: " + "; ".join(out) if out else None
 
 
-def run_loans(dry=False):
-    """Revisió de peticions de cessió (cada hora durant el dia)."""
+def run_loans(dry=False, only=None, end=False):
+    """Revisió de peticions de cessió (cada 5 min des de l'alineació final fins a l'inici de la jornada).
+    end=True: la jornada ja ha començat → es desmarquen els cedibles que havia posat el bot."""
     from bot.mister import login, new_context as mctx
     report = []
     with sync_playwright() as p:
@@ -172,8 +173,22 @@ def run_loans(dry=False):
         pg = mctx(b).new_page()
         login(pg)
         for name, cid, _, _ in LEAGUES:
+            if only and name != only:
+                continue
             try:
                 pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
+                from bot import misterapi
+                if misterapi.API is not None:
+                    misterapi.API.community(cid)
+                if end:
+                    st = load_json("mister_loanables.json", {})
+                    gone = [pid for pid in st.get(name, []) if misterapi.use("loanable", pid, False, dry)]
+                    st[name] = []
+                    from bot.web import save_json as _sj
+                    _sj("mister_loanables.json", st)
+                    if gone:
+                        print(f"::notice title=cessions::{name}: desmarcats {len(gone)} cedibles (comença la jornada)")
+                    continue
                 r = accept_loans(pg, name, dry)
                 if r:
                     report.append(r)

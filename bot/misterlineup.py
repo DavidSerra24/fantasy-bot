@@ -272,11 +272,39 @@ def loan_bench(squad, name, dry=False):
     pick_ids = {q["pid"] for q in res[1]}
     bench = [q for q in squad if q["pid"] not in pick_ids and not q.get("loaned") and not q.get("loanin") and not q.get("onsale")]
     done, already, fail = [], [], []
+    marked = []
     for q in bench:
         r = misterapi.use("loanable", q["pid"], True, dry)
         (already if r == "ja" else done if r else fail).append(q["short"])
+        if r:
+            marked.append(q["pid"])
+    if not dry:
+        from bot.web import load_json as _lj, save_json as _sj
+        st = _lj("mister_loanables.json", {})
+        st[name] = marked
+        _sj("mister_loanables.json", st)
     return (f"🔁 {name} · cedibles{' (prova)' if dry else ''}: " + (", ".join(done) or "cap de nou")
             + (f" · ja ho eren: {', '.join(already)}" if already else "") + (f" · ❌ no he pogut: {', '.join(fail)}" if fail else ""))
+
+
+def schedule_loans(name):
+    """Peticions de cessió cada 5 min fins que comença la jornada; a l'hora d'inici es desmarquen els cedibles
+    (decisió del David, 31/10). Accions dinàmiques de la mateixa execució (state/dyn_actions.json)."""
+    import datetime as dt
+    from bot.web import load_json as _lj, save_json as _sj
+    k = _lj("mister_kickoffs.json", {}).get(SLUG[name])
+    if not k:
+        return
+    K = dt.datetime.fromisoformat(k)
+    now = dt.datetime.now(dt.timezone.utc)
+    dyn = _lj("dyn_actions.json", [])
+    t = now + dt.timedelta(minutes=5)
+    while t < K - dt.timedelta(minutes=1):
+        dyn.append({"key": f"misterloanoff:{name}:{t.isoformat()[:16]}", "at": t.isoformat(), "do": "misterloanoff", "comp": f"{name}|{t.isoformat()[:16]}",
+                    "deadline": K.isoformat()})
+        t += dt.timedelta(minutes=5)
+    dyn.append({"key": f"misterloanend:{name}:{k}", "at": K.isoformat(), "do": "misterloanend", "comp": name, "deadline": (K + dt.timedelta(hours=2)).isoformat()})
+    _sj("dyn_actions.json", dyn)
 
 
 def run(dry=False, only=None, final=False, loans_only=False):
@@ -300,6 +328,8 @@ def run(dry=False, only=None, final=False, loans_only=False):
                 report.append(f"🧢 {name} · alineació: " + apply(pg, squad, dry))
                 if final:  # després de la revisió final, els que sobren es posen com a cedibles (decisió del David, 31/10)
                     report.append(loan_bench(squad, name, dry))
+                    if not dry:
+                        schedule_loans(name)
             except Exception as e:
                 report.append(f"❌ Mister · alineació · {name}: {type(e).__name__}: {str(e)[:200]}")
         b.close()

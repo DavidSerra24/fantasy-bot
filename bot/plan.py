@@ -212,12 +212,6 @@ def plan(now=None, done=None):
             k = f"soraresetrev:{gd}:{mins}"
             if due(k, G - dt.timedelta(minutes=mins), G - dt.timedelta(minutes=3)):
                 add(k, G - dt.timedelta(minutes=mins), "soraresetrev", f"{gd}:{mins}", G - dt.timedelta(minutes=3))
-    # Mister: peticions de cessió rebudes (dels cedibles que posa el bot), cada hora a les :40 de 8:00 a 23:40 (decisió del David, 31/10)
-    if 8 <= local.hour <= 23:
-        T = local.replace(minute=40, second=0, microsecond=0).astimezone(UTC)
-        k = f"misterloanoff:{T.isoformat()}"
-        if due(k, T, T + dt.timedelta(minutes=55)):
-            add(k, T, "misterloanoff", T.isoformat(), T + dt.timedelta(minutes=55))
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
