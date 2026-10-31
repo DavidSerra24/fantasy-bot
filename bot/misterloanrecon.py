@@ -1,8 +1,14 @@
-"""Reconeixement (només lectura): plantilla de la finestra de venda (opció de cessió)."""
+"""Reconeixement (només lectura): plantilles de les finestres (opció de cessió)."""
+import re
+
 from bot.misterapi import MisterAPI
 
 api = MisterAPI().login()
-r = api.s.get("https://mister.mundodeportivo.com/views/ajax/sale.twig", timeout=20)
-t = r.text
-for i in range(0, min(len(t), 9 * 3800), 3800):
-    print(f"::notice title=sale.twig {i // 3800}::" + t[i:i + 3800].replace("\n", " "))
+out = []
+for v in ("sale", "bid", "player", "player-community", "market/sale", "loan-config", "loanable"):
+    r = api.s.get(f"https://mister.mundodeportivo.com/views/ajax/{v}.twig", timeout=20)
+    t = re.sub(r"\s+", " ", r.text)
+    hits = [m.group(0) for m in re.finditer(r".{0,250}(loan|cesi|cedi|préstamo).{0,350}", t, re.I)]
+    out.append(f"{v} ({r.status_code}, {len(t)}): " + (" ### ".join(hits)[:3500] if hits else t[:600]))
+for k, o in enumerate(out):
+    print(f"::notice title=twig {k}::" + o)
