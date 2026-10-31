@@ -262,6 +262,23 @@ def apply_official(squad, sidata, comp, report, name, wait=True):
     report.append(line)
 
 
+def loan_bench(squad, name, dry=False):
+    """Marca com a cedibles (72 h) els jugadors de la plantilla que no són a l'onze: ni cedits a mi, ni ja cedits a un
+    altre, ni en venda. Per l'API del Mister."""
+    from bot import misterapi
+    res = best_lineup(squad)
+    if not res:
+        return f"🔁 {name} · cessions: no he pogut calcular l'onze; no marco cap cedible"
+    pick_ids = {q["pid"] for q in res[1]}
+    bench = [q for q in squad if q["pid"] not in pick_ids and not q.get("loaned") and not q.get("loanin") and not q.get("onsale")]
+    done, already, fail = [], [], []
+    for q in bench:
+        r = misterapi.use("loanable", q["pid"], True, dry)
+        (already if r == "ja" else done if r else fail).append(q["short"])
+    return (f"🔁 {name} · cedibles{' (prova)' if dry else ''}: " + (", ".join(done) or "cap de nou")
+            + (f" · ja ho eren: {', '.join(already)}" if already else "") + (f" · ❌ no he pogut: {', '.join(fail)}" if fail else ""))
+
+
 def run(dry=False, only=None, final=False):
     report, cache = [], {}
     with sync_playwright() as p:
@@ -278,6 +295,8 @@ def run(dry=False, only=None, final=False):
                 if final:
                     apply_official(squad, cache.get("sid:" + league), SLUG[name], report, name, wait=not dry)
                 report.append(f"🧢 {name} · alineació: " + apply(pg, squad, dry))
+                if final:  # després de la revisió final, els que sobren es posen com a cedibles (decisió del David, 31/10)
+                    report.append(loan_bench(squad, name, dry))
             except Exception as e:
                 report.append(f"❌ Mister · alineació · {name}: {type(e).__name__}: {str(e)[:200]}")
         b.close()

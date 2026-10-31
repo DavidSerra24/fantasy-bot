@@ -180,6 +180,18 @@ class MisterAPI:
         self._ok(self.ajax("sale", data), "treure de la venda")
         return True
 
+    def loanable(self, pid, on=True, dry=False):
+        """Marca (o desmarca) un jugador meu com a cedible durant 72 h (finestra «Ceder»: ajax/loanable, action add|remove)."""
+        pre = self._pre(pid, "loanable")
+        cur = bool((pre.get("market") or {}).get("loanable"))
+        if cur == on:
+            return "ja"
+        data = {"id_player": pid, "action": "add" if on else "remove"}
+        if dry:
+            return data
+        self._ok(self.ajax("loanable", data), "marcar com a cedible")
+        return True
+
     def accept_offer(self, id_bid, amount, dry=False):
         data = {"id_bid": id_bid, "type": "accept", "amount": int(amount)}
         if dry:
