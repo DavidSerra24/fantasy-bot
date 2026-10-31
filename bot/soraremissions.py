@@ -66,6 +66,9 @@ NBA_STAT = {"rebounds": "projectedRebounds", "points": "projectedPoints", "assis
             "three_points_made": "projectedThreePointsMade"}
 
 
+_NBA = {}
+
+
 def nba_score(slug, task, game_id=None):
     """NBA: amb les previsions de RotoWire que dona Sorare (no hi ha % de titularitat).
     Retorna (juga, valor, detall): juga = 1 si té minuts previstos i no està lesionat.
@@ -75,7 +78,9 @@ def nba_score(slug, task, game_id=None):
       els jugadors amb més estrelles de les permeses, fora."""
     import re
     try:
-        p = gql(NBA_FORM, {"s": slug}, token=token())["anyPlayer"]
+        if slug not in _NBA:
+            _NBA[slug] = gql(NBA_FORM, {"s": slug}, token=token())["anyPlayer"]
+        p = _NBA[slug]
     except Exception as e:
         print(f"::warning title=nba {slug}::{str(e)[:300]}")
         return 0, -99, "sense dades"
@@ -139,7 +144,17 @@ def camel(stat):
 UPSERT = """mutation($input: upsertTaskAppearancesInput!) { upsertTaskAppearances(input: $input) { errors { message } } }"""
 
 
+_FORM = {}
+
+
 def form(slug, stat=None, need=1):
+    k = (slug, stat, need)
+    if k not in _FORM:  # la mateixa consulta no es repeteix dins d'una execució (límit de peticions de Sorare)
+        _FORM[k] = _form(slug, stat, need)
+    return _FORM[k]
+
+
+def _form(slug, stat=None, need=1):
     """(l5, l10, l20, titular10): partits «encertats» als últims 5/10/20 i titularitats dels últims 10.
     Encertat = acció decisiva positiva (Decisive Picker) o, a les missions d'estadística («3+ tackles», «2+ shots on
     target»), haver arribat a la xifra (stat = nom de l'estadística de Sorare, p. ex. won_tackle)."""

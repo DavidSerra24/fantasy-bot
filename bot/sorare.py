@@ -48,12 +48,28 @@ def load_token():
         return None
 
 
+_LAST = 0.0
+
+
 def gql(query, variables=None, token=None):
     h = dict(UA)
     if token:
         h["Authorization"] = f"Bearer {token}"
         h["JWT-AUD"] = AUD
-    r = requests.post(API, json={"query": query, "variables": variables or {}}, headers=h, timeout=30)
+    global _LAST
+    for attempt in range(6):  # límit de peticions de Sorare (HTTP 429): s'espera i es torna a provar
+        wait = _LAST + 0.35 - time.time()  # ritme màxim ~3 peticions/s
+        if wait > 0:
+            time.sleep(wait)
+        _LAST = time.time()
+        r = requests.post(API, json={"query": query, "variables": variables or {}}, headers=h, timeout=30)
+        if r.status_code != 429:
+            break
+        try:
+            ra = float(r.headers.get("Retry-After") or 0)
+        except ValueError:
+            ra = 0
+        time.sleep(max(ra, 15 * (attempt + 1)))
     if r.status_code >= 400:
         raise RuntimeError(f"Sorare HTTP {r.status_code}: {r.text[:500]}")
     j = r.json()
