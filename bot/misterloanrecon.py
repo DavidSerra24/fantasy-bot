@@ -10,8 +10,8 @@ for cid in (2499621, 2519290):
     m = re.sub(r"\s+", " ", api.page("/market"))
     out.append(f"{cid} market data-sw/popups: " + ", ".join(sorted(set(re.findall(r'data-(?:sw|popup)="([^"]+)"', m))))[:1500])
     out.append(f"{cid} offers: " + " ### ".join(x.group(0) for x in re.finditer(r".{0,200}(offers-received|loan|cesi|cedi).{0,250}", m, re.I))[:2500])
-for v in ("offers-received", "market/offers-received", "loan-request", "loan-requests", "loans", "loan-accept", "market/offers-received/loan-confirmation",
-          "market/offers-received/direct-transfer-confirmation", "loan-confirmation", "loans-received"):
+out = []
+for v in ("loan-confirm", "market/offers-received/direct-transfer-confirmation"):
     r = api.s.get(f"https://mister.mundodeportivo.com/views/ajax/{v}.twig", timeout=20)
     t = re.sub(r"\s+", " ", r.text)
     out.append(f"twig {v} ({r.status_code}): " + (t[:3000] if r.status_code == 200 else ""))
