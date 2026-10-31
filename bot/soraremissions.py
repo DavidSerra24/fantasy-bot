@@ -41,7 +41,7 @@ def si_odds():
         except Exception:
             continue
         for lb in (fx or {}).get("so5Leaderboards") or []:
-            if lb["isArena"] or "all_star" not in lb["slug"] or lb["mainRarityType"] not in ("limited", "rare"):
+            if lb["isArena"] or "all_star" not in lb["slug"] or lb["mainRarityType"] not in ("limited", "rare", "super_rare", "unique"):
                 continue
             for rng, v in (({"min": 8000, "max": 8999}, 0.8), ({"min": 9000}, 0.9)):
                 for pos in (None, ["Goalkeeper"]):
