@@ -54,7 +54,33 @@ def si_odds():
                         if not d["pageInfo"]["hasNextPage"]:
                             break
                         after = d["pageInfo"]["endCursor"]
+    # cartes comunes (Set): el mateix filtre al banc dels taulers del Set de futbol (personal i d'equip)
+    for mode in ("CAREER", "SQUAD"):
+        try:
+            sid = gql("""query($m: BoardMode!) { currentUser { setBoard(mode: $m, sport: FOOTBALL) { myCurrentStep { id } } } }""", {"m": mode}, token=token())
+            sid = ((sid["currentUser"]["setBoard"] or {}).get("myCurrentStep") or {}).get("id")
+        except Exception:
+            sid = None
+        if not sid:
+            continue
+        for rng, v in (({"min": 8000, "max": 8999}, 0.8), ({"min": 9000}, 0.9)):
+            after = None
+            for _ in range(15):
+                try:
+                    d = gql(SETODDS, {"st": sid, "after": after, "f": {"starterOddsBasisPointsRange": rng}}, token=token())["currentUser"]["step"]["myFilteredBench"]
+                except Exception:
+                    break
+                for n in d["nodes"]:
+                    if n:
+                        out[n["anyPlayer"]["slug"]] = max(out.get(n["anyPlayer"]["slug"], 0), v)
+                if not d["pageInfo"]["hasNextPage"]:
+                    break
+                after = d["pageInfo"]["endCursor"]
     return out
+
+
+SETODDS = """query($st: String!, $after: String, $f: BenchFilterInput!) { currentUser { step(id: $st) { myFilteredBench(filters: $f, first: 100, after: $after) {
+  pageInfo { hasNextPage endCursor } nodes { ... on ComposeTeamBenchCard { anyPlayer { slug } } } } } } }"""
 
 
 NBA_FORM = """query($s: String!) { anyPlayer(slug: $s) { displayName ... on NBAPlayer { gameplayTierStars activeInjuries { id }
