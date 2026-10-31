@@ -305,7 +305,7 @@ def run(dry=False, retira=()):
                 # Vendes: per sota del mínim de titularitat, sense deixar la plantilla sense onze possible
                 keep = [q for q in squad if not q["onsale"] and f"{cid}:{q['pid']}" not in sold]
                 sales, nosale = [], []
-                for q in sorted([q for q in keep if q["pct"] is not None and q["pct"] < minimum and not q["loaned"]],
+                for q in sorted([q for q in keep if q["pct"] is not None and q["pct"] < minimum and not q["loaned"] and not q.get("loanin")],
                                 key=lambda q: (q["pct"], q["ps"] or 0)):
                     rest = [x for x in keep if x is not q]
                     if not can_sell(keep, rest):
@@ -326,7 +326,7 @@ def run(dry=False, retira=()):
                 projected = bal + onsale_val - (bids_val if early else 0)
                 debt = []
                 if kick and debt_day(kick) and projected < 0:
-                    order = sorted([q for q in keep if not q["loaned"]], key=lambda q: (q["ps"] or 0, q["pct"] or 0))
+                    order = sorted([q for q in keep if not q["loaned"] and not q.get("loanin")], key=lambda q: (q["ps"] or 0, q["pct"] or 0))
                     extra = 0
                     for q in order:
                         if projected >= 0:

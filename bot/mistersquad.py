@@ -35,7 +35,7 @@ def main():
           lines = [f"👥 {name} · plantilla ({len(squad)}) per posició, % i PS:"]
           for q in sorted(squad, key=lambda q: (o[q["P"]], -(q["pct"] or -1), -((q.get("si") or {}).get("ps") or 0))):
               lines.append(f"  {'POR DEF MIG DAV'.split()[o[q['P']]]} {q['short']} · {q['pct'] if q['pct'] is not None else '?'}% · PS {(q.get('si') or {}).get('ps') if (q.get('si') or {}).get('ps') is not None else '-'}"
-                           + (" · en venda" if q.get("onsale") else "") + (" · cedit" if q.get("loaned") else ""))
+                           + (" · en venda" if q.get("onsale") else "") + (" · cedit a un altre" if q.get("loaned") else "") + (" · cessió (meu)" if q.get("loanin") else ""))
           res = best_lineup(squad)
           if res:
               tac, pick, capn = res

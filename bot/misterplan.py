@@ -33,7 +33,9 @@ def read_squad(pg):
                  tid: ((r.querySelector('img.team-logo')?.getAttribute('src') || '').match(/teams[/]([0-9]+)/) || [])[1],
                  value: +(r.querySelector('.underName')?.innerText.replace(/[^0-9]/g, '') || 0),
                  onsale: /en venda|en venta|a la venda/i.test(box?.innerText || ''),
-                 loaned: /cedit/i.test(box?.innerText || '') }; }).filter(p => p.href)""")
+                 // cedit A UN ALTRE (no juga per a mi): <li class="loaned-player">; cedit A MI (sí que juga): només «loan-header»
+                 loaned: !!box?.classList?.contains('loaned-player'),
+                 loanin: !box?.classList?.contains('loaned-player') && !!box?.querySelector('.loan-header') }; }).filter(p => p.href)""")
 
 
 def read_market(pg):
