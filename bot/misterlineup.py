@@ -279,7 +279,7 @@ def loan_bench(squad, name, dry=False):
             + (f" · ja ho eren: {', '.join(already)}" if already else "") + (f" · ❌ no he pogut: {', '.join(fail)}" if fail else ""))
 
 
-def run(dry=False, only=None, final=False):
+def run(dry=False, only=None, final=False, loans_only=False):
     report, cache = [], {}
     with sync_playwright() as p:
         b = p.chromium.launch()
@@ -292,6 +292,9 @@ def run(dry=False, only=None, final=False):
             try:
                 bal, squad, market, have, cap = league_data(b, pg, spg, cid, country, league, report, cache)
                 match_keys(squad, cache.get("sid:" + league))
+                if loans_only:
+                    report.append(loan_bench(squad, name, dry))
+                    continue
                 if final:
                     apply_official(squad, cache.get("sid:" + league), SLUG[name], report, name, wait=not dry)
                 report.append(f"🧢 {name} · alineació: " + apply(pg, squad, dry))
@@ -310,5 +313,6 @@ if __name__ == "__main__":
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--lliga", default=None)
     ap.add_argument("--final", action="store_true", help="revisió final amb els onzes oficials del primer partit")
+    ap.add_argument("--cessions", action="store_true", help="només marcar com a cedibles els que no són a l'onze")
     a = ap.parse_args()
-    run(a.dry, a.lliga, a.final)
+    run(a.dry, a.lliga, a.final, a.cessions)
