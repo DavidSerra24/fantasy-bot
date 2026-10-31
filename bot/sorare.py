@@ -205,9 +205,22 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): diagnosi del Set d'NBA."""
-    import runpy
-    runpy.run_module("bot.soraresetdbg", run_name="__main__")
+    """Prova (només lectura): quin número mostra Sorare al costat dels jugadors a la missió del Set de futbol."""
+    import re as _re
+    import requests as _rq
+    sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
+    sdl1 = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", sdl)
+    def T(n):
+        m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
+        return _re.sub(r"\s+", " ", m.group(1)) if m else f"{n}: ?"
+    print("::notice title=tipus::" + " ¶ ".join(T(n)[:1200] for n in ("AveragePlayerScore", "PlayerGameScoreProjection", "AnyCardWithPlayerGameScore")))
+    from bot.soraremissions import SETQ
+    t = next(t for t in gql(SETQ, {"sp": "FOOTBALL"}, token=token())["currentUser"]["setPlayTasks"] if t.get("__typename") == "DecisivePlayerPickerTask")
+    d = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { defaultAverageType decisiveStats { name }
+        pickableGames(first: 3) { nodes { game { date } cardsWithPlayerGameScores { card { anyPlayer { displayName }
+          ... on Card { decisive: averageScore(type: LAST_FIFTEEN_SO5_AVERAGE_SCORE) } }
+          playerGameScore { ... on PlayerGameScore { projectedScore projection { grade score } } } } } } } } } }""", {"id": t["id"].split(":")[-1]}, token=token())
+    print("::notice title=set task::" + json.dumps(d)[:3500])
 
 
 
