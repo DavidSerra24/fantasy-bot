@@ -171,6 +171,19 @@ UPSERT = """mutation($input: upsertTaskAppearancesInput!) { upsertTaskAppearance
 
 
 _FORM = {}
+_DAVG = {}
+
+
+def davg(slug):
+    """Mitjana d'accions decisives dels últims 10 partits jugats (la que mostra Sorare a les missions del Set)."""
+    if slug not in _DAVG:
+        try:
+            _DAVG[slug] = gql("""query($s: String!) { anyPlayer(slug: $s) { ... on Player { averageScore(type: LAST_TEN_PLAYED_AVERAGE_DECISIVE_SCORE) } } }""",
+                              {"s": slug}, token=token())["anyPlayer"].get("averageScore") or 0
+        except Exception as e:
+            print(f"::warning title=davg {slug}::{str(e)[:200]}")
+            _DAVG[slug] = 0
+    return _DAVG[slug]
 
 
 def form(slug, stat=None, need=1):
@@ -292,6 +305,11 @@ def run(dry=False):
             # titular: amb l'onze oficial, 100% o 0%; si no, el % de SorareInside (només compten els del 80–90%)
             tit = (1.0 if starts(xi, q["slug"], q["name"]) else 0.0) if xi else odds.get(q["slug"], 0.0)
             q.update(l5=l5, l10=l10, l20=l20, tit=tit, confirmed=bool(xi), chance=tit * l20 / 20)
+            if t.get("setmission") and not stat:
+                # missions del Set (decisió del David, 31/10): la mitjana d'accions decisives dels últims 10 jugats que
+                # mostra Sorare al costat del jugador (Neto 46, Enciso 45); sempre entre els que juguen (80–90% o titulars)
+                da = davg(q["slug"])
+                q.update(davg=da, chance=(da / 100) if tit > 0 else 0)
         ranked = sorted(cand.values(), key=lambda q: (-q["chance"], -q["l10"], -q["l5"], q["date"]))
         free = [i for i in range(n_max) if i not in locked]
         want = []
@@ -332,7 +350,8 @@ def run(dry=False):
                 line.append(f"   {mark} {q['name']} · {M:%H:%M} · {q['info']}{'' if q['tit'] else ' · no juga'}")
                 continue
             line.append(f"   {mark} {q['name']} · {M:%H:%M} · titular {q['tit'] * 100:.0f}%{' (onze oficial)' if q['confirmed'] else ' (SorareInside)'}"
-                        f" · {(str(need) + '+ ' + stat) if stat else 'decisiu'} {q['l5']}/5 {q['l10']}/10 {q['l20']}/20 · opcions {q['chance'] * 100:.0f}%")
+                        + (f" · mitjana decisiva (10) {q['davg']:.0f}" if q.get("davg") is not None else
+                           f" · {(str(need) + '+ ' + stat) if stat else 'decisiu'} {q['l5']}/5 {q['l10']}/10 {q['l20']}/20 · opcions {q['chance'] * 100:.0f}%"))
         if pl["extra"]:
             line.append("   🔸 = carta que sobrava, posada per si de cas")
         if want_slugs != cur_slugs and want:
