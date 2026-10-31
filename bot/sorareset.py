@@ -31,6 +31,7 @@ BENCH = """query($st: String!, $after: String, $f: BenchFilterInput!) { currentU
   nodes { ... on ComposeTeamBenchCard { position positions bonus anyCard { slug xp }
     anyPlayer { displayName slug ... on NBAPlayer { gameplayTierStars activeInjuries { id } } }
     eligiblePlayerGameScores(stepId: $st) { anyGame { id date } projectedScore } } } } } } }"""
+CLAIM = """mutation($input: claimStepInput!) { claimStep(input: $input) { errors { message } } }"""
 UPSERT = """mutation($input: upsertStepLineupInput!) { upsertStepLineup(input: $input) { errors { message } lineup { id } } }"""
 
 
@@ -80,6 +81,17 @@ def run(dry=False, sports=("NBA",), scan=False):
             if not st:
                 rep.append(f"ℹ️ {label}: cap pas actiu")
                 continue
+            if st["state"] == "CLAIMABLE" and sp == "NBA" and not dry:
+                # pas superat: es reclama la recompensa i es passa al pas següent (decisió del David, 31/10: a la nit ell dorm)
+                try:
+                    d = gql(CLAIM, {"input": {"stepId": st["id"]}}, token=token())["claimStep"]
+                    if d.get("errors"):
+                        raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
+                    rep.append(f"🎁 {label}: nivell {st['level'] + 1} superat, recompensa reclamada")
+                    b = gql(STEP, {"sp": sp, "m": mode}, token=token())["currentUser"]["setBoard"]
+                    st = (b or {}).get("myCurrentStep") or st
+                except Exception as e:
+                    rep.append(f"⚠️ {label}: no he pogut reclamar la recompensa ({str(e)[:150]})")
             head = f"{label} ({b.get('title')}, nivell {st['level'] + 1}, objectiu {st['target']}, estat {st['state']})"
             if st["state"] not in ("PLAYABLE", "LINEUP_SET"):
                 rep.append(f"ℹ️ {head}: no es pot jugar ara")
@@ -183,8 +195,18 @@ def run(dry=False, sports=("NBA",), scan=False):
                 at = G - dt.timedelta(minutes=mins)
                 if k not in done and now < G - dt.timedelta(minutes=3) and at < now + dt.timedelta(minutes=95) and not any(d["key"] == k for d in dyn):
                     dyn.append({"key": k, "at": max(at, now).isoformat(), "do": "soraresetrev", "comp": f"{gd}:{mins}", "deadline": (G - dt.timedelta(minutes=3)).isoformat()})
+        fs = stt.get("first")  # pas nou després de reclamar (o alineacions pendents): alineacions 12 min abans del primer partit
+        if fs and firsts:
+            F = dt.datetime.fromisoformat(fs.replace("Z", "+00:00"))
+            k = f"soraresetgo:{fs}"
+            at = F - dt.timedelta(minutes=12)
+            if k not in done and now < F - dt.timedelta(minutes=2) and at < now + dt.timedelta(minutes=95) and not any(d["key"] == k for d in dyn):
+                dyn.append({"key": k, "at": max(at, now).isoformat(), "do": "soraresetgo", "comp": fs, "deadline": (F - dt.timedelta(minutes=2)).isoformat()})
         save_json("dyn_actions.json", dyn)
         print(f"::notice title=set::primer partit amb jugadors del Set: {stt.get('first')} · partits de les alineacions: {', '.join(stt['games'])}")
+        if any("🎁" in r for r in rep):
+            telegram("Sorare · Set\n" + "\n".join(r for r in rep if "🎁" in r or "⚠️" in r)
+                     + (f"\nFaré les alineacions del nivell següent 12 min abans del primer partit ({fs[11:16]} UTC)." if fs and firsts else ""))
         return
     msg = "Sorare · Set" + (" (prova)" if dry else "") + "\n" + "\n".join(rep)
     for k, r in enumerate(rep):

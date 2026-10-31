@@ -191,7 +191,7 @@ def plan(now=None, done=None):
     t935 = local.replace(hour=9, minute=35, second=0, microsecond=0).astimezone(UTC)
     k = f"soraresetscan:{local.date()}"
     if due(k, t935, t935 + dt.timedelta(hours=12)):
-        add(k, t935, "soraresetscan", None, t935 + dt.timedelta(hours=12))
+        add(k, t935, "soraresetscan", "9:35", t935 + dt.timedelta(hours=12))
     # i cada hora de la tarda i la nit (partits d'NBA): desa les hores dels partits de les alineacions per a les revisions
     if local.hour >= 17 or local.hour < 5:
         T = now.replace(minute=0, second=0, microsecond=0)
@@ -204,7 +204,7 @@ def plan(now=None, done=None):
         k = f"soraresetgo:{fs}"
         # l'NBA es juga un cop al dia: s'apura fins a l'últim moment (previsions de RotoWire més fresques; decisió del David, 30/10)
         if due(k, F - dt.timedelta(minutes=12), F - dt.timedelta(minutes=2)):
-            add(k, F - dt.timedelta(minutes=12), "soraresetgo", None, F - dt.timedelta(minutes=2))
+            add(k, F - dt.timedelta(minutes=12), "soraresetgo", fs, F - dt.timedelta(minutes=2))
     # Set NBA: revisió de les alineacions ja fetes abans de cada partit (si un jugador deixa de jugar, es canvia; decisió del David, 31/10)
     for gd in load_json("sorare_set.json", {}).get("games", []):
         G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
