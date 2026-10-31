@@ -217,10 +217,10 @@ def probe():
     from bot.soraremissions import SETQ
     t = next(t for t in gql(SETQ, {"sp": "FOOTBALL"}, token=token())["currentUser"]["setPlayTasks"] if t.get("__typename") == "DecisivePlayerPickerTask")
     d = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { defaultAverageType decisiveStats { name }
-        pickableGames(first: 8) { nodes { game { date } cardsWithPlayerGameScores { card { anyPlayer { displayName }
+        pickableGames(first: 40) { nodes { game { date } cardsWithPlayerGameScores { card { anyPlayer { displayName }
           anyPlayer { ... on Player { d5: averageScore(type: LAST_FIVE_AVERAGE_DECISIVE_SCORE) d10: averageScore(type: LAST_TEN_PLAYED_AVERAGE_DECISIVE_SCORE) d15: averageScore(type: LAST_FIFTEEN_AVERAGE_DECISIVE_SCORE) d40: averageScore(type: LAST_FORTY_AVERAGE_DECISIVE_SCORE) } } }
           playerGameScore { ... on PlayerGameScore { projectedScore projection { grade score } } } } } } } } } }""", {"id": t["id"].split(":")[-1]}, token=token())
-    print("::notice title=set task::" + json.dumps(d)[:3500])
+    print("::notice title=set task::" + json.dumps([(n["game"]["date"], c["card"]["anyPlayer"]) for n in d["currentUser"]["task"]["pickableGames"]["nodes"] for c in n["cardsWithPlayerGameScores"] if any(k in c["card"]["anyPlayer"]["displayName"] for k in ("Neto", "Enciso", "Karaman", "Radu", "Mount"))])[:3500])
 
 
 
