@@ -21,6 +21,19 @@ from bot import sources
 
 
 def si_next(spg, country, league):
+    """SorareInside de la propera jornada que encara no ha començat. Primer el dia del primer partit d'aquella jornada
+    (state/mister_kickoffs.json, el desa el planificador); abans es mirava sempre «d'aquí 4 dies», i el dia que
+    començava la jornada (dissabte) agafava la de la setmana següent, encara sense onzes ni PS (error del 31/10)."""
+    k = load_json("mister_kickoffs.json", {}).get({"Segunda División": "laliga2", "Primera División": "laliga"}.get(league))
+    if k:
+        K = dt.datetime.fromisoformat(k)
+        if K > dt.datetime.now(dt.timezone.utc):
+            try:
+                d = si.extract_league(spg, country, league, K.astimezone(dt.timezone.utc).date(), log=lambda *_: None)
+                if sum(1 for t in d.get("_order", []) if isinstance(d.get(t), list)) >= 4:  # almenys uns quants equips amb onze
+                    return d
+            except RuntimeError:
+                pass
     for days in (4, 5, 6, 3, 7, 2, 1, 0):
         try:
             return si.extract_league(spg, country, league, dt.date.today() + dt.timedelta(days=days), log=lambda *_: None)
