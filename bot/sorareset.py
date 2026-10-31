@@ -174,6 +174,16 @@ def run(dry=False, sports=("NBA",), scan=False):
                             games_used.append(a["game"]["date"])
         stt["games"] = sorted(set(games_used) | {g for g in stt.get("games", []) if g > now.isoformat()[:19]})
         save_json("sorare_set.json", stt)
+        # revisions dins de la mateixa execució (accions dinàmiques), sense esperar la propera execució del planificador
+        dyn, done = load_json("dyn_actions.json", []), set(load_json("done.json", []))
+        for gd in stt["games"]:
+            G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
+            for mins in (20, 8):
+                k = f"soraresetrev:{gd}:{mins}"
+                at = G - dt.timedelta(minutes=mins)
+                if k not in done and now < G - dt.timedelta(minutes=3) and at < now + dt.timedelta(minutes=95) and not any(d["key"] == k for d in dyn):
+                    dyn.append({"key": k, "at": max(at, now).isoformat(), "do": "soraresetrev", "comp": f"{gd}:{mins}", "deadline": (G - dt.timedelta(minutes=3)).isoformat()})
+        save_json("dyn_actions.json", dyn)
         print(f"::notice title=set::primer partit amb jugadors del Set: {stt.get('first')} · partits de les alineacions: {', '.join(stt['games'])}")
         return
     msg = "Sorare · Set" + (" (prova)" if dry else "") + "\n" + "\n".join(rep)

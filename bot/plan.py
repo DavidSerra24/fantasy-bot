@@ -197,7 +197,7 @@ def plan(now=None, done=None):
         T = now.replace(minute=0, second=0, microsecond=0)
         k = f"soraresetscan:{T.isoformat()}"
         if due(k, T, T + dt.timedelta(minutes=59)):
-            add(k, T, "soraresetscan", None, T + dt.timedelta(minutes=59))
+            add(k, T, "soraresetscan", T.isoformat(), T + dt.timedelta(minutes=59))
     fs = load_json("sorare_set.json", {}).get("first")
     if fs:
         F = dt.datetime.fromisoformat(fs.replace("Z", "+00:00"))
@@ -211,7 +211,7 @@ def plan(now=None, done=None):
         for mins in (20, 8):
             k = f"soraresetrev:{gd}:{mins}"
             if due(k, G - dt.timedelta(minutes=mins), G - dt.timedelta(minutes=3)):
-                add(k, G - dt.timedelta(minutes=mins), "soraresetrev", None, G - dt.timedelta(minutes=3))
+                add(k, G - dt.timedelta(minutes=mins), "soraresetrev", f"{gd}:{mins}", G - dt.timedelta(minutes=3))
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
