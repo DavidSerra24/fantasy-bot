@@ -115,6 +115,77 @@ def _accept_window(pg, o):
     btn.first.click()
 
 
+LOANS_JS = """() => { const c = document.querySelector('.sw-content'); if (!c) return [];
+    return [...c.querySelectorAll('button[data-popup="loan-confirm"]')].map(b => {
+        let li = b.closest('li[data-id-offer]'); let user = li ? (li.querySelector('.user-name strong') || {}).innerText : null;
+        return { id_bid: b.dataset.id, name: b.dataset.name, amount: +b.dataset.amount, days: +b.dataset.days, user }; }); }"""
+
+
+def loan_offers(pg):
+    """Peticions de cessió rebudes (Mercat → «N ofertas recibidas», botó «loan-confirm»)."""
+    pg.goto(U + "/market", wait_until="domcontentloaded"); pg.wait_for_timeout(3500)
+    btn = pg.locator(".offers-received[data-sw]").first
+    if not btn.count():
+        return []
+    btn.click()
+    pg.locator(".sw-content").first.wait_for(state="visible", timeout=10000)
+    pg.wait_for_timeout(2500)
+    return pg.evaluate(LOANS_JS)
+
+
+def accept_loans(pg, name, dry=False):
+    """Accepta les peticions de cessió dels jugadors que el bot ha marcat com a cedibles (els que no són a l'onze;
+    decisió del David, 31/10). Primer per l'API (ajax/loan-confirm), si no amb la finestra."""
+    from bot import misterapi
+    out = []
+    for o in loan_offers(pg):
+        txt = f"{o['name']} → {o.get('user') or '?'} ({o['days']} dies, {o['amount'] / 1e6:.2f}M)"
+        if dry:
+            out.append(f"acceptaria {txt}")
+            continue
+        ok = False
+        if misterapi.API is not None:
+            try:
+                d = misterapi.API.ajax("loan-confirm", {"id_bid": o["id_bid"]})
+                ok = isinstance(d, dict) and d.get("status") == "ok"
+            except Exception as e:
+                print(f"::warning title=Mister API cessió::{str(e)[:200]} → finestra")
+        if not ok:
+            try:
+                pg.locator(f'.sw-content button[data-popup="loan-confirm"][data-id="{o["id_bid"]}"]').first.click()
+                pg.locator("#popup-content #btn-send").first.wait_for(timeout=10000)
+                pg.locator("#popup-content #btn-send").first.click()
+                pg.wait_for_timeout(3000)
+                ok = not any(x["id_bid"] == o["id_bid"] for x in loan_offers(pg))
+            except Exception as e:
+                print(f"::warning title=cessió finestra::{str(e)[:200]}")
+        out.append(("✅ cedit " if ok else "⚠️ no he pogut acceptar ") + txt)
+    return f"🔁 {name} · cessions: " + "; ".join(out) if out else None
+
+
+def run_loans(dry=False):
+    """Revisió de peticions de cessió (cada hora durant el dia)."""
+    from bot.mister import login, new_context as mctx
+    report = []
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = mctx(b).new_page()
+        login(pg)
+        for name, cid, _, _ in LEAGUES:
+            try:
+                pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
+                r = accept_loans(pg, name, dry)
+                if r:
+                    report.append(r)
+            except Exception as e:
+                report.append(f"❌ Mister · cessions · {name}: {type(e).__name__}: {str(e)[:200]}")
+        b.close()
+    for l in report:
+        print("::notice title=cessions::" + l)
+    if report:
+        telegram("Mister · cessions" + (" (prova)" if dry else "") + "\n" + "\n".join(report))
+
+
 def run(dry=False):
     report = []
     cache = {}
@@ -166,4 +237,6 @@ def run(dry=False):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry", action="store_true")
-    run(ap.parse_args().dry)
+    ap.add_argument("--cessions", action="store_true")
+    a = ap.parse_args()
+    run_loans(a.dry) if a.cessions else run(a.dry)
