@@ -305,11 +305,6 @@ def run(dry=False):
             # titular: amb l'onze oficial, 100% o 0%; si no, el % de SorareInside (només compten els del 80–90%)
             tit = (1.0 if starts(xi, q["slug"], q["name"]) else 0.0) if xi else odds.get(q["slug"], 0.0)
             q.update(l5=l5, l10=l10, l20=l20, tit=tit, confirmed=bool(xi), chance=tit * l20 / 20)
-            if not stat:
-                # missions d'acció decisiva, Pro i Set (decisió del David, 31/10): la mitjana d'accions decisives dels últims 10
-                # jugats que mostra Sorare al costat del jugador (Neto 46, Enciso 45); sempre entre els que juguen (80–90% o titulars)
-                da = davg(q["slug"])
-                q.update(davg=da, chance=(da / 100) if tit > 0 else 0)
         ranked = sorted(cand.values(), key=lambda q: (-q["chance"], -(q.get("davg") or 0), -q["l10"], -q["l5"], q["date"]))
         free = [i for i in range(n_max) if i not in locked]
         want = []
