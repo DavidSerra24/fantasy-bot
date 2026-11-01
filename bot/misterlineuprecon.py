@@ -19,17 +19,14 @@ for k in ("function popup_twig", "function sw_twig", "function sw_open", "select
         out.append(f"[{k}] " + sq(code[max(0, m.start() - 150):m.start() + 900]))
 base = re.search(r'"base"\s*:\s*"([^"]+)"', html)
 out.append("base: " + (base.group(1) if base else "?") + " | twig: " + str(re.search(r'"twig"\s*:\s*"?(\w+)', html).group(1)))
-for t in ("views/popups/formation.twig", "views/popup/formation.twig", "views/formation.twig", "views/sw/substitution.twig", "views/substitution.twig",
-          "views/popups/substitution.twig", "views/sw/pool-public.twig", "views/pool-public.twig", "views/ajax/pools.twig", "views/sw/pools.twig"):
-    for root in (U + "/", "https://app-mister.mundodeportivo.com/file/forge-app/786c6e4f/app/"):
-        try:
-            r = api.s.get(root + t, timeout=20)
-        except Exception as e:
-            continue
-        if r.status_code == 200 and "{%" in r.text:
-            out.append(f"TWIG {root}{t}: " + sq(r.text)[:2800])
-            break
-    else:
-        out.append(f"TWIG {t}: no")
+out.append("inline twigs: " + ", ".join(re.findall(r'id="twig-([\w-]+)"', html)))
+for m in re.finditer(r'id="twig-(formation|substitution|pool[\w-]*|subs)"[^>]*>([\s\S]*?)</script>', html):
+    out.append(f"INLINE {m.group(1)}: " + sq(m.group(2))[:2800])
+for t in ("formation", "substitution", "pool-public", "pool-private", "pools", "subs"):
+    r = api.s.get(f"{U}/views/ajax/{t}.twig", timeout=20)
+    out.append(f"TWIG {t} {r.status_code}: " + (sq(r.text)[:2800] if r.status_code == 200 else ""))
+for k in ("select_slot", "sw_open('substitution", 'sw_open("substitution', "lineup-player"):
+    for m in list(re.finditer(re.escape(k), code))[:2]:
+        out.append(f"[{k}] " + sq(code[max(0, m.start() - 200):m.start() + 600]))
 for o in out:
     print("RECON| " + o[:3000])
