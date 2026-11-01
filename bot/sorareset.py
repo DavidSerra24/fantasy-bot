@@ -329,7 +329,7 @@ def review(sports=("NBA",), dry=False):
                 plan.append((l, fill, v + sum(c["proj"] for c in fx.values())))
             old_total = sum(cur_val[l["id"]] for l in lineups)
             new_total = sum(nv if f is not None else cur_val[l["id"]] for l, f, nv in plan)
-            if new_total <= old_total + 2:
+            if new_total <= old_total + 0.5:
                 continue  # el que hi ha ja és (pràcticament) el millor
             todo = []
             for l, fill, nv in plan:
