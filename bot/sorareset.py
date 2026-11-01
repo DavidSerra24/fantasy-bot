@@ -190,11 +190,11 @@ def run(dry=False, sports=("NBA",), scan=False):
         dyn, done = load_json("dyn_actions.json", []), set(load_json("done.json", []))
         for gd in stt["games"]:
             G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
-            for mins in (20, 8):
+            for mins in (20, 8, 2):
                 k = f"soraresetrev:{gd}:{mins}"
                 at = G - dt.timedelta(minutes=mins)
-                if k not in done and now < G - dt.timedelta(minutes=3) and at < now + dt.timedelta(minutes=95) and not any(d["key"] == k for d in dyn):
-                    dyn.append({"key": k, "at": max(at, now).isoformat(), "do": "soraresetrev", "comp": f"{gd}:{mins}", "deadline": (G - dt.timedelta(minutes=3)).isoformat()})
+                if k not in done and now < G - dt.timedelta(seconds=45) and at < now + dt.timedelta(minutes=95) and not any(d["key"] == k for d in dyn):
+                    dyn.append({"key": k, "at": max(at, now).isoformat(), "do": "soraresetrev", "comp": f"{gd}:{mins}", "deadline": (G - dt.timedelta(seconds=45)).isoformat()})
         fs = stt.get("first")  # pas nou després de reclamar (o alineacions pendents): alineacions 12 min abans del primer partit
         if fs and firsts:
             F = dt.datetime.fromisoformat(fs.replace("Z", "+00:00"))

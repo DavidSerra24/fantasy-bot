@@ -223,10 +223,10 @@ def plan(now=None, done=None):
     # Set NBA: revisió de les alineacions ja fetes abans de cada partit (si un jugador deixa de jugar, es canvia; decisió del David, 31/10)
     for gd in load_json("sorare_set.json", {}).get("games", []):
         G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
-        for mins in (20, 8):
+        for mins in (20, 8, 2):  # l'última, 2 min abans (fins a l'últim moment)
             k = f"soraresetrev:{gd}:{mins}"
-            if due(k, G - dt.timedelta(minutes=mins), G - dt.timedelta(minutes=3)):
-                add(k, G - dt.timedelta(minutes=mins), "soraresetrev", f"{gd}:{mins}", G - dt.timedelta(minutes=3))
+            if due(k, G - dt.timedelta(minutes=mins), G - dt.timedelta(seconds=45)):
+                add(k, G - dt.timedelta(minutes=mins), "soraresetrev", f"{gd}:{mins}", G - dt.timedelta(seconds=45))
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
