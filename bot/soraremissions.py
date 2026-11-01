@@ -355,8 +355,16 @@ def run(dry=False):
     # 2a passada (decisió del David, 30/10): les places que queden buides s'omplen igualment amb les cartes que sobren
     # («per si de cas», p. ex. suplents que poden entrar a la segona part). Primer a les missions d'acció decisiva
     # (un suplent té més opcions de fer una acció decisiva que no pas xuts o tackles), després per prioritat.
+    # Una carta sobrant que ja és en una altra missió s'hi queda (si no, aquella missió no la deixa anar i aquesta
+    # falla cada vegada amb «You can't pick a card used in a picker»; 1/11, Decisive Picker Super Rare).
+    held_by = {}
+    for pl in plans:
+        for i in pl["free"]:
+            if i in pl["apps"]:
+                held_by[pl["apps"][i]["anyCard"]["slug"]] = pl["tid"]
     for pl in sorted(plans, key=lambda pl: (0 if (not pl["stat"] and not pl["nba"]) else 1, pl["pri"])):
-        rest = sorted([q for q in pl["ranked"] if q["card"] not in used_cards and q not in pl["want"]],
+        rest = sorted([q for q in pl["ranked"] if q["card"] not in used_cards and q not in pl["want"]
+                       and held_by.get(q["card"], pl["tid"]) == pl["tid"]],
                       key=lambda q: (-(q.get("margin", 0) if pl["nba"] else 0), -(q.get("davg") or 0), -q["l20"], -q["l10"], -q["l5"], q["date"]))
         for q in rest:
             if len(pl["want"]) >= len(pl["free"]):
@@ -454,8 +462,10 @@ def run(dry=False):
             if sorted(sent.get(p_["tid"], [])) != sorted(p_["picks"]):
                 short.append(f"🎯 {p_['task']['title']} ({p_.get('rarity')}): " + ", ".join(p_["picks"]))
             sent[p_["tid"]] = p_["picks"]
-        elif not p_.get("done"):
-            short.append(f"❌ {p_['task']['title']}: no he pogut posar els picks ({str(p_.get('err'))[:120]})")
+        elif not p_.get("done"):  # el mateix error només s'avisa una vegada
+            if sent.get("err:" + p_["tid"]) != p_.get("err"):
+                short.append(f"❌ {p_['task']['title']} ({p_.get('rarity')}): no he pogut posar els picks ({str(p_.get('err'))[:120]})")
+            sent["err:" + p_["tid"]] = p_.get("err")
     save_json("sorare_missions_sent.json", sent)
     if short:
         telegram("Sorare · missions\n" + "\n".join(short))
