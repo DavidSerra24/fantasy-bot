@@ -213,6 +213,7 @@ def probe():
     def T(n):
         mm = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
         return _re.sub(r"\s+", " ", mm.group(1)) if mm else f"{n}: ?"
+    print("::notice title=configs::" + " ¶ ".join(T(n)[:600] for n in ("ExperienceRewardConfig", "ConversionCreditRewardConfig", "InGameCurrencyRewardConfig", "ConversionCredit", "InGameCurrency", "CardPackReward")))
     impl = sorted(set(_re.findall(r"\ntype (\w+) implements [^{]*AnyRewardInterface", sdl1)))
     print("::notice title=rewards::" + " ¶ ".join([T("AnyRewardInterface")[:600], ", ".join(impl)[:800]] + [T(n)[:500] for n in impl if any(k in n for k in ("Currency", "Shard", "Xp", "XP", "Experience", "Coin", "Credit"))])[:3900])
 
