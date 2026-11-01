@@ -210,13 +210,18 @@ def probe():
     import requests as _rq
     sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
     sdl1 = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", sdl)
-    m = _re.search(r"\ntype Mutation \{(.*?)\n\}", sdl1, _re.S)
-    lines = [l.strip() for l in m.group(1).split("\n") if _re.search(r"claim|task|reward", l, _re.I)]
-    print("::notice title=mut::" + " ¶ ".join(lines)[:3900])
     def T(n):
         mm = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
         return _re.sub(r"\s+", " ", mm.group(1)) if mm else f"{n}: ?"
-    print("::notice title=tipus::" + " ¶ ".join(T(n)[:1500] for n in ("Task", "DecisivePlayerPickerTask", "TaskGroup")))
+    m = _re.search(r"\ntype Mutation \{(.*?)\n\}", sdl1, _re.S)
+    lines = [l.strip() for l in m.group(1).split("\n") if _re.search(r"claim|task|reward", l, _re.I)]
+    print("::notice title=mut::" + " ¶ ".join(T(n)[:800] for n in ("claimTaskInput", "claimTaskPayload", "ManagerProgressionTaskState", "claimRewardsInput", "claimAnyRewardInput")))
+    out = []
+    for r in ("limited", "rare", "super_rare"):
+        d = gql("""query($r: Rarity, $sp: Sport!) { currentUser { taskGroup(slug: "play") { myTasks(rarity: $r, sport: $sp, includingArchived: true) { __typename
+          ... on TaskInterface { id title expired aasmState claimableAt completedAt } } } } }""", {"r": r, "sp": "FOOTBALL"}, token=token())["currentUser"]["taskGroup"]["myTasks"]
+        out.append(r + ": " + " | ".join(f"{t.get('title')}:{t.get('aasmState')}:{t.get('expired')}:{(t.get('claimableAt') or '')[:16]}" for t in d))
+    print("::notice title=estats::" + " ¶ ".join(out)[:3900])
 
 
 
