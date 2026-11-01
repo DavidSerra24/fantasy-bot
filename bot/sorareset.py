@@ -283,7 +283,7 @@ def review(sports=("NBA",), dry=False):
             free_cards = {n["anyCard"]["slug"] for n in bench(st["id"], used=False)}
             # Una alineació queda **bloquejada sencera** quan comença el primer partit de qualsevol dels seus jugadors
             # (Sorare: «La alineación está bloqueada»; 1/11): llavors no es toca i els seus jugadors no es mouen.
-            locked_l = {l["id"] for l in lineups if any(a and a.get("game") and D(a["game"]["date"]) <= now + dt.timedelta(minutes=3)
+            locked_l = {l["id"] for l in lineups if any(a and a.get("game") and D(a["game"]["date"]) <= now + dt.timedelta(seconds=40)
                                                         for a in l["taskAppearances"])}
             # caselles bloquejades i punts previstos actuals de cada alineació
             fixed_all, cur_val = {}, {}
@@ -296,7 +296,7 @@ def review(sports=("NBA",), dry=False):
                     g = next((g for g in c["games"] if a.get("game") and g["anyGame"]["id"] == a["game"]["id"]), {})
                     proj = 0 if c.get("inj") else (g.get("projectedScore") or 0)
                     val += proj
-                    if l["id"] in locked_l or not a.get("game") or D(a["game"]["date"]) <= now + dt.timedelta(minutes=3):
+                    if l["id"] in locked_l or not a.get("game") or D(a["game"]["date"]) <= now + dt.timedelta(seconds=40):
                         fx[a["index"]] = dict(c, proj=proj, game=a["game"])
                 fixed_all[l["id"]], cur_val[l["id"]] = fx, val
             locked_players = {c["player"] for fx in fixed_all.values() for c in fx.values()}
@@ -308,7 +308,7 @@ def review(sports=("NBA",), dry=False):
                     continue
                 for g in c["games"]:
                     d = D(g["anyGame"]["date"])
-                    if now + dt.timedelta(minutes=3) < d < start + dt.timedelta(hours=12):
+                    if now + dt.timedelta(seconds=40) < d < start + dt.timedelta(hours=12):
                         cand = dict(c, proj=0 if c["inj"] else (g.get("projectedScore") or 0), game=g["anyGame"])
                         cur = pool.get(c["player"])
                         if not cur or (cand["bonus"], cand["xp"], cand["proj"]) > (cur["bonus"], cur["xp"], cur["proj"]):
