@@ -396,7 +396,7 @@ def run(dry=False):
             if dry:
                 line.append("   (prova) canviaria: " + ", ".join(q["name"] for q in new) + (" en lloc de " + ", ".join(a["anyPlayer"]["displayName"] for i, a in cur.items() if i not in keep) if len(cur) > len(keep) else ""))
             else:
-                pending.append({"task": task, "tid": tid, "payload": payload, "line": line})
+                pending.append({"task": task, "tid": tid, "payload": payload, "line": line, "rarity": pl["rarity"]})
         else:
             if not want and not cur and not locked:
                 continue  # cap carta d'aquesta raresa/esport: no cal dir res
@@ -433,7 +433,8 @@ def run(dry=False):
     for p_ in pending:
         if p_.get("done"):
             after = gql(TASK, {"id": p_["tid"]}, token=token())["currentUser"]["task"]["taskAppearances"]
-            p_["line"].append("   ✅ picks ara: " + ", ".join(a["anyPlayer"]["displayName"] for a in sorted(after, key=lambda a: a["index"])))
+            p_["picks"] = [a["anyPlayer"]["displayName"] for a in sorted(after, key=lambda a: a["index"])]
+            p_["line"].append("   ✅ picks ara: " + ", ".join(p_["picks"]))
         else:
             p_["line"].append(f"   ❌ no he pogut posar els picks: {p_.get('err')}")
     rep[:] = ["\n".join(r) if isinstance(r, list) else r for r in rep]
@@ -441,8 +442,23 @@ def run(dry=False):
     msg = "Sorare · missions" + (" (prova)" if dry else "") + "\n" + ("\n".join(rep) or "Cap missió de Decisive Picker avui.")
     for k, r in enumerate(rep):  # una anotació per missió (cada anotació es talla als ~4000 caràcters)
         print(f"::notice title=missió {k + 1}::" + r.replace("\n", " ¶ ")[:3900])
-    if any("✅ picks ara" in r or "❌" in r or "🎁" in r or dry for r in rep) or not rep:
+    if dry:
         telegram(msg)
+        return
+    # Telegram curt (el David rebia massa avisos, 1/11): només les missions on han canviat els jugadors respecte
+    # de l'últim avís, les recompenses reclamades i els errors. El detall complet queda a les anotacions.
+    sent = load_json("sorare_missions_sent.json", {})
+    short = [r for r in rep if r.startswith("🎁")]
+    for p_ in pending:
+        if p_.get("done") and p_.get("picks") is not None:
+            if sorted(sent.get(p_["tid"], [])) != sorted(p_["picks"]):
+                short.append(f"🎯 {p_['task']['title']} ({p_.get('rarity')}): " + ", ".join(p_["picks"]))
+            sent[p_["tid"]] = p_["picks"]
+        elif not p_.get("done"):
+            short.append(f"❌ {p_['task']['title']}: no he pogut posar els picks ({str(p_.get('err'))[:120]})")
+    save_json("sorare_missions_sent.json", sent)
+    if short:
+        telegram("Sorare · missions\n" + "\n".join(short))
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
