@@ -176,6 +176,21 @@ def plan(now=None, done=None):
             k = f"soraremission:{gd}" + ("" if mins == 15 else f":{mins}")
             if due(k, G - dt.timedelta(minutes=mins), G):
                 add(k, G - dt.timedelta(minutes=mins), "soraremission", gd, G)
+    # Collectibol: avís quan un club amb llicència guanya (decisió del David, 1/11). Comprovacions del final del partit:
+    # de 1 h 45 a 2 h 50 després de l'inici cada 4 min (pròrroga, afegit) i després cada 10 min fins a 4 h.
+    try:
+        from bot import collectibol
+        for mid, g in collectibol.scan(now).items():
+            if g.get("done") or not g.get("kick"):
+                continue
+            K = dt.datetime.fromisoformat(g["kick"].replace("Z", "+00:00"))
+            for mins in list(range(105, 171, 4)) + list(range(180, 241, 10)):
+                T = K + dt.timedelta(minutes=mins)
+                k = f"collectibol:{mid}:{mins}"
+                if due(k, T, T + dt.timedelta(minutes=30)):
+                    add(k, T, "collectibol", f"{mid}|{mins}", T + dt.timedelta(minutes=30))
+    except Exception as e:
+        print(f"::warning title=collectibol::{str(e)[:200]}")
     # Mister: vigilància de cessions (Quique, 80–90%) cada hora fins a l'hora de config/mister_loanwatch.json
     try:
         lw = json.load(open("config/mister_loanwatch.json"))
