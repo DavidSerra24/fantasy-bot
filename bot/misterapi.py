@@ -271,7 +271,7 @@ class MisterAPI:
         tries = [cur] + [g["id"] for g in gws if (g.get("gameweek") or 0) > next((x.get("gameweek") or 0 for x in gws if x["id"] == cur), 0)][:2]
         for gid in tries:
             if gid != cur:
-                d = (self.ajax("sw/" + post, {"post": post, "id_gameweek": gid}) or {}).get("data") or {}
+                d = (self.ajax("sw/" + post, {"post": post, "id": gid}) or {}).get("data") or {}  # selector de jornada: «id»
             res = d.get("results") or {}
             if not res.get("locked"):
                 rows = [{"id": str(m["id"]), "home": m.get("home") or "", "away": m.get("away") or "", "sel": [m["prediction"]] if m.get("prediction") else [],
