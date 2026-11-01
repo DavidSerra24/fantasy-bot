@@ -24,11 +24,13 @@ for s in srcs:
         code += "\n/*FILE " + s + "*/\n" + api.s.get(s, timeout=30).text
     except Exception as e:
         out.append(f"err {s}: {e}")
-for k in ("sub-do", "subs", "substitution", "formation", "captain", "pools", "lineup", "slot_index", "gameweek"):
+for k in ("ajax/sw/", "data-popup]", "'popup'", "captain-toggle", "ajax/pools", "btn-pools", "'ajax/' +", "function popup(", "formation-grid"):
     hits = [m.start() for m in re.finditer(re.escape(k), code)][:6]
     for h in hits:
         out.append(f"[{k}] " + re.sub(r"\s+", " ", code[max(0, h - 250):h + 350]))
-btn = re.findall(r"<button[^>]*lineup-player[^>]*>", html)[:3]
+btn = [re.sub(r"\s+", " ", x) for x in re.findall(r"<button[^>]*?lineup-player[\s\S]*?>", html)[:3]]
+out.append("lineup html: " + re.sub(r"\s+", " ", (re.search(r"lineup-starting[\s\S]{0,2500}", html) or [""])[0])[:2500])
+out.append("formació html: " + re.sub(r"\s+", " ", (re.search(r"[\s\S]{0,300}data-popup=\"formation\"[\s\S]{0,300}", html) or [""])[0]))
 out.append("botons casella: " + " | ".join(btn))
 out.append("formació: " + " | ".join(re.findall(r"<[^>]*data-popup=\"formation\"[^>]*>", html)[:2]))
 for k in ("id_manager", "manager", "gameweek", "id_gameweek"):
