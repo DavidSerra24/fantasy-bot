@@ -175,8 +175,78 @@ def set_captain(pg, url, slot):
     pg.goto(url, wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
 
 
+def describe(tac, pick, cap):
+    o = {"G": 0, "D": 1, "M": 2, "F": 3}
+    desc = f"{tac}: " + ", ".join(f"{q['short']}{' ©' if q is cap else ''} ({q['xpct'] if q['xpct'] is not None else '?'}%/{q['xps'] if q['xps'] is not None else '-'})"
+                                  for q in sorted(pick, key=lambda q: o[q["P"]]))
+    skips = [q["short"] for q in pick if q.get("rule_skip")]
+    if skips:
+        desc += " | ℹ️ sense alternativa, salto la norma de rivals amb: " + ", ".join(skips)
+    if 11 - len(pick):
+        desc += f" | ⚠️ falten {11 - len(pick)} jugadors per completar l'onze"
+    return desc
+
+
+def apply_api(squad, cid, dry=False):
+    """Alineació per l'API interna (decisió del David, 1/11). Retorna la línia de resum, o None si cal el navegador (pla B)."""
+    from bot import misterapi
+    api = misterapi.API
+    if api is None:
+        return None
+    tac, pick, cap = best_lineup(squad)
+    desc = describe(tac, pick, cap)
+    try:
+        api.community(cid)
+        st = api.lineup()
+        if not st:
+            return "⏸️ la jornada ja ha començat (no es pot canviar) · volia " + desc
+        if any(x["off"] for x in st["slots"]):
+            return "⏸️ l'alineació està bloquejada · volia " + desc
+        if dry:
+            now = {x["pid"] for x in st["slots"]}
+            return f"posaria {desc} (ara {st['formation']}; canvis: {sum(1 for q in pick if q['pid'] not in now)}) [API]"
+        if st["formation"] != tac:
+            api.set_formation(st, tac)
+            st = api.lineup()
+            if st["formation"] != tac:
+                raise RuntimeError(f"la tàctica no ha canviat ({st['formation']} ≠ {tac})")
+        problems = []
+        for P, code in POSN.items():
+            want = [q["pid"] for q in pick if q["P"] == P]
+            here = [x for x in st["slots"] if x["pos"] == code]
+            todo = [pid for pid in want if pid not in {x["pid"] for x in here}]
+            free = [x["slot"] for x in here if x["pid"] not in want]
+            for pid, slot in zip(todo, free):
+                try:
+                    api.put(st, slot, pid)
+                except Exception as e:
+                    problems.append(f"{next(q['short'] for q in pick if q['pid'] == pid)} ({str(e)[:80]})")
+        st = api.lineup()
+        cs = next((x for x in st["slots"] if x["pid"] == cap["pid"]), None)
+        if cs and not cs["cap"]:
+            try:
+                api.captain(st, cs["slot"])
+                st = api.lineup()
+            except Exception as e:
+                problems.append(f"capità ({str(e)[:80]})")
+        ok = {x["pid"] for x in st["slots"] if x["pid"] not in ("0", None)} == {q["pid"] for q in pick} and st["formation"] == tac
+        capok = any(x["cap"] and x["pid"] == cap["pid"] for x in st["slots"])
+        if not ok:
+            print(f"::warning title=mister api::l'onze no ha quedat igual per l'API ({problems}); ho faig amb el navegador")
+            return None
+        line = ("✅ " if capok else "⚠️ ") + desc
+        if not capok:
+            line += " | ❗ el capità no ha quedat posat"
+        if problems:
+            line += " | errors: " + ", ".join(problems)
+        return line
+    except Exception as e:
+        print(f"::warning title=mister api::alineació per l'API: {type(e).__name__}: {str(e)[:200]} → navegador")
+        return None
+
+
 def apply(pg, squad, dry=False):
-    """Posa l'onze i el capità. Retorna una línia de resum."""
+    """Posa l'onze i el capità amb el navegador (pla B). Retorna una línia de resum."""
     res = best_lineup(squad)
     tac, pick, cap = res
     gaps = 11 - len(pick)
@@ -325,7 +395,7 @@ def run(dry=False, only=None, final=False, loans_only=False):
                     continue
                 if final:
                     apply_official(squad, cache.get("sid:" + league), SLUG[name], report, name, wait=not dry)
-                report.append(f"🧢 {name} · alineació: " + apply(pg, squad, dry))
+                report.append(f"🧢 {name} · alineació: " + (apply_api(squad, cid, dry) or apply(pg, squad, dry)))
                 if final:  # després de la revisió final, els que sobren es posen com a cedibles (decisió del David, 31/10)
                     report.append(loan_bench(squad, name, dry))
                     if not dry:

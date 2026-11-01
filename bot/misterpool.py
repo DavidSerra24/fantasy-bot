@@ -44,6 +44,51 @@ def match(rows, home, away):
     return best if bs > 0 else None
 
 
+def run_api(cid, sw, label, picks, dry=False):
+    """Quiniela per l'API (ajax/pools). Retorna la línia de resum o None (pla B: navegador)."""
+    from bot import misterapi
+    api = misterapi.API
+    if api is None:
+        return None
+    kind = sw.split("-")[1]
+    try:
+        api.community(cid)
+        rows, locked_all = api.pool(kind)
+        if locked_all or not rows:
+            return None
+        done, miss, locked = [], [], 0
+        for h, a, gh, ga in picks:
+            r = match(rows, h, a)
+            if not r:
+                miss.append(f"{h}-{a}"); continue
+            if r["locked"]:
+                locked += 1; continue
+            s_ = sign(gh, ga)
+            if s_ not in r["sel"]:
+                api.pool_set(kind, r["id"], s_, dry)
+            done.append(f"{r['home']}-{r['away']} {s_}")
+        bad = []
+        if not dry and done:
+            after = {r["id"]: r["sel"] for r in api.pool(kind)[0]}
+            for h, a, gh, ga in picks:
+                r = match(rows, h, a)
+                if r and not r["locked"] and sign(gh, ga) not in after.get(r["id"], []):
+                    bad.append(r["id"])
+        line = f"🎲 Quiniela Mister · {label}" + (" (prova)" if dry else "") + f": {len(done)} posats"
+        if dry or done:
+            line += " · " + ", ".join(done)
+        if locked:
+            line += f" | {locked} ja començats"
+        if miss:
+            line += " | ⚠️ no trobats: " + ", ".join(miss)
+        if bad:
+            line += f" | ❗ {len(bad)} no s'han desat bé, revisa-ho"
+        return line
+    except Exception as e:
+        print(f"::warning title=mister api::quiniela per l'API ({label}): {type(e).__name__}: {str(e)[:200]} → navegador")
+        return None
+
+
 def run(comp, picks, dry=False):
     """picks: [[local, visitant, gols local, gols visitant], ...] (com bot.quiniela.parse). Retorna línies de resum."""
     if comp not in POOLS or not picks:
@@ -55,6 +100,10 @@ def run(comp, picks, dry=False):
         login(pg)
         for cid, sw, label in POOLS[comp]:
             try:
+                api_line = run_api(cid, sw, label, picks, dry)  # primer per l'API interna (1/11); si falla, navegador
+                if api_line:
+                    out.append(api_line)
+                    continue
                 rows = open_pool(pg, cid, sw)
                 done, miss, locked = [], [], 0
                 for h, a, gh, ga in picks:

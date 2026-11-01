@@ -6,7 +6,8 @@ Com funciona la web (descobert del seu codi, 30/10):
   → galeta de sessió. Totes les crides /ajax/* són POST amb la capçalera X-Auth (= _FG_cfg.auth de la pàgina).
 - Finestres: ajax/player-community-info (id_player, popup=bid|sale…) torna l'HTML de la finestra; el botó «#btn-send»
   porta data-ajax = l'acció (ajax/<acció>) i el formulari de la finestra són les dades.
-- Ofertes: ajax/offer (dades del botó). Alineació: ajax/sub-do, ajax/formation, capità:
+- Ofertes: ajax/offer (dades del botó). Alineació (per l'API des de l'1/11): ajax/sub-do {id_player, slot, id=id_uc, gwid},
+  ajax/formation {formation, id=id_uc}, candidats d'una casella ajax/sw/substitution, capità:
   POST /forge/bemanager/managers/{id}/lineup/captain {slot_index}. Quiniela: ajax/pools (el botó triat porta la classe «mine»).
 Seguretat: només fa el que fa el bot amb el navegador (pujes, vendes, ofertes, alineació, quiniela). Mai res de pagament
 (crèdits, botiga, compres).
@@ -197,6 +198,91 @@ class MisterAPI:
         if dry:
             return data
         self._ok(self.ajax("offer", data), "acceptar l'oferta")
+        return True
+
+    # -- alineació (descobert del codi de la web, 1/11: team.listeners.js / team/substitution.twig) --
+    def lineup(self):
+        """Propera jornada (la que «Comença en…»): {href, gw, gwid, id_uc, formation, slots:[{slot,pos,pid,cap}]} o None."""
+        html = self.page("/team")
+        navs = re.findall(r'<a[^>]*class="[^"]*\bgameweek\b[^"]*"[^>]*>[\s\S]*?</a>', html)
+        nxt = next((n for n in navs if re.search(r"Comen[çc]a|Empieza|Comienza", n)), None)
+        if not nxt:
+            return None
+        href = re.search(r'href="([^"]+)"', nxt).group(1)
+        html = self.page("/" + href.lstrip("/"))
+        slots = []
+        for m in re.finditer(r"(<button[^>]*?\blineup-player\b[\s\S]*?>)([\s\S]*?)</button>", html):
+            d = dict(re.findall(r'data-([\w-]+)="([^"]*)"', m.group(1)))
+            if "slot" in d:
+                slots.append({"slot": d["slot"], "pos": d.get("position"), "pid": d.get("id_player"), "gwid": d.get("gwid"),
+                              "cap": "captain-badge" in m.group(2), "off": "disabled" in m.group(1)})
+        f = re.search(r'data-popup="formation"[^>]*>([\s\S]*?)</button>', html)
+        uc = re.search(r'"id_uc"\s*:\s*"?(\d+)', html)
+        gw = re.search(r"gameweek=(\d+)", href)
+        return {"href": href, "gw": gw.group(1) if gw else None, "gwid": next((x["gwid"] for x in slots if x.get("gwid")), None),
+                "id_uc": uc.group(1) if uc else None, "formation": re.sub(r"<[^>]+>|\s+", "", f.group(1)) if f else None, "slots": slots}
+
+    def slot_info(self, st, slot):
+        """Finestra de la casella (sense canviar res): jugador, candidats (list) i si la jornada ja ha començat."""
+        s_ = next(x for x in st["slots"] if x["slot"] == str(slot))
+        d = self.ajax("sw/substitution", {"id_player": s_["pid"] or 0, "position": s_["pos"], "slot": s_["slot"], "gwid": st["gwid"],
+                                          "id_competition": "", "event": "select_slot", "post": "substitution"})
+        return d.get("data") or {}
+
+    def set_formation(self, st, tac, dry=False):
+        """Només tàctiques gratuïtes (les de TACTICS; mai les de crèdits)."""
+        from bot.misterplan import TACTICS
+        if tac not in TACTICS:
+            raise RuntimeError(f"tàctica {tac} no permesa")
+        if dry:
+            return True
+        self._ok(self.ajax("formation", {"formation": tac, "id": st["id_uc"]}), "tàctica")
+        return True
+
+    def put(self, st, slot, pid, dry=False):
+        """Posa el jugador pid a la casella (ajax/sub-do, com «Alinear a…» abans que comenci la jornada; mai canvis de pagament)."""
+        info = self.slot_info(st, slot)
+        if info.get("isStarted"):
+            raise RuntimeError("la jornada ja ha començat (els canvis costen crèdits): no ho faig")
+        if str(pid) not in {str(k) for k in (info.get("list") or {})}:
+            raise RuntimeError(f"el jugador {pid} no surt com a candidat de la casella {slot}")
+        if dry:
+            return True
+        self._ok(self.ajax("sub-do", {"id_player": pid, "slot": slot, "id": st["id_uc"], "gwid": st["gwid"], "gw": st["gw"]}), "alinear")
+        return True
+
+    def captain(self, st, slot, dry=False):
+        if dry:
+            return True
+        self.sync()
+        r = self.s.post(f"{U}/forge/bemanager/managers/{st['id_uc']}/lineup/captain", json={"slot_index": int(slot)}, timeout=30,
+                        headers={"X-Auth": self.auth or "", "X-Requested-With": "XMLHttpRequest", "Referer": U + "/team"})
+        if r.status_code >= 400:
+            raise RuntimeError(f"capità: HTTP {r.status_code} {r.text[:200]}")
+        return True
+
+    # -- quiniela (ajax/sw/pool-public|pool-private i ajax/pools: id_match, prediction, pool) --
+    def pool(self, kind):
+        """Partits de la quiniela oberta més propera: (rows, locked). kind = public|private."""
+        post = "pool-" + kind
+        d = (self.ajax("sw/" + post, {"post": post}) or {}).get("data") or {}
+        gws = sorted((d.get("gameweeks") or {}).values(), key=lambda g: g.get("gameweek") or 0)
+        cur = d.get("id_gameweek")
+        tries = [cur] + [g["id"] for g in gws if (g.get("gameweek") or 0) > next((x.get("gameweek") or 0 for x in gws if x["id"] == cur), 0)][:2]
+        for gid in tries:
+            if gid != cur:
+                d = (self.ajax("sw/" + post, {"post": post, "id_gameweek": gid}) or {}).get("data") or {}
+            res = d.get("results") or {}
+            if not res.get("locked"):
+                rows = [{"id": str(m["id"]), "home": m.get("home") or "", "away": m.get("away") or "", "sel": [m["prediction"]] if m.get("prediction") else [],
+                         "locked": m.get("status") in ("played", "playing", "live", "started")} for m in res.get("matches") or []]
+                return rows, False
+        return [], True
+
+    def pool_set(self, kind, id_match, sign, dry=False):
+        if dry:
+            return True
+        self._ok(self.ajax("pools", {"prediction": sign, "id_match": id_match, "pool": kind}), "quiniela")
         return True
 
 
