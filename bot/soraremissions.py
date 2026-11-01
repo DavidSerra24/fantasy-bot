@@ -441,7 +441,7 @@ def run(dry=False):
     msg = "Sorare · missions" + (" (prova)" if dry else "") + "\n" + ("\n".join(rep) or "Cap missió de Decisive Picker avui.")
     for k, r in enumerate(rep):  # una anotació per missió (cada anotació es talla als ~4000 caràcters)
         print(f"::notice title=missió {k + 1}::" + r.replace("\n", " ¶ ")[:3900])
-    if any("✅ picks ara" in r or "❌" in r or dry for r in rep) or not rep:
+    if any("✅ picks ara" in r or "❌" in r or "🎁" in r or dry for r in rep) or not rep:
         telegram(msg)
 
 if __name__ == "__main__":
