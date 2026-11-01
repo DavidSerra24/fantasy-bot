@@ -205,22 +205,13 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): totes les missions de futbol per raresa (tots els tipus)."""
+    """Prova (només lectura): les missions Decisive Picker de futbol per raresa."""
     out = []
     for r in ("limited", "rare", "super_rare"):
-        for slug in ("play", "daily", "featured"):
-            try:
-                d = gql("""query($r: Rarity, $sp: Sport!) { currentUser { taskGroup(slug: "%s") { myTasks(rarity: $r, sport: $sp) { __typename
-                  ... on Task { id title description expired } } } } }""" % slug, {"r": r, "sp": "FOOTBALL"}, token=token())["currentUser"]["taskGroup"]
-                out.append(f"{r}/{slug}: " + " | ".join(f"{t['__typename']}:{t.get('title')}:{t.get('expired')}" for t in (d or {}).get("myTasks") or []))
-            except Exception as e:
-                out.append(f"{r}/{slug}: ERR {str(e)[:200]}")
-        try:
-            d = gql("""query($r: Rarity!, $sp: Sport!) { currentUser { featuredTasks(rarity: $r, sport: $sp) { __typename ... on Task { id title expired } } } }""",
-                    {"r": r, "sp": "FOOTBALL"}, token=token())["currentUser"]["featuredTasks"]
-            out.append(f"{r}/featuredTasks: " + " | ".join(f"{t['__typename']}:{t.get('title')}:{t.get('expired')}" for t in d))
-        except Exception as e:
-            out.append(f"{r}/featuredTasks: ERR {str(e)[:200]}")
+        d = gql("""query($r: Rarity, $sp: Sport!) { currentUser { taskGroup(slug: "play") { myTasks(rarity: $r, sport: $sp) { __typename
+          ... on DecisivePlayerPickerTask { id title rarity expired mode maxAppearancesCount taskAppearances { index status } } } } } }""",
+                {"r": r, "sp": "FOOTBALL"}, token=token())["currentUser"]["taskGroup"]["myTasks"]
+        out.append(f"{r}: " + " | ".join(json.dumps(t)[:300] for t in d if t["__typename"] == "DecisivePlayerPickerTask"))
     print("::notice title=tasks::" + " ¶ ".join(out)[:3900])
 
 
