@@ -205,22 +205,23 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): quin número mostra Sorare al costat dels jugadors a la missió del Set de futbol."""
-    import re as _re
-    import requests as _rq
-    sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
-    sdl1 = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", sdl)
-    def T(n):
-        m = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
-        return _re.sub(r"\s+", " ", m.group(1)) if m else f"{n}: ?"
-    print("::notice title=tipus::" + " ¶ ".join(T(n)[:1200] for n in ("AveragePlayerScore", "PlayerGameScoreProjection", "AnyCardWithPlayerGameScore")))
-    from bot.soraremissions import SETQ
-    t = next(t for t in gql(SETQ, {"sp": "FOOTBALL"}, token=token())["currentUser"]["setPlayTasks"] if t.get("__typename") == "DecisivePlayerPickerTask")
-    d = gql("""query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { defaultAverageType decisiveStats { name }
-        pickableGames(first: 40) { nodes { game { date } cardsWithPlayerGameScores { card { anyPlayer { displayName }
-          anyPlayer { ... on Player { d5: averageScore(type: LAST_FIVE_AVERAGE_DECISIVE_SCORE) d10: averageScore(type: LAST_TEN_PLAYED_AVERAGE_DECISIVE_SCORE) d15: averageScore(type: LAST_FIFTEEN_AVERAGE_DECISIVE_SCORE) d40: averageScore(type: LAST_FORTY_AVERAGE_DECISIVE_SCORE) } } }
-          playerGameScore { ... on PlayerGameScore { projectedScore projection { grade score } } } } } } } } } }""", {"id": t["id"].split(":")[-1]}, token=token())
-    print("::notice title=set task::" + json.dumps([(n["game"]["date"], c["card"]["anyPlayer"]) for n in d["currentUser"]["task"]["pickableGames"]["nodes"] for c in n["cardsWithPlayerGameScores"] if any(k in c["card"]["anyPlayer"]["displayName"] for k in ("Neto", "Enciso", "Karaman", "Radu", "Mount"))])[:3500])
+    """Prova (només lectura): totes les missions de futbol per raresa (tots els tipus)."""
+    out = []
+    for r in ("limited", "rare", "super_rare"):
+        for slug in ("play", "daily", "featured"):
+            try:
+                d = gql("""query($r: Rarity, $sp: Sport!) { currentUser { taskGroup(slug: "%s") { myTasks(rarity: $r, sport: $sp) { __typename
+                  ... on Task { id title description expired } } } } }""" % slug, {"r": r, "sp": "FOOTBALL"}, token=token())["currentUser"]["taskGroup"]
+                out.append(f"{r}/{slug}: " + " | ".join(f"{t['__typename']}:{t.get('title')}:{t.get('expired')}" for t in (d or {}).get("myTasks") or []))
+            except Exception as e:
+                out.append(f"{r}/{slug}: ERR {str(e)[:200]}")
+        try:
+            d = gql("""query($r: Rarity!, $sp: Sport!) { currentUser { featuredTasks(rarity: $r, sport: $sp) { __typename ... on Task { id title expired } } } }""",
+                    {"r": r, "sp": "FOOTBALL"}, token=token())["currentUser"]["featuredTasks"]
+            out.append(f"{r}/featuredTasks: " + " | ".join(f"{t['__typename']}:{t.get('title')}:{t.get('expired')}" for t in d))
+        except Exception as e:
+            out.append(f"{r}/featuredTasks: ERR {str(e)[:200]}")
+    print("::notice title=tasks::" + " ¶ ".join(out)[:3900])
 
 
 
