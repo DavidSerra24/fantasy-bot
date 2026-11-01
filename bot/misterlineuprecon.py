@@ -1,8 +1,14 @@
-"""Prova (només lectura): partits de la quiniela del Mister per l'API."""
-from bot.misterapi import MisterAPI
+"""Prova (només lectura): selector de jornada de la quiniela."""
+import json
+import re
+
+from bot.misterapi import MisterAPI, U
 
 api = MisterAPI().login()
-for cid, kind in ((2519290, "public"), (2519290, "private"), (2499621, "private")):
-    api.community(cid)
-    rows, locked = api.pool(kind)
-    print(f"::notice title=quiniela {cid} {kind}::locked={locked} " + "; ".join(f"{r['id']} {r['home']}-{r['away']} {r['sel']}{' 🔒' if r['locked'] else ''}" for r in rows))
+r = api.s.get(f"{U}/views/components/pool/gw-selector.twig", timeout=20)
+print("::notice title=gw-selector::" + re.sub(r"\s+", " ", r.text)[:3000])
+api.community(2519290)
+for extra in ({}, {"id_gameweek": 4054}, {"gw": 4054}, {"gameweek": 4054}):
+    d = (api.ajax("sw/pool-private", dict({"post": "pool-private"}, **extra)) or {}).get("data") or {}
+    res = d.get("results") or {}
+    print(f"::notice title=pool {json.dumps(extra)}::id_gw={d.get('id_gameweek')} locked={res.get('locked')} n={len(res.get('matches') or [])} first={(res.get('matches') or [{}])[0].get('id_gameweek')}")
