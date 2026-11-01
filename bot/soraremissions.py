@@ -225,7 +225,32 @@ SETQ = """query($sp: Sport!) { currentUser { setPlayTasks(first: 10, sport: $sp)
 
 CLAIMQ = """query($sp: Sport!) { currentUser { taskGroup(slug: "play") { myTasks(sport: $sp) { __typename ... on TaskInterface { id title rarity aasmState } } }
   setPlayTasks(first: 20, sport: $sp) { __typename ... on TaskInterface { id title rarity aasmState } } } }"""
-CLAIM = """mutation($t: ID!) { claimTask(input: {taskId: $t}) { errors { message } task { ... on TaskInterface { aasmState } } } }"""
+CLAIM = """mutation($t: ID!) { claimTask(input: {taskId: $t}) { errors { message } task { ... on TaskInterface { aasmState } }
+  rewards { __typename ... on CardShardsReward { quantity rarity } ... on InGameCurrencyReward { coinAmount config { ... on InGameCurrencyRewardConfig { currency amount } } }
+    ... on CoinReward { coinAmount } ... on AnyConversionCreditReward { config { ... on ConversionCreditRewardConfig { percentageDiscount } } } } } }"""
+CUR = {"XP": "XP", "CRAFT_CLUE": "pistes de crafteig", "GEM": "gemmes", "WHEEL_TICKET": "tiquets de ruleta", "ENERGY": "energia", "SHOP_COIN": "monedes"}
+
+
+def reward_text(rs):
+    """Recompenses reclamades → «150 d'essència Rare, 600 XP Limited»."""
+    out = []
+    for r in rs or []:
+        t = r.get("__typename")
+        if t == "CardShardsReward":
+            out.append(f"{r['quantity']} d'essència {r['rarity'].replace('_', ' ').title()}")
+        elif t == "InGameCurrencyReward":
+            c = (r.get("config") or {}).get("currency") or ""
+            n = r.get("coinAmount") or (r.get("config") or {}).get("amount")
+            what = next((v for k, v in CUR.items() if k in c), c.lower().replace("_", " "))
+            rar = next((x.title() for x in ("LIMITED", "RARE", "SUPER_RARE", "UNIQUE", "COMMON") if c.startswith(x)), "")
+            out.append(f"{n} {what}{' ' + rar.replace('_', ' ') if rar else ''}")
+        elif t == "CoinReward":
+            out.append(f"{r['coinAmount']} monedes")
+        elif t == "AnyConversionCreditReward":
+            out.append(f"crèdit de mercat {((r.get('config') or {}).get('percentageDiscount') or 0) * 100:.0f}%")
+        else:
+            out.append(t.replace("Reward", "").lower())
+    return ", ".join(out) or "sense recompensa (cap pick encertat)"
 
 
 def claim_done(rep):
@@ -241,19 +266,19 @@ def claim_done(rep):
         for t in (d["taskGroup"]["myTasks"] or []) + (d["setPlayTasks"] or []):
             if t.get("aasmState") != "COMPLETED" or not t.get("id"):
                 continue
-            ok, err = False, ""
+            ok, err, got = False, "", ""
             for tid in (t["id"].split(":")[-1], t["id"]):
                 try:
                     r = gql(CLAIM, {"t": tid}, token=token())["claimTask"]
                     if not r["errors"]:
-                        ok = True
+                        ok, got = True, reward_text(r.get("rewards"))
                         break
                     err = r["errors"][0]["message"]
                 except Exception as e:
                     err = str(e)[:150]
             if ok:
                 n += 1
-                rep.append(f"🎁 reclamada: {t.get('title')} ({t.get('rarity') or 'Set'}, {sport})")
+                rep.append(f"🎁 {t.get('title')} ({(t.get('rarity') or 'Set').replace('_', ' ')}{', NBA' if sport == 'NBA' else ''}): {got}")
             else:
                 rep.append(f"⚠️ no he pogut reclamar {t.get('title')}: {err[:150]}")
     return n
@@ -413,6 +438,25 @@ def run(dry=False):
     # Una carta només pot ser en una missió: si la que volem encara és en una altra, primer s'ha de canviar aquella.
     # Es repeteix fins que tot entra; si es queden encallades (intercanvi), s'alliberen les cartes posant només els
     # picks que no xoquen i es torna a provar.
+    # Cartes que volem i que són a una altra missió que no té canvis pendents (p. ex. aquella missió ja no vol
+    # ningú): primer es treuen d'allà, deixant-hi la resta dels seus picks (1/11: «You can't pick a card used in a picker»).
+    wanted = {x["cardSlug"]: p_ for p_ in pending for x in p_["payload"]}
+    pend_tids = {p_["tid"] for p_ in pending}
+    for pl in plans:
+        if pl["tid"] in pend_tids:
+            continue
+        cur = {i: pl["apps"][i] for i in pl["free"] if i in pl["apps"]}
+        clash = [i for i, a in cur.items() if a["anyCard"]["slug"] in wanted]
+        if clash and not dry:
+            keep = [{"index": i, "cardSlug": a["anyCard"]["slug"], "gameId": a["game"]["id"].split(":")[-1]}
+                    for i, a in cur.items() if i not in clash]  # com a la resta: només les places de partits no començats
+            try:
+                d = gql(UPSERT, {"input": {"taskId": pl["task"]["id"], "taskAppearances": keep}}, token=token())["upsertTaskAppearances"]
+                print(f"::notice title=missions::alliberades {len(clash)} cartes de {pl['task']['title']} ({pl['rarity']})"
+                      + (f" — {d['errors'][0]['message']}" if d.get("errors") else ""))
+            except Exception as e:
+                print(f"::warning title=missions::no he pogut alliberar cartes de {pl['task']['title']}: {str(e)[:150]}")
+
     def upsert(p_, payload):
         d = gql(UPSERT, {"input": {"taskId": p_["task"]["id"], "taskAppearances": payload}}, token=token())["upsertTaskAppearances"]
         if d.get("errors"):
