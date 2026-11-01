@@ -118,6 +118,11 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
   - Posicions que falten per fer l'onze: pujes prioritàries per jugadors d'aquella posició amb el % mínim, pel preu mínim. Mai per sota del mínim; si el % baixa, es retiren com la resta.
   - Alineació (`bot/misterlineup.py`, 6:40 cada dia i 45 min abans del primer partit de cada lliga): `/team?gameweek=N` (la jornada «Comença en…»), formació `button[data-popup=formation]` → `button.btn-free[data-formation]` (mai `btn-credits`), casella `button.lineup-player[data-slot]` → `.sw-content .player[data-id_player][data-slot]`, capità `.sw-content input[data-captain-toggle]`. Per ordenar fa servir el % de la font de cada lliga (Fentaniños: FutbolFantasy; Quique: SorareInside o Jornada Perfecta) i el PS de SorareInside.
 
+## Collectibol (`bot/collectibol.py`, decisió del David, 1/11)
+- Collectibol regala un sobre quan un club amb llicència guanya el seu partit real; el codi surt minuts després a la Story d'Instagram i de Facebook. El bot **no** el pot llegir (cal compte d'Instagram, i el David no en vol cap per al bot) ni bescanviar (entrada amb Google/Apple): només **avisa per Telegram quan s'acaba el partit amb victòria**, i el David està atent a la Story.
+- Clubs (setembre 2026): Barcelona, Atlético, Betis, Valencia, Girona, Espanyol, Boca Juniors, Monaco, Toulouse, Como, Olimpia (Paraguai). Resultats de FotMob (`/api/data/matches?date=`); cada club s'identifica pel nom + país de la seva lliga i després pel seu id de FotMob (`state/collectibol.json`), així també surt a Copa/Champions. Penals de les eliminatòries compten.
+- Planificador: comprovacions de 1 h 45 a 2 h 50 després de l'inici cada 4 min i després cada 10 min fins a 4 h (acció `collectibol`).
+
 ## Avisos d'onzes
 - Quan el David demana si un jugador és titular, programar la comprovació cap a 1 hora abans del partit (a X solen publicar-se 1h15 abans) i avisar amb una notificació.
 

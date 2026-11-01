@@ -77,7 +77,7 @@ def scan(now=None):
                 else:
                     games[k]["kick"] = t or games[k]["kick"]
     cut = (now - dt.timedelta(days=2)).isoformat()
-    st["games"] = {k: g for k, g in games.items() if (g.get("kick") or "") >= cut[:10] or not g.get("done")}
+    st["games"] = {k: g for k, g in games.items() if (g.get("kick") or "9") >= cut[:10]}  # fora els de fa més de 2 dies
     save_json("collectibol.json", st)
     return st["games"]
 
