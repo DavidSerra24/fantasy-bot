@@ -279,7 +279,13 @@ def review(sports=("NBA",), dry=False):
             if not dates:
                 continue
             start = min(dates)
-            # caselles bloquejades (partit començat) i punts previstos actuals de cada alineació
+            # cartes lliures ara (no posades en cap alineació, tampoc d'altres taulers com «Hot Streaks») + les d'aquest tauler
+            free_cards = {n["anyCard"]["slug"] for n in bench(st["id"], used=False)}
+            # Una alineació queda **bloquejada sencera** quan comença el primer partit de qualsevol dels seus jugadors
+            # (Sorare: «La alineación está bloqueada»; 1/11): llavors no es toca i els seus jugadors no es mouen.
+            locked_l = {l["id"] for l in lineups if any(a and a.get("game") and D(a["game"]["date"]) <= now + dt.timedelta(minutes=3)
+                                                        for a in l["taskAppearances"])}
+            # caselles bloquejades i punts previstos actuals de cada alineació
             fixed_all, cur_val = {}, {}
             for l in lineups:
                 fx, val = {}, 0
@@ -290,14 +296,15 @@ def review(sports=("NBA",), dry=False):
                     g = next((g for g in c["games"] if a.get("game") and g["anyGame"]["id"] == a["game"]["id"]), {})
                     proj = 0 if c.get("inj") else (g.get("projectedScore") or 0)
                     val += proj
-                    if not a.get("game") or D(a["game"]["date"]) <= now + dt.timedelta(minutes=3):
+                    if l["id"] in locked_l or not a.get("game") or D(a["game"]["date"]) <= now + dt.timedelta(minutes=3):
                         fx[a["index"]] = dict(c, proj=proj, game=a["game"])
                 fixed_all[l["id"]], cur_val[l["id"]] = fx, val
             locked_players = {c["player"] for fx in fixed_all.values() for c in fx.values()}
             # tots els jugadors disponibles ara (partit del dia no començat), una carta per jugador (més bonificació, després XP)
+            mine = {a["anyCard"]["slug"] for l in lineups if l["id"] not in locked_l for a in l["taskAppearances"] if a}
             pool = {}
             for c in info.values():
-                if c["player"] in locked_players:
+                if c["player"] in locked_players or (c["card"] not in free_cards and c["card"] not in mine):
                     continue
                 for g in c["games"]:
                     d = D(g["anyGame"]["date"])
@@ -309,6 +316,9 @@ def review(sports=("NBA",), dry=False):
             pool = list(pool.values())
             lines, plan = [], []
             for l in sorted(lineups, key=lambda l: -cur_val[l["id"]]):  # primer la millor (la que ha d'arribar a l'objectiu)
+                if l["id"] in locked_l:
+                    plan.append((l, None, cur_val[l["id"]]))
+                    continue
                 fx = fixed_all[l["id"]]
                 r = best_fill(pool, slots, cap, fx)
                 if not r:
@@ -348,7 +358,11 @@ def review(sports=("NBA",), dry=False):
                     if all(t.get("done") for t in todo):
                         break
                 lines += [("   🔁 " if t.get("done") else "   ❌ ") + t["txt"] + ("" if t.get("done") else f": {t.get('err')}") for t in todo]
+                if not any(t.get("done") for t in todo):  # res fet: només a les anotacions, sense Telegram
+                    print(f"::warning title=set revisió::{label}: " + " | ".join(lines)[:3000])
+                    lines = []
             if lines:
+                lines = [l_ for l_ in lines if not l_.startswith("   ❌")] or lines
                 lines.insert(0, f"   total {old_total:.0f} → {new_total:.0f} previstos")
             if lines:
                 rep.append(label + "\n" + "\n".join(lines))
