@@ -340,8 +340,12 @@ def review(sports=("NBA",), dry=False):
                     continue
                 fx = fixed_all[l["id"]]
                 apps = [{"index": i_, "cardSlug": c["card"], "gameId": c["game"]["id"].split(":")[-1]} for i_, c in sorted({**fx, **fill}.items())]
-                outs = [old[i_]["anyPlayer"]["displayName"] for i_, c in fill.items() if old.get(i_) and old[i_]["anyCard"]["slug"] != c["card"]]
-                ins = [f"{c['name']} ({c['proj']:.0f})" for i_, c in fill.items() if not old.get(i_) or old[i_]["anyCard"]["slug"] != c["card"]]
+                newp = {c["player"] for c in fill.values()}
+                oldp = {old[i_]["anyPlayer"]["slug"] for i_ in fill if old.get(i_)}
+                outs = [old[i_]["anyPlayer"]["displayName"] for i_ in fill if old.get(i_) and old[i_]["anyPlayer"]["slug"] not in newp]
+                ins = [f"{c['name']} ({c['proj']:.0f})" for c in fill.values() if c["player"] not in oldp]
+                if not ins and not outs:
+                    continue  # els mateixos jugadors (només canvien de casella)
                 todo.append({"l": l, "apps": apps, "txt": f"{cur_val[l['id']]:.0f} → {nv:.0f} previstos · surten {', '.join(outs)} · entren {', '.join(ins)}"})
             if dry:
                 lines += ["   (prova) " + t["txt"] for t in todo]
