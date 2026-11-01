@@ -223,6 +223,42 @@ SETQ = """query($sp: Sport!) { currentUser { setPlayTasks(first: 10, sport: $sp)
     rewardConfigs { __typename ... on InGameCurrencyRewardConfig { currency amount } ... on CardShardRewardConfig { quantity rarity } } } } } }"""
 
 
+CLAIMQ = """query($sp: Sport!) { currentUser { taskGroup(slug: "play") { myTasks(sport: $sp) { __typename ... on TaskInterface { id title rarity aasmState } } }
+  setPlayTasks(first: 20, sport: $sp) { __typename ... on TaskInterface { id title rarity aasmState } } } }"""
+CLAIM = """mutation($t: ID!) { claimTask(input: {taskId: $t}) { errors { message } task { ... on TaskInterface { aasmState } } } }"""
+
+
+def claim_done(rep):
+    """Reclama les recompenses de les missions acabades (COMPLETED): mentre no es reclamen, Sorare no dona les noves
+    (p. ex. el «Decisive Picker» de l'1/11 no va sortir fins que el David va reclamar les d'ahir)."""
+    n = 0
+    for sport in ("FOOTBALL", "NBA"):
+        try:
+            d = gql(CLAIMQ, {"sp": sport}, token=token())["currentUser"]
+        except Exception as e:
+            rep.append(f"⚠️ reclamar {sport}: {str(e)[:150]}")
+            continue
+        for t in (d["taskGroup"]["myTasks"] or []) + (d["setPlayTasks"] or []):
+            if t.get("aasmState") != "COMPLETED" or not t.get("id"):
+                continue
+            ok, err = False, ""
+            for tid in (t["id"].split(":")[-1], t["id"]):
+                try:
+                    r = gql(CLAIM, {"t": tid}, token=token())["claimTask"]
+                    if not r["errors"]:
+                        ok = True
+                        break
+                    err = r["errors"][0]["message"]
+                except Exception as e:
+                    err = str(e)[:150]
+            if ok:
+                n += 1
+                rep.append(f"🎁 reclamada: {t.get('title')} ({t.get('rarity') or 'Set'}, {sport})")
+            else:
+                rep.append(f"⚠️ no he pogut reclamar {t.get('title')}: {err[:150]}")
+    return n
+
+
 def list_tasks(rep):
     """Totes les missions de la pestanya «Play» (featuredTasks només en dona algunes: p. ex. no hi surt «Shot» Limited)."""
     out, seen = [], set()
@@ -259,6 +295,8 @@ def run(dry=False):
     MAD = zoneinfo.ZoneInfo("Europe/Madrid")
     now = dt.datetime.now(dt.timezone.utc)
     rep, games_seen = [], []
+    if not dry:
+        claim_done(rep)  # primer reclamar les acabades perquè surtin les noves
     all_tasks = list_tasks(rep)
     odds = si_odds() if all_tasks else {}
     used_cards = set()
