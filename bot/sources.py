@@ -38,7 +38,14 @@ def ff_probs(page):
     # mostrava amb tots els partits jugats a 0% i el bot va vendre Soria, Dimitrievski, Suazo i Davinchi.
     live = {p["url"] for p in ps if (p.get("pct") or 0) > 0}
     ps = [p for p in ps if p["url"] in live]
-    return [{"name": p["name"], "key": p["url"], "pct": p.get("pct") or 0, "ps": None} for p in ps]
+    # Un jugador pot sortir a dues jornades (p. ex. dilluns: el partit d'avui de la J11 i el de la J12): es queda el de
+    # la jornada més alta, que és la que compta per a la propera alineació.
+    best = {}
+    for p in ps:
+        k = p["name"]
+        if k not in best or (p.get("j") or 0) > (best[k].get("j") or 0):
+            best[k] = p
+    return [{"name": p["name"], "key": p["url"], "pct": p.get("pct") or 0, "ps": None} for p in best.values()]
 
 
 def si_entries(sidata):
