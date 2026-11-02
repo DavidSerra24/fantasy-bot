@@ -213,10 +213,10 @@ def probe():
     def T(n):
         mm = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
         return _re.sub(r"\s+", " ", mm.group(1)) if mm else f"{n}: ?"
-    print("::notice title=tipus::" + " ¶ ".join(T(n)[:1200] for n in ("CareerBoard", "SquadBoard", "TasksTrack", "TaskInterface"))[:3900])
+    print("::notice title=claim::" + " ¶ ".join(T(n)[:600] for n in ("claimStepInput",)) + " | " + " ¶ ".join(l.strip() for l in sdl.split("\n") if "claimStep" in l or "acknowledgeStep" in l)[:1500])
     for m in ("CAREER", "SQUAD"):
         d = gql("""query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, sport: $sp) { __typename title
-          ... on CareerBoard { id } myCurrentStep { id state myTask { __typename id ... on TaskInterface { parentTask { __typename id } } } } } } }""", {"sp": "NBA", "m": m}, token=token())
+          ... on CareerBoard { id } ... on SquadBoard { id } myCurrentStep { id state ... on CareerStep { myTask { __typename id parentTask { __typename id ... on TasksTrack { restartable } } } } } } } }""", {"sp": "NBA", "m": m}, token=token())
         print(f"::notice title=tauler {m}::" + json.dumps(d)[:1500])
 
 
