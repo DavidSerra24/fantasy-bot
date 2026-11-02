@@ -227,6 +227,8 @@ if __name__ == "__main__":
          "missions": lambda: __import__("bot.soraremissions", fromlist=["run"]).run(dry=True),
          "missionsgo": lambda: __import__("bot.soraremissions", fromlist=["run"]).run(dry=False),
          "set": lambda: __import__("bot.sorareset", fromlist=["run"]).run(dry=True),
+         "fset": lambda: __import__("bot.sorarefset", fromlist=["run"]).run(dry=True),
+         "fsetgo": lambda: __import__("bot.sorarefset", fromlist=["run"]).run(dry=False),
          "setrev": lambda: __import__("bot.sorareset", fromlist=["review"]).review(dry=True),
          "setrevgo": lambda: __import__("bot.sorareset", fromlist=["review"]).review(dry=False),
          "setgo": lambda: __import__("bot.sorareset", fromlist=["run"]).run(dry=False),
