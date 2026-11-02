@@ -205,7 +205,7 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): com es reinicia un tauler del Set."""
+    """Prova (només lectura): ids per reiniciar el tauler i reclamar."""
     import re as _re
     import requests as _rq
     sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
@@ -213,16 +213,11 @@ def probe():
     def T(n):
         mm = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
         return _re.sub(r"\s+", " ", mm.group(1)) if mm else f"{n}: ?"
-    m = _re.search(r"\ntype Mutation \{(.*?)\n\}", sdl1, _re.S)
-    muts = [l.strip() for l in _re.sub(r"\(\s*", "(", m.group(1)).split("\n") if _re.search(r"restart|reset|retry|step|board|track|career|squad|set", l, _re.I) and _re.match(r"\s*\w+\(", l)]
-    ct = T("CareerStep")
-    print("::notice title=careerstep2::" + ct[900:3800])
-    print("::notice title=restart::" + " ¶ ".join(T(n)[:700] for n in ("restartTasksTrackPayload", "acknowledgeStepInput", "acknowledgeStepPayload", "unlockNextBoardInput", "StepInterface")))
-    hits = [l.strip() for l in sdl.split("\n") if _re.search(r"restart|Restart", l)][:30]
-    print("::notice title=restart refs::" + " ¶ ".join(hits)[:3500])
-    print("::notice title=tipus::" + " ¶ ".join(T(n)[:900] for n in ("restartTasksTrackInput", "StepState", "CareerStep", "SetBoard", "BoardMode"))[:3900])
-    d = gql("""query($sp: Sport!) { currentUser { setBoard(mode: CAREER, sport: $sp) { __typename title myCurrentStep { __typename id state } } } }""", {"sp": "NBA"}, token=token())
-    print("::notice title=tauler::" + json.dumps(d)[:2000])
+    print("::notice title=tipus::" + " ¶ ".join(T(n)[:1200] for n in ("CareerBoard", "SquadBoard", "TasksTrack", "TaskInterface"))[:3900])
+    for m in ("CAREER", "SQUAD"):
+        d = gql("""query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, sport: $sp) { __typename title
+          ... on CareerBoard { id } myCurrentStep { id state myTask { __typename id ... on TaskInterface { parentTask { __typename id } } } } } } }""", {"sp": "NBA", "m": m}, token=token())
+        print(f"::notice title=tauler {m}::" + json.dumps(d)[:1500])
 
 
 
