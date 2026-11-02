@@ -83,8 +83,8 @@ def rivals(a, b):
 
 
 def better(a, b):
-    """a té més impacte que b (lletra; a igualtat, més punts previstos)."""
-    return (GRADE.get(a["grade"], 6), -a["proj"]) < (GRADE.get(b["grade"], 6), -b["proj"])
+    """a té més impacte que b: lletra millor (a igual lletra no compta: Selvik C es posa encara que Talbi, rival, sigui C)."""
+    return GRADE.get(a["grade"], 6) < GRADE.get(b["grade"], 6)
 
 
 def fill(cands, slots, taken):
