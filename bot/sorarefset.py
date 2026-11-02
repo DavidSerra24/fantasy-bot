@@ -162,12 +162,29 @@ def run(dry=False, focus=None):
             cands = [q for q in cands if q["slug"] not in locked_players]
         taken = set(locked_players)
         lines = []
-        targets = [(l, f"alineació {k + 1}") for k, l in enumerate(open_)] + [(None, f"alineació nova {k + 1}") for k in range(n_new)]
-        for l, name in targets:
-            pick = fill(cands, slots, taken)
-            if not pick:
-                lines.append(f"   ⚠️ {name}: no hi ha prou jugadors per completar-la")
-                continue
+        # primer es calculen totes les alineacions i després s'assignen a les que ja hi ha per semblança (les mateixes
+        # cartes es queden a la mateixa alineació de Sorare; si no, es mourien cartes d'una a l'altra i xocarien)
+        picks = []
+        for _ in range(len(open_) + n_new):
+            p_ = fill(cands, slots, taken)
+            if not p_:
+                break
+            picks.append(p_)
+        if len(picks) < len(open_) + n_new:
+            lines.append(f"   ⚠️ no hi ha prou jugadors per completar {len(open_) + n_new - len(picks)} alineacions")
+        remaining = list(open_)
+        targets = []
+        for p_ in picks:
+            cards = {q["card"] for q in p_.values()}
+            best = max(remaining, key=lambda l: len(cards & {a["anyCard"]["slug"] for a in l["taskAppearances"] if a}), default=None)
+            if best is not None:
+                remaining.remove(best)
+            targets.append((best, p_))
+        k_new = 0
+        for l, pick in targets:
+            if l is None:
+                k_new += 1
+            name = f"alineació {open_.index(l) + 1}" if l is not None else f"alineació nova {k_new}"
             txt = ", ".join(f"{'🔸' if q['extra'] else ''}{q['name']} ({q['grade']}, {q['proj']:.0f}, {q['date']:%d/%m %H:%M}Z{', titular' if q['confirmed'] and q['ok'] else ''})"
                             for _, q in sorted(pick.items()))
             if l:
