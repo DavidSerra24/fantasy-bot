@@ -205,7 +205,7 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): tipus de recompenses de claimTask."""
+    """Prova (només lectura): com es reinicia un tauler del Set."""
     import re as _re
     import requests as _rq
     sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
@@ -213,9 +213,12 @@ def probe():
     def T(n):
         mm = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
         return _re.sub(r"\s+", " ", mm.group(1)) if mm else f"{n}: ?"
-    print("::notice title=configs::" + " ¶ ".join(T(n)[:600] for n in ("ExperienceRewardConfig", "ConversionCreditRewardConfig", "InGameCurrencyRewardConfig", "ConversionCredit", "InGameCurrency", "CardPackReward")))
-    impl = sorted(set(_re.findall(r"\ntype (\w+) implements [^{]*AnyRewardInterface", sdl1)))
-    print("::notice title=rewards::" + " ¶ ".join([T("AnyRewardInterface")[:600], ", ".join(impl)[:800]] + [T(n)[:500] for n in impl if any(k in n for k in ("Currency", "Shard", "Xp", "XP", "Experience", "Coin", "Credit"))])[:3900])
+    m = _re.search(r"\ntype Mutation \{(.*?)\n\}", sdl1, _re.S)
+    muts = [l.strip() for l in _re.sub(r"\(\s*", "(", m.group(1)).split("\n") if _re.search(r"restart|reset|retry|step|board|track|career|squad|set", l, _re.I) and _re.match(r"\s*\w+\(", l)]
+    print("::notice title=mutacions::" + " ¶ ".join(muts)[:3500])
+    print("::notice title=tipus::" + " ¶ ".join(T(n)[:900] for n in ("restartTasksTrackInput", "StepState", "CareerStep", "SetBoard", "BoardMode"))[:3900])
+    d = gql("""query($sp: Sport!) { currentUser { setBoard(mode: CAREER, sport: $sp) { __typename title myCurrentStep { __typename id state } } } }""", {"sp": "NBA"}, token=token())
+    print("::notice title=tauler::" + json.dumps(d)[:2000])
 
 
 
