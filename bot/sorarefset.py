@@ -149,6 +149,7 @@ def run(dry=False):
         n_new = min(st.get("remainingLineupsCount") or 0, max(0, n_total - len(lineups))) if mode == "CAREER" else max(0, 1 - len(lineups))
         cands = candidates(st["id"], now, used_cards, locked_players, squad=mode == "SQUAD")
         taken = set(locked_players)
+        print(f"::notice title=candidats {mode}::" + "; ".join(f"{q['name']} {q['grade']} {q['proj']:.0f} {q['date']:%d %H:%M} {'ok' if q['ok'] else 'no'} {q.get('team')} {q['pos']}" for q in cands[:25]))
         lines = []
         targets = [(l, f"alineació {k + 1}") for k, l in enumerate(open_)] + [(None, f"alineació nova {k + 1}") for k in range(n_new)]
         for l, name in targets:
