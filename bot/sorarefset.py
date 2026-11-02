@@ -106,7 +106,9 @@ def fill(cands, slots, taken):
     return pick if len(pick) == len(slots) else None
 
 
-def run(dry=False):
+def run(dry=False, focus=None):
+    """focus = hora (ISO) del primer partit d'unes alineacions: revisió final només d'aquelles (les altres es mantenen;
+    decisió del David, 2/11). Sense focus (cada hora): es refan totes les que no han començat i s'omplen les que falten."""
     now = dt.datetime.now(dt.timezone.utc)
     rep, games = [], set()
     for mode in ("CAREER", "SQUAD"):
@@ -142,12 +144,22 @@ def run(dry=False):
         locked = [l for l in lineups if started(l)]
         open_ = [l for l in lineups if not started(l)]
         for l in lineups:
-            games.update(a["game"]["date"] for a in l["taskAppearances"] if a and a.get("game"))
+            ds = [a["game"]["date"] for a in l["taskAppearances"] if a and a.get("game")]
+            if ds:
+                games.add(min(ds, key=D))  # revisió final abans del primer partit de cada alineació
         locked_players = {a["anyPlayer"]["slug"] for l in locked for a in l["taskAppearances"] if a}
         used_cards = {a["anyCard"]["slug"] for l in open_ for a in l["taskAppearances"] if a}
         n_total = (st.get("maxLineupsCount") or 4) if mode == "CAREER" else 1
         n_new = min(st.get("remainingLineupsCount") or 0, max(0, n_total - len(lineups))) if mode == "CAREER" else max(0, 1 - len(lineups))
         cands = candidates(st["id"], now, used_cards, locked_players, squad=mode == "SQUAD")
+        first = lambda l: min((D(a["game"]["date"]) for a in l["taskAppearances"] if a and a.get("game")), default=None)
+        if focus:  # només les alineacions que comencen a aquesta hora; els jugadors de les altres es queden on són
+            F = D(focus)
+            keep = [l for l in open_ if first(l) != F]
+            open_ = [l for l in open_ if first(l) == F]
+            locked_players |= {a["anyPlayer"]["slug"] for l in keep for a in l["taskAppearances"] if a}
+            n_new = 0
+            cands = [q for q in cands if q["slug"] not in locked_players]
         taken = set(locked_players)
         lines = []
         targets = [(l, f"alineació {k + 1}") for k, l in enumerate(open_)] + [(None, f"alineació nova {k + 1}") for k in range(n_new)]
@@ -179,7 +191,7 @@ def run(dry=False):
                 if d.get("errors"):
                     raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
                 lines.append(f"   {'🔁' if l else '✅'} {name}: {txt}")
-                games.update(q["game"]["date"] for q in pick.values())
+                games.add(min((q["game"]["date"] for q in pick.values()), key=D))
             except Exception as e:
                 lines.append(f"   ❌ {name}: {str(e)[:200]}")
         head = f"{label} ({b.get('title')}, nivell {st['level'] + 1}, objectiu {st['target']}, {len(locked)} en joc)"

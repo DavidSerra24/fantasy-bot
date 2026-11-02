@@ -92,7 +92,8 @@ while queue:
             misterloanwatch.run()
         elif a["do"] == "sorarefset":
             from bot import sorarefset
-            sorarefset.run()
+            c = a["comp"] or ""
+            sorarefset.run(focus=c.rsplit(":", 1)[0] if "Z:" in c else None)  # revisió final d'unes alineacions concretes
         elif a["do"] == "collectibol":
             from bot import collectibol
             collectibol.check(a["comp"].split("|")[0])
