@@ -213,6 +213,20 @@ def plan(now=None, done=None):
     k = f"soraresetgo:mati:{local.date()}"
     if due(k, t940, t940 + dt.timedelta(hours=12)):
         add(k, t940, "soraresetgo", f"mati:{local.date()}", t940 + dt.timedelta(hours=12))
+    # Set de FUTBOL (decisió del David, 2/11): cada hora (reclamar/reiniciar com més aviat millor i omplir les 4
+    # alineacions amb tots els partits possibles) i revisions 20, 8 i 2 min abans de cada partit de les alineacions
+    T = now.replace(minute=5, second=0, microsecond=0)
+    if T < now - dt.timedelta(minutes=50):
+        T += dt.timedelta(hours=1)
+    k = f"sorarefset:{T.isoformat()}"
+    if due(k, T, T + dt.timedelta(minutes=55)):
+        add(k, T, "sorarefset", T.isoformat(), T + dt.timedelta(minutes=55))
+    for gd in load_json("sorare_fset.json", {}).get("games", []):
+        G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
+        for mins in (20, 8, 2):
+            k = f"sorarefset:{gd}:{mins}"
+            if due(k, G - dt.timedelta(minutes=mins), G - dt.timedelta(seconds=45)):
+                add(k, G - dt.timedelta(minutes=mins), "sorarefset", f"{gd}:{mins}", G - dt.timedelta(seconds=45))
     # i cada hora de la tarda i la nit (partits d'NBA): desa les hores dels partits de les alineacions per a les revisions
     if local.hour >= 17 or local.hour < 5:
         T = now.replace(minute=0, second=0, microsecond=0)
