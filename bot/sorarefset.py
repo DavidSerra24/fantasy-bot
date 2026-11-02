@@ -29,7 +29,7 @@ STEP = """query($m: BoardMode!) { currentUser { setBoard(mode: $m, sport: FOOTBA
 BENCH = """query($st: String!, $after: String, $f: BenchFilterInput!) { currentUser { step(id: $st) { myFilteredBench(filters: $f, first: 100, after: $after) {
   pageInfo { hasNextPage endCursor }
   nodes { ... on ComposeTeamBenchCard { position positions anyCard { slug xp }
-    anyPlayer { displayName slug ... on Player { activeClub { slug } } }
+    anyPlayer { displayName slug ... on Player { activeClub { slug } avg: averageScore(type: LAST_FIFTEEN_SO5_AVERAGE_SCORE) } }
     eligiblePlayerGameScores(stepId: $st) { anyGame { id date ... on Game { homeTeam { slug } awayTeam { slug } } }
       projectedScore ... on PlayerGameScore { projection { grade } } } } } } } } }"""
 GRADE = {"A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5}
@@ -47,7 +47,7 @@ def bench(step_id, f):
     return out
 
 
-def candidates(step_id, now, used_cards, locked_players):
+def candidates(step_id, now, used_cards, locked_players, squad=False):
     """Jugadors disponibles (una carta per jugador, la de més XP) amb partit no començat, ordenats per les normes."""
     from bot.sorarelineup import lineup_status, starts
     all_ = bench(step_id, {"includeUsed": True})
@@ -56,7 +56,8 @@ def candidates(step_id, now, used_cards, locked_players):
     best, cache = {}, {}
     for n in all_:
         p, c = n["anyPlayer"], n["anyCard"]
-        if p["slug"] in locked_players or (c["slug"] not in free and c["slug"] not in used_cards):
+        # al tauler d'equip es pot posar qualsevol carta, encara que ja sigui en una alineació del personal (el David, 2/11)
+        if p["slug"] in locked_players or (not squad and c["slug"] not in free and c["slug"] not in used_cards):
             continue
         games = [g for g in n.get("eligiblePlayerGameScores") or [] if g and g.get("anyGame") and D(g["anyGame"]["date"]) > now + dt.timedelta(seconds=40)]
         if not games:
@@ -64,7 +65,7 @@ def candidates(step_id, now, used_cards, locked_players):
         g = min(games, key=lambda g: g["anyGame"]["date"])
         q = {"slug": p["slug"], "name": p["displayName"], "card": c["slug"], "xp": c.get("xp") or 0, "pos": n.get("positions") or [n.get("position")],
              "team": ((p.get("activeClub") or {}).get("slug")), "game": g["anyGame"], "date": D(g["anyGame"]["date"]),
-             "grade": ((g.get("projection") or {}).get("grade") or "?"), "proj": g.get("projectedScore") or 0, "hi": p["slug"] in hi}
+             "grade": ((g.get("projection") or {}).get("grade") or "?"), "proj": g.get("projectedScore") or 0, "avg": p.get("avg") or 0, "hi": p["slug"] in hi}
         cur = best.get(p["slug"])
         if not cur or q["xp"] > cur["xp"]:
             best[p["slug"]] = q
@@ -73,7 +74,8 @@ def candidates(step_id, now, used_cards, locked_players):
         xi = lineup_status(q["game"], cache) if q["date"] < now + dt.timedelta(hours=2) else None
         q["confirmed"] = bool(xi)
         q["ok"] = (starts(xi, q["slug"], q["name"]) if xi else q["hi"])
-    out.sort(key=lambda q: (q["date"], GRADE.get(q["grade"], 6), -q["proj"]))
+    # personal: els que juguen abans, després impacte, punts previstos i mitjana; equip: sense «playing soon» (el David, 2/11)
+    out.sort(key=lambda q: (() if squad else (q["date"],)) + (GRADE.get(q["grade"], 6), -q["proj"], -q["avg"]))
     return out
 
 
@@ -157,7 +159,7 @@ def run(dry=False):
         used_cards = {a["anyCard"]["slug"] for l in open_ for a in l["taskAppearances"] if a}
         n_total = (st.get("maxLineupsCount") or 4) if mode == "CAREER" else 1
         n_new = min(st.get("remainingLineupsCount") or 0, max(0, n_total - len(lineups))) if mode == "CAREER" else max(0, 1 - len(lineups))
-        cands = candidates(st["id"], now, used_cards, locked_players)
+        cands = candidates(st["id"], now, used_cards, locked_players, squad=mode == "SQUAD")
         taken = set(locked_players)
         lines = []
         targets = [(l, f"alineació {k + 1}") for k, l in enumerate(open_)] + [(None, f"alineació nova {k + 1}") for k in range(n_new)]
@@ -173,8 +175,8 @@ def run(dry=False):
                 if old == {q["card"] for q in pick.values()}:
                     lines.append(f"   ✅ {name} sense canvis: {txt}")
                     continue
-            # capità (obligatori, «CaptainScarcity»): el d'impacte més alt; a igualtat, un de camp abans que el porter, i després el primer de la llista
-            order = sorted(pick.items(), key=lambda iq: (GRADE.get(iq[1]["grade"], 6), "Goalkeeper" in iq[1]["pos"], iq[0]))
+            # capità (obligatori, «CaptainScarcity»): el d'impacte més alt; a igualtat, més punts previstos; després, més mitjana (el David, 2/11)
+            order = sorted(pick.items(), key=lambda iq: (GRADE.get(iq[1]["grade"], 6), -iq[1]["proj"], -iq[1]["avg"], iq[0]))
             cap_i = order[0][0]
             apps = [{"index": i, "cardSlug": q["card"], "gameId": q["game"]["id"].split(":")[-1], "captain": i == cap_i} for i, q in sorted(pick.items())]
             txt = txt.replace(pick[cap_i]["name"] + " (", pick[cap_i]["name"] + " © (", 1)
