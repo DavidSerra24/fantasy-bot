@@ -31,7 +31,7 @@ BENCH = """query($st: String!, $after: String, $f: BenchFilterInput!) { currentU
   nodes { ... on ComposeTeamBenchCard { position positions bonus anyCard { slug xp }
     anyPlayer { displayName slug ... on NBAPlayer { gameplayTierStars activeInjuries { id } } }
     eligiblePlayerGameScores(stepId: $st) { anyGame { id date } projectedScore } } } } } } }"""
-CLAIM = """mutation($input: claimStepInput!) { claimStep(input: $input) { errors { message } } }"""
+CLAIM = """mutation($input: acknowledgeStepInput!) { acknowledgeStep(input: $input) { errors { message } } }"""  # claimStep està obsolet
 RESTART = """mutation($input: restartTasksTrackInput!) { restartTasksTrack(input: $input) { errors { message } newTask { ... on TaskInterface { id } } } }"""
 UPSERT = """mutation($input: upsertStepLineupInput!) { upsertStepLineup(input: $input) { errors { message } lineup { id } } }"""
 
@@ -85,7 +85,7 @@ def run(dry=False, sports=("NBA",), scan=False):
             if st["state"] == "CLAIMABLE" and sp == "NBA" and not dry:
                 # pas superat: es reclama la recompensa i es passa al pas següent (decisió del David, 31/10: a la nit ell dorm)
                 try:
-                    d = gql(CLAIM, {"input": {"stepId": st["id"]}}, token=token())["claimStep"]
+                    d = gql(CLAIM, {"input": {"stepId": st["id"]}}, token=token())["acknowledgeStep"]
                     if d.get("errors"):
                         raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
                     rep.append(f"🎁 {label}: nivell {st['level'] + 1} superat, recompensa reclamada")
@@ -97,7 +97,7 @@ def run(dry=False, sports=("NBA",), scan=False):
                 # nivell perdut (cap alineació arriba a l'objectiu): es reinicia el tauler (gratuït, com el botó de la web;
                 # decisió del David, 2/11) i es fan les alineacions del nivell 1 amb els partits que toquin
                 try:
-                    d = gql(RESTART, {"input": {"taskId": st["id"]}}, token=token())["restartTasksTrack"]
+                    d = gql(RESTART, {"input": {"taskId": b["id"]}}, token=token())["restartTasksTrack"]  # id del tauler = el «track»
                     if d.get("errors"):
                         raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
                     rep.append(f"🔄 {label}: nivell {st['level'] + 1} perdut; he reiniciat el tauler ({b.get('title')})")
