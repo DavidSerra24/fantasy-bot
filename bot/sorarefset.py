@@ -52,7 +52,7 @@ def candidates(step_id, now, used_cards, locked_players, squad=False):
     from bot.sorarelineup import lineup_status, starts
     all_ = bench(step_id, {"includeUsed": True})
     free = {n["anyCard"]["slug"] for n in bench(step_id, {})}
-    hi = {n["anyPlayer"]["slug"] for n in bench(step_id, {"starterOddsBasisPointsRange": {"min": 8000}})}
+    hi = {n["anyPlayer"]["slug"] for n in bench(step_id, {"starterOddsBasisPointsRange": {"min": 8000}, "includeUsed": True})}  # també les cartes ja posades
     best, cache = {}, {}
     for n in all_:
         p, c = n["anyPlayer"], n["anyCard"]
@@ -149,7 +149,6 @@ def run(dry=False):
         n_new = min(st.get("remainingLineupsCount") or 0, max(0, n_total - len(lineups))) if mode == "CAREER" else max(0, 1 - len(lineups))
         cands = candidates(st["id"], now, used_cards, locked_players, squad=mode == "SQUAD")
         taken = set(locked_players)
-        print(f"::notice title=candidats {mode}::" + "; ".join(f"{q['name']} {q['grade']} {q['proj']:.0f} {q['date']:%d %H:%M} {'ok' if q['ok'] else 'no'} {q.get('team')} {q['pos']}" for q in cands[:25]))
         lines = []
         targets = [(l, f"alineació {k + 1}") for k, l in enumerate(open_)] + [(None, f"alineació nova {k + 1}") for k in range(n_new)]
         for l, name in targets:
