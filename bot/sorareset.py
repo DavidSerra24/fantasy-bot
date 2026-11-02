@@ -32,6 +32,7 @@ BENCH = """query($st: String!, $after: String, $f: BenchFilterInput!) { currentU
     anyPlayer { displayName slug ... on NBAPlayer { gameplayTierStars activeInjuries { id } } }
     eligiblePlayerGameScores(stepId: $st) { anyGame { id date } projectedScore } } } } } } }"""
 CLAIM = """mutation($input: claimStepInput!) { claimStep(input: $input) { errors { message } } }"""
+RESTART = """mutation($input: restartTasksTrackInput!) { restartTasksTrack(input: $input) { errors { message } newTask { ... on TaskInterface { id } } } }"""
 UPSERT = """mutation($input: upsertStepLineupInput!) { upsertStepLineup(input: $input) { errors { message } lineup { id } } }"""
 
 
@@ -92,6 +93,18 @@ def run(dry=False, sports=("NBA",), scan=False):
                     st = (b or {}).get("myCurrentStep") or st
                 except Exception as e:
                     rep.append(f"⚠️ {label}: no he pogut reclamar la recompensa ({str(e)[:150]})")
+            if st["state"] == "FAILED" and mode == "CAREER" and sp == "NBA" and not dry:
+                # nivell perdut (cap alineació arriba a l'objectiu): es reinicia el tauler (gratuït, com el botó de la web;
+                # decisió del David, 2/11) i es fan les alineacions del nivell 1 amb els partits que toquin
+                try:
+                    d = gql(RESTART, {"input": {"taskId": st["id"]}}, token=token())["restartTasksTrack"]
+                    if d.get("errors"):
+                        raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
+                    rep.append(f"🔄 {label}: nivell {st['level'] + 1} perdut; he reiniciat el tauler ({b.get('title')})")
+                    b = gql(STEP, {"sp": sp, "m": mode}, token=token())["currentUser"]["setBoard"]
+                    st = (b or {}).get("myCurrentStep") or st
+                except Exception as e:
+                    rep.append(f"⚠️ {label}: nivell perdut i no he pogut reiniciar el tauler ({str(e)[:150]})")
             head = f"{label} ({b.get('title')}, nivell {st['level'] + 1}, objectiu {st['target']}, estat {st['state']})"
             if st["state"] not in ("PLAYABLE", "LINEUP_SET"):
                 rep.append(f"ℹ️ {head}: no es pot jugar ara")
@@ -204,8 +217,8 @@ def run(dry=False, sports=("NBA",), scan=False):
                 dyn.append({"key": k, "at": max(at, now).isoformat(), "do": "soraresetgo", "comp": fs, "deadline": (F - dt.timedelta(minutes=2)).isoformat()})
         save_json("dyn_actions.json", dyn)
         print(f"::notice title=set::primer partit amb jugadors del Set: {stt.get('first')} · partits de les alineacions: {', '.join(stt['games'])}")
-        if any("🎁" in r for r in rep):
-            telegram("Sorare · Set\n" + "\n".join(r for r in rep if "🎁" in r or "⚠️" in r)
+        if any("🎁" in r or "🔄" in r for r in rep):
+            telegram("Sorare · Set\n" + "\n".join(r for r in rep if "🎁" in r or "🔄" in r or "⚠️" in r)
                      + (f"\nFaré les alineacions del nivell següent 12 min abans del primer partit ({fs[11:16]} UTC)." if fs and firsts else ""))
         return
     msg = "Sorare · Set" + (" (prova)" if dry else "") + "\n" + "\n".join(rep)
