@@ -207,6 +207,12 @@ def plan(now=None, done=None):
     k = f"soraresetscan:{local.date()}"
     if due(k, t935, t935 + dt.timedelta(hours=12)):
         add(k, t935, "soraresetscan", "9:35", t935 + dt.timedelta(hours=12))
+    # alineacions també al matí (decisió del David, 2/11: així els companys del tauler d'equip ja la veuen); després les
+    # revisions de 20, 8 i 2 min abans de cada partit les van millorant, i la de 12 min abans del primer fa les que faltin
+    t940 = local.replace(hour=9, minute=40, second=0, microsecond=0).astimezone(UTC)
+    k = f"soraresetgo:mati:{local.date()}"
+    if due(k, t940, t940 + dt.timedelta(hours=12)):
+        add(k, t940, "soraresetgo", f"mati:{local.date()}", t940 + dt.timedelta(hours=12))
     # i cada hora de la tarda i la nit (partits d'NBA): desa les hores dels partits de les alineacions per a les revisions
     if local.hour >= 17 or local.hour < 5:
         T = now.replace(minute=0, second=0, microsecond=0)
