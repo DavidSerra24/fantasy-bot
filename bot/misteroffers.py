@@ -228,6 +228,9 @@ def run(dry=False):
                         n = 1 if misterapi.use("unsell", q["pid"]) else click_text(pg, REMOVE)
                         done.append(f"{label}: tret de la venda" if n == 1 else f"{label}: ⚠️ volia treure'l de la venda però no he trobat el botó ({n})")
                         continue
+                    if q["pct"] is None and not debt:  # sense dada de la font (2/11): no es ven a cegues
+                        pg.keyboard.press("Escape")
+                        done.append(f"{label}: sense % a la font ara mateix; no accepto l'oferta"); continue
                     pg.keyboard.press("Escape")
                     offer = offers(pg).get(q["pid"])
                     if not offer:

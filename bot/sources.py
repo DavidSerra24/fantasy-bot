@@ -33,10 +33,12 @@ def ff_probs(page):
     """Entrades {name, key (URL del partit), pct} de les alineacions probables de FutbolFantasy (LaLiga)."""
     from bot.extras import match_pages
     ps = [p for p in match_pages(page, None) if p.get("name")]
-    js = [p["j"] for p in ps if p.get("j") and (p.get("pct") or 0) > 0]  # les jornades ja jugades surten amb 0%
-    j = min(js) if js else None  # la propera jornada (la pàgina també pot mostrar la següent)
-    return [{"name": p["name"], "key": p["url"], "pct": p.get("pct") or 0, "ps": None}
-            for p in ps if j is None or p.get("j") == j]
+    # Un partit ja jugat (o encara sense alineació probable) surt amb tots els jugadors a 0%: no és una dada, i
+    # aquells equips es queden SENSE % (no a 0%). Error del 2/11: el dilluns de la jornada 11 la pàgina encara la
+    # mostrava amb tots els partits jugats a 0% i el bot va vendre Soria, Dimitrievski, Suazo i Davinchi.
+    live = {p["url"] for p in ps if (p.get("pct") or 0) > 0}
+    ps = [p for p in ps if p["url"] in live]
+    return [{"name": p["name"], "key": p["url"], "pct": p.get("pct") or 0, "ps": None} for p in ps]
 
 
 def si_entries(sidata):

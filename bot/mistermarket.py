@@ -305,8 +305,15 @@ def run(dry=False, retira=()):
                 # Vendes: per sota del mínim de titularitat, sense deixar la plantilla sense onze possible
                 keep = [q for q in squad if not q["onsale"] and f"{cid}:{q['pid']}" not in sold]
                 sales, nosale = [], []
-                for q in sorted([q for q in keep if q["pct"] is not None and q["pct"] < minimum and not q["loaned"] and not q.get("loanin")],
-                                key=lambda q: (q["pct"], q["ps"] or 0)):
+                below = [q for q in keep if q["pct"] is not None and q["pct"] < minimum and not q["loaned"] and not q.get("loanin")]
+                # Salvaguarda (2/11): si de cop surten molts jugadors per sota del mínim (p. ex. 4 o més, o més d'un terç
+                # de la plantilla), segurament la font està malament (jornada acabada, dades encara no publicades):
+                # no es ven ningú i s'avisa el David.
+                if len(below) >= 4 or len(below) * 3 > len(keep):
+                    report.append(f"⚠️ {name}: {len(below)} jugadors surten per sota del {minimum}% ({', '.join(q['short'] + ' ' + str(q['pct']) + '%' for q in below[:8])}); "
+                                  "sembla un error de la font i NO en venc cap. Si de debò cal vendre'n, digues-m'ho.")
+                    below = []
+                for q in sorted(below, key=lambda q: (q["pct"], q["ps"] or 0)):
                     rest = [x for x in keep if x is not q]
                     if not can_sell(keep, rest):
                         nosale.append(f"{q['short']} (cal per fer l'onze)")
