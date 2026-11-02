@@ -158,7 +158,11 @@ def run(dry=False):
                 if old == {q["card"] for q in pick.values()}:
                     lines.append(f"   ✅ {name} sense canvis: {txt}")
                     continue
-            apps = [{"index": i, "cardSlug": q["card"], "gameId": q["game"]["id"].split(":")[-1]} for i, q in sorted(pick.items())]
+            # capità (obligatori, «CaptainScarcity»): el d'impacte més alt; a igualtat, un de camp abans que el porter, i després el primer de la llista
+            order = sorted(pick.items(), key=lambda iq: (GRADE.get(iq[1]["grade"], 6), "Goalkeeper" in iq[1]["pos"], iq[0]))
+            cap_i = order[0][0]
+            apps = [{"index": i, "cardSlug": q["card"], "gameId": q["game"]["id"].split(":")[-1], "captain": i == cap_i} for i, q in sorted(pick.items())]
+            txt = txt.replace(pick[cap_i]["name"] + " (", pick[cap_i]["name"] + " © (", 1)
             if dry:
                 lines.append(f"   (prova) {name}: {txt}")
                 continue
