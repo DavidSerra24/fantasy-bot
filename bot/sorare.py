@@ -205,19 +205,15 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): ids per reiniciar el tauler i reclamar."""
-    import re as _re
-    import requests as _rq
-    sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
-    sdl1 = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", sdl)
-    def T(n):
-        mm = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
-        return _re.sub(r"\s+", " ", mm.group(1)) if mm else f"{n}: ?"
-    print("::notice title=claim::" + " ¶ ".join(T(n)[:600] for n in ("claimStepInput",)) + " | " + " ¶ ".join(l.strip() for l in sdl.split("\n") if "claimStep" in l or "acknowledgeStep" in l)[:1500])
+    """Prova (només lectura): taulers del Set de futbol (pas, regles, alineacions, banc)."""
+    from bot.sorareset import STEP, bench
     for m in ("CAREER", "SQUAD"):
-        d = gql("""query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, sport: $sp) { __typename title
-          ... on CareerBoard { id } ... on SquadBoard { id } myCurrentStep { id state ... on CareerStep { myTask { __typename id parentTask { __typename id ... on TasksTrack { restartable } } } } } } } }""", {"sp": "NBA", "m": m}, token=token())
-        print(f"::notice title=tauler {m}::" + json.dumps(d)[:1500])
+        b = gql(STEP, {"sp": "FOOTBALL", "m": m}, token=token())["currentUser"]["setBoard"]
+        st = (b or {}).get("myCurrentStep") or {}
+        print(f"::notice title=set futbol {m}::" + json.dumps({k: v for k, v in (b or {}).items() if k != "myCurrentStep"})[:300] + " | " + json.dumps(st)[:3000])
+        if st.get("id"):
+            n = bench(st["id"], used=True)
+            print(f"::notice title=banc {m}::{len(n)} cartes · " + json.dumps(n[:2])[:2500])
 
 
 
