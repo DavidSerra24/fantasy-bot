@@ -205,15 +205,16 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): taulers del Set de futbol (pas, regles, alineacions, banc)."""
-    from bot.sorareset import STEP, bench
-    for m in ("CAREER", "SQUAD"):
-        b = gql(STEP, {"sp": "FOOTBALL", "m": m}, token=token())["currentUser"]["setBoard"]
-        st = (b or {}).get("myCurrentStep") or {}
-        print(f"::notice title=set futbol {m}::" + json.dumps({k: v for k, v in (b or {}).items() if k != "myCurrentStep"})[:300] + " | " + json.dumps(st)[:3000])
-        if st.get("id"):
-            n = bench(st["id"], used=True)
-            print(f"::notice title=banc {m}::{len(n)} cartes · " + json.dumps(n[:2])[:2500])
+    """Prova (només lectura): tipus per a les alineacions del Set de futbol."""
+    import re as _re
+    import requests as _rq
+    sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
+    sdl1 = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", sdl)
+    def T(n):
+        mm = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
+        return _re.sub(r"\s+", " ", mm.group(1)) if mm else f"{n}: ?"
+    print("::notice title=tipus::" + " ¶ ".join(T(n)[:900] for n in ("upsertStepLineupInput", "StepAppearanceInput", "TaskAppearanceInput", "So5AppearanceInput", "BenchFilterInput"))[:3900])
+    print("::notice title=tipus2::" + " ¶ ".join(T(n)[:1200] for n in ("PlayerGameScore", "PlayerGameScoreProjection", "Game"))[:3900])
 
 
 
