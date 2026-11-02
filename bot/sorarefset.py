@@ -82,22 +82,37 @@ def rivals(a, b):
     return ga["id"] == gb["id"] and a.get("team") and b.get("team") and a["team"] != b["team"]
 
 
+def better(a, b):
+    """a té més impacte que b (lletra; a igualtat, més punts previstos)."""
+    return (GRADE.get(a["grade"], 6), -a["proj"]) < (GRADE.get(b["grade"], 6), -b["proj"])
+
+
 def fill(cands, slots, taken):
-    """Una alineació: per ordre, cada jugador a la seva casella (o a l'Extra), sense rivals. Primer només els bons (≥80% o
-    titulars); si no s'omple, es completa amb els següents («per si de cas»)."""
+    """Una alineació com la fa el David (2/11): casella per casella (POR, DEF, MIG, DAV, Extra), a cada una el primer
+    jugador de la llista (els que juguen abans, després impacte, després punts previstos) que:
+    - no s'enfronti a cap dels ja posats, i
+    - no tingui un rival encara disponible amb més impacte que pugui anar a una casella lliure (p. ex. Mykolenko no,
+      perquè juga contra Barnes, que té més impacte i anirà a l'Extra).
+    Primer només els bons (≥80% o titulars); si no s'omple, es completa amb els següents («per si de cas», 🔸)."""
     pick = {}
     for only_ok in (True, False):
-        for q in cands:
-            if len(pick) == len(slots):
+        for i, s_ in enumerate(slots):
+            if i in pick:
+                continue
+            pool = [q for q in cands if q["slug"] not in taken and (q["ok"] or not only_ok) and not any(rivals(q, x) for x in pick.values())]
+            open_slots = [k for k in range(len(slots)) if k not in pick]
+            fits = lambda q, ks: any(set(q["pos"]) & set(slots[k]["positions"]) for k in ks)
+            for q in pool:
+                if not set(q["pos"]) & set(s_["positions"]):
+                    continue
+                rest = [k for k in open_slots if k != i]
+                if only_ok and any(rivals(q, o) and better(o, q) and fits(o, rest) for o in pool if o is not q):
+                    continue  # el seu rival amb més impacte hi anirà
+                pick[i] = dict(q, extra=not only_ok)
+                taken.add(q["slug"])
                 break
-            if q["slug"] in taken or (only_ok and not q["ok"]) or any(rivals(q, x) for x in pick.values()):
-                continue
-            free = [i for i, s in enumerate(slots) if i not in pick and set(q["pos"]) & set(s["positions"])]
-            if not free:
-                continue
-            i = min(free, key=lambda i: len(slots[i]["positions"]))  # primer la casella de la seva posició, després l'Extra
-            pick[i] = dict(q, extra=not only_ok)
-            taken.add(q["slug"])
+        if len(pick) == len(slots):
+            break
     return pick if len(pick) == len(slots) else None
 
 
