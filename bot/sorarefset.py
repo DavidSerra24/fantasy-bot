@@ -175,6 +175,12 @@ def run(dry=False, focus=None):
             picks.append(p_)
         if len(picks) < len(open_) + n_new:
             lines.append(f"   ⚠️ no hi ha prou jugadors per completar {len(open_) + n_new - len(picks)} alineacions")
+            from collections import Counter
+            cnt = Counter(ps for q in cands if q["slug"] not in taken for ps in q["pos"])
+            miss = [s_["positions"] for s_ in slots if not any(cnt.get(x) for x in s_["positions"])]
+            lines.append("   candidats lliures per posició: " + ", ".join(f"{k} {v}" for k, v in cnt.items())
+                         + (f" · cap per a: {miss}" if miss else "")
+                         + f" · alineacions ja fetes: {len(lineups)} ({sum(len([a for a in l['taskAppearances'] if a]) for l in lineups)} cartes)")
         remaining = list(open_)
         targets = []
         for p_ in picks:
