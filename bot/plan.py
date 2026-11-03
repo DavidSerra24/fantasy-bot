@@ -283,6 +283,18 @@ def telegram_commands(now):
             from bot.web import save_json as _sj
             _sj("sorare_yes.json", (load_json("sorare_yes.json", []) + [m.get("date", 0)])[-20:])
             continue
+        if t.lower().startswith("/nom"):  # «/nom Rodrigo = Rodri» (o «= no»): equivalències de FutbolFantasy
+            from bot.web import save_json as _sj
+            conf, done_ = load_json("ff_alias.json", {}), []
+            for line in re.split(r"\n|;", t):
+                mm = re.match(r"\s*(?:/nom\S*)?\s*(.+?)\s*=\s*(.+?)\s*$", line)
+                if mm:
+                    conf[mm.group(1)] = mm.group(2)
+                    done_.append(f"{mm.group(1)} = {mm.group(2)}")
+            _sj("ff_alias.json", conf)
+            requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat, "text":
+                          ("👍 Desat: " + "; ".join(done_)) if done_ else "⚠️ Format: /nom Nom de SorareInside = Nom de FutbolFantasy"}, timeout=20)
+            continue
         from bot.quiniela import parse_grok
         grok = parse_grok(t)
         if grok:  # taula del Grok enganxada (amb o sense /quiniela): una acció per competició

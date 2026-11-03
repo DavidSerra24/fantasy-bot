@@ -28,6 +28,26 @@ COMPS = [
     ("Europa League", "europa-league", ("Europe", "UEFA Europa League")),
 ]
 ALIAS = json.loads((ROOT / "config" / "futbolfantasy.json").read_text(encoding="utf-8")).get("alias", {})
+# Noms dubtosos (no idèntics): el bot no els fa servir fins que el David els confirma per Telegram amb
+# «/nom Rodrigo = Rodri» (o «/nom Rodrigo = no»); es desen a state/ff_alias.json (decisió del David, 3/11).
+ASKS = []
+
+
+def confirmed():
+    from bot.web import load_json as _lj
+    return _lj("ff_alias.json", {})
+
+
+def sure(si_name, team, ff_name):
+    """True si el nom de FutbolFantasy és segur per a aquest jugador de SorareInside: idèntic (sense accents), una
+    equivalència de config/futbolfantasy.json o una que el David ha confirmat. None si el David ha dit que no."""
+    conf = confirmed()
+    for k in (f"{team}|{si_name}", si_name):
+        v = conf.get(k)
+        if v is not None:
+            return None if str(v).lower() == "no" else norm(v) == norm(ff_name)
+    a = ALIAS.get(f"{team}|{si_name}", ALIAS.get(si_name))
+    return norm(a or si_name) == norm(ff_name)
 DEFAULT_TACTICS = ["5-3-2", "5-4-1", "4-5-1", "4-4-2", "4-3-3", "3-5-2", "3-4-3"]
 POS = {"POR": "G", "DEF": "D", "MED": "M", "DEL": "F"}
 
@@ -213,7 +233,10 @@ def lookup_open(page, cands, limit=60):
     from collections import Counter
     raw = []
     for c in cands[:limit]:
-        c["si"] = ALIAS.get(f"{c['team']}|{c['si']}", ALIAS.get(c["si"], c["si"]))
+        c.setdefault("si0", c["si"])
+        _cf = confirmed()
+        _v = _cf.get(f"{c['team']}|{c['si0']}", _cf.get(c["si0"]))
+        c["si"] = _v if _v and str(_v).lower() != "no" else ALIAS.get(f"{c['team']}|{c['si0']}", ALIAS.get(c["si0"], c["si0"]))
         res = page.evaluate("(q) => __ff.search(q)", c["si"]) or []
         last = (c["si"].split() or [""])[-1]
         for q in dict.fromkeys([plain(c["si"]), last, plain(last)]):  # nom sense accents, cognom tal qual i sense accents
@@ -236,6 +259,12 @@ def lookup_open(page, cands, limit=60):
         if not best or name_score(c["si"], best["n"]) < 60:
             if c["ps"] >= (cands[min(15, len(cands) - 1)]["ps"] if cands else 0):
                 missing.append(f"{c['si']} ({c['team']}, {c['ps']} PS)")
+            continue
+        ok_name = sure(c.get("si0") or c["si"], c["team"], best["n"])
+        if ok_name is None:
+            continue  # el David ha dit que no és aquest
+        if not ok_name:  # nom semblant però no idèntic: no es fa servir fins que el David el confirmi
+            ASKS.append((c.get("si0") or c["si"], c["team"], best["n"], c["ps"]))
             continue
         if best["u"] is not None and str(best["u"]) == "0":
             continue  # sense usos
@@ -380,12 +409,14 @@ def final_review(page, g, cands, report, label, dry=False, known=None):
     taken_c = set()
     # cada candidat només a una casella: primer les caselles amb el nom més semblant (error del 3/11: «Iker Rodríguez»
     # i «Rodri» es van quedar tots dos amb el Rodrigo del Barça)
+    # i només si el nom és segur (idèntic o confirmat): si no, es tracta com a no candidat i es canvia (3/11)
+    ok_ = lambda s_, c: sure(c.get("si0") or c["si"], c["team"], s_["name"]) is True
     slots = sorted(slots, key=lambda s_: -max((name_score(s_["name"], c["si"]) for c in cands), default=0))
     for s_ in slots:
-        best = max((c for c in cands if id(c) not in taken_c), key=lambda c: name_score(s_["name"], c["si"]), default=None)
-        if best and name_score(s_["name"], best["si"]) >= 60:
+        best = next((c for c in cands if id(c) not in taken_c and ok_(s_, c)), None)
+        if best:
             taken_c.add(id(best))
-        if best and name_score(s_["name"], best["si"]) >= 60:
+        if best:
             cur.append({**best, "ff": s_["name"], "pos": s_["pos"], "slot": s_["slot"], "current": True})
         elif known is not None and not any(name_score(s_["name"], k) >= 60 for k in known):
             cur.append({"si": s_["name"], "team": None, "opp": None, "ps": 0, "pct": 0, "idx": 99998,
@@ -563,6 +594,23 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
             report.append(f"❌ Extres: {type(e).__name__}: {str(e)[:200]}")
         save_session(ctx, "futbolfantasy")
         b.close()
+    if ASKS:
+        from bot.web import load_json as _lj, save_json as _sj
+        asked = _lj("ff_asked.json", {})
+        today = dt.date.today().isoformat()
+        new, seen = [], set()
+        for si_name, team, ffn, ps in sorted(ASKS, key=lambda a: -(a[3] or 0)):
+            k = f"{team}|{si_name}|{ffn}"
+            if k in seen:
+                continue
+            seen.add(k)
+            if asked.get(k) != today:  # cada pregunta com a molt un cop al dia
+                new.append(f"• «{si_name}» ({team}, {ps} PS) = «{ffn}»?\n  /nom {si_name} = {ffn}")
+                asked[k] = today
+        _sj("ff_asked.json", asked)
+        if new:
+            report.append("❓ Noms dubtosos (no els poso fins que me'ls confirmis). Respon amb la línia «/nom …» si és el mateix "
+                          "jugador, o «/nom Nom = no» si no ho és:\n" + "\n".join(new[:15]))
     msg = "FutbolFantasy Fantasy✨" + (" (revisió final)" if final else "") + "\n" + ("\n".join(report) or "Res a fer ara.")
     print(msg)
     for l in report:
