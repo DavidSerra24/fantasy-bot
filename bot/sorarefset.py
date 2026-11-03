@@ -117,7 +117,12 @@ def run(dry=False, focus=None):
         st = (b or {}).get("myCurrentStep")
         if not st:
             continue
-        if st["state"] == "CLAIMABLE" and not dry:
+        if st["state"] == "CLAIMABLE" and mode == "SQUAD":  # el sobre del tauler d'equip l'obre el David (3/11)
+            _seen = load_json("sorare_squad_notified.json", [])
+            if st["id"] not in _seen:  # només un avís per nivell
+                rep.append(f"🎁 {label}: nivell {st['level'] + 1} superat! Reclama tu el sobre quan vulguis (jo no el toco)")
+                save_json("sorare_squad_notified.json", (_seen + [st["id"]])[-50:])
+        elif st["state"] == "CLAIMABLE" and not dry:
             try:
                 claim_step(st, mode)
                 rep.append(f"🎁 {label}: nivell {st['level'] + 1} superat, recompensa reclamada")
