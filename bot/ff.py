@@ -64,7 +64,9 @@ def name_score(a, b):
     pairs = [(ta[-1], tb[-1])] if ta and tb else []
     if len(ta) == 1 or len(tb) == 1:
         pairs = [(x, y) for x in ta for y in tb]
-    if any(len(x) >= 4 and len(y) >= 4 and (x.startswith(y) or y.startswith(x)) for x, y in pairs):
+    # (i que el curt sigui gairebé tot el llarg: «Rodri» = «Rodrigo», però «Rodri» ≠ «Iker Rodríguez»; error del 3/11)
+    if any(len(x) >= 4 and len(y) >= 4 and (x.startswith(y) or y.startswith(x)) and min(len(x), len(y)) / max(len(x), len(y)) >= 0.7
+           for x, y in pairs):
         return 60
     return len(sa & sb) * 20
 
@@ -375,8 +377,14 @@ def final_review(page, g, cands, report, label, dry=False, known=None):
     jid = g["id"]
     slots = read_slots(page, jid)
     cur = []
+    taken_c = set()
+    # cada candidat només a una casella: primer les caselles amb el nom més semblant (error del 3/11: «Iker Rodríguez»
+    # i «Rodri» es van quedar tots dos amb el Rodrigo del Barça)
+    slots = sorted(slots, key=lambda s_: -max((name_score(s_["name"], c["si"]) for c in cands), default=0))
     for s_ in slots:
-        best = max(cands, key=lambda c: name_score(s_["name"], c["si"]), default=None)
+        best = max((c for c in cands if id(c) not in taken_c), key=lambda c: name_score(s_["name"], c["si"]), default=None)
+        if best and name_score(s_["name"], best["si"]) >= 60:
+            taken_c.add(id(best))
         if best and name_score(s_["name"], best["si"]) >= 60:
             cur.append({**best, "ff": s_["name"], "pos": s_["pos"], "slot": s_["slot"], "current": True})
         elif known is not None and not any(name_score(s_["name"], k) >= 60 for k in known):
