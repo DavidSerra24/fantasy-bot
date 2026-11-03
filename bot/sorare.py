@@ -221,7 +221,10 @@ def probe():
                 g["anyGame"]["date"][5:16] + (" ✔" if g["anyGame"]["date"] > now else " (començat)") for g in (n.get("eligiblePlayerGameScores") or []) if g and g.get("anyGame"))
             for n in gk)[:3800])
     rules = {r["key"]: r for r in st.get("displayedTypedRules") or []}
-    print("::notice title=regles::" + str(list(rules))[:500] + " " + str(rules.get("Appearances"))[:1500])
+    print("::notice title=regles::" + str(rules.get("Competitions"))[:1500] + " ¶ " + str(rules.get("Scarcity"))[:500])
+    ps = gql(STEP, {"m": "CAREER"}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
+    gk = [n for n in bench(ps["id"], {"includeUsed": True}) if "Goalkeeper" in (n.get("positions") or [n.get("position")])]
+    print("::notice title=porters personal::" + " ¶ ".join(f"{n['anyPlayer']['displayName']}: " + ", ".join(g["anyGame"]["date"][5:16] for g in (n.get("eligiblePlayerGameScores") or []) if g and g.get("anyGame")) for n in gk)[:3000])
 
 
 
