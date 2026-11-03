@@ -20,4 +20,17 @@ with sync_playwright() as p:
         let x = el; for (let k = 0; k < 4 && x && x.parentElement; k++) x = x.parentElement; return x ? x.outerHTML : 'cap'; }""")
     for k in range(0, min(len(h), 15000), 3800):
         print(f"::notice title=html{k}::" + h[k:k + 3800])
+    reqs = []
+    pg.on("response", lambda r: reqs.append(r) if r.request.resource_type in ("xhr", "fetch") else None)
+    pg.locator('a.ranking-link-block[data-username="FutbolFantasy"]').first.click()
+    pg.wait_for_timeout(4000)
+    for r in reqs[:6]:
+        try:
+            body = r.text()
+        except Exception:
+            body = "?"
+        print(f"::notice title=xhr {r.request.method} {r.url[:200]}::" + (r.request.post_data or "")[:300] + " → " + body[:3000].replace("\n", " "))
+    m = pg.evaluate("() => { const d = [...document.querySelectorAll('.modal.show, .modal[style*=block], [role=dialog]')].pop(); return d ? d.innerText + ' ||| ' + d.outerHTML.slice(0, 6000) : 'sense modal'; }")
+    for k in range(0, min(len(m), 11000), 3800):
+        print(f"::notice title=modal{k}::" + m[k:k + 3800].replace("\n", " ¶ "))
     b.close()
