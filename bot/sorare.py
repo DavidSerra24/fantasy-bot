@@ -216,6 +216,9 @@ def probe():
         except Exception as e:
             print(f"::notice title=gk {f}::{str(e)[:300]}"); continue
         gk = [n for n in ns if "Goalkeeper" in (n.get("positions") or [n.get("position")])]
+        print("::notice title=tots::" + " ¶ ".join(f"{n['anyPlayer']['displayName']} {n.get('position')} {(n['anyPlayer'].get('activeClub') or {}).get('slug')}: " + ",".join(
+            g["anyGame"]["date"][5:16] + " " + (g["anyGame"].get("homeTeam") or {}).get("slug", "?") + "-" + (g["anyGame"].get("awayTeam") or {}).get("slug", "?")
+            for g in (n.get("eligiblePlayerGameScores") or []) if g and g.get("anyGame")) for n in ns)[:3800])
         print(f"::notice title=gk {list(f)}::total {len(ns)}, porters {len(gk)}: " + " ¶ ".join(
             f"{n['anyPlayer']['displayName']} ({n['anyCard']['slug'][-12:]}): " + ", ".join(
                 g["anyGame"]["date"][5:16] + (" ✔" if g["anyGame"]["date"] > now else " (començat)") for g in (n.get("eligiblePlayerGameScores") or []) if g and g.get("anyGame"))
