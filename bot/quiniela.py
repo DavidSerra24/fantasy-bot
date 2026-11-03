@@ -47,15 +47,16 @@ HEADERS = [(r"hypermotion|laliga\s*2|segunda", "laliga2"), (r"laliga|la liga|pri
 GROK = re.compile(r"(?:previst|\n|\t|^|(?<=\d-\d))\s*([^\n\t–]+?)\s+–\s+([^\n\t]+?)\s*([12X])\s*(\d{1,2})\s*-\s*(\d{1,2})(?!\d)")
 
 
-def parse_grok(text):
+def parse_grok(text, default=None):
     """Taula del Grok enganxada («Torino – Monza12-0…», amb capçaleres «🇮🇹 Serie A – Jornada 8»).
     Retorna {competició: [[local, visitant, gols local, gols visitant], ...]}. El pronòstic 1/X/2 es descarta."""
-    out, comp = {}, None
+    out, comp = {}, default
     text = re.sub(r"\*+", "", text).replace("|", " ")  # taula en Markdown: «| **Torino – Monza** | **1** | **2-0** |»
     for line in text.splitlines():
         if re.search(r"\d{1,2}-\d{1,2}\s+d[’']", line) or line.strip().startswith(("Aquí", "Resum")):
             continue  # «(23-26 d’octubre)», resum 1·X·2
-        if "–" in line and not re.search(r"\d-\d", line) and len(line) < 80:  # capçalera de competició
+        bare = re.sub(r"\([^)]*\)", "", line)  # «(3-4 de novembre 2026)» no és cap resultat
+        if "–" in bare and not re.search(r"\d-\d", bare) and len(bare) < 100:  # capçalera de competició
             for rx, c in HEADERS:
                 if re.search(rx, line, re.I):
                     comp = c

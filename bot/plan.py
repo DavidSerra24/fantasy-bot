@@ -300,6 +300,9 @@ def telegram_commands(now):
         if not comp:
             requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat, "text": "⚠️ Digues la competició: /quiniela serie-a ..."}, timeout=20)
             continue
+        tab = parse_grok(rest, default=comp).get(comp)  # taula en Markdown sense capçalera de competició
+        if tab:
+            rest = "; ".join(f"{h} {a}-{b} {v}" for h, v, a, b in tab)
         out.append({"key": f"quiniela:{u['update_id']}", "at": now.isoformat(), "do": "quiniela", "comp": comp,
                     "deadline": (now + dt.timedelta(hours=6)).isoformat(), "text": rest})
         requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
