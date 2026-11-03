@@ -14,3 +14,6 @@ print("::notice title=porters::" + " ¶ ".join(out)[:3900])
 ps = int(sys.argv[2]) if len(sys.argv) > 2 else 66
 print("::notice title=ps::" + " ¶ ".join(f"{t} fila {i}: {p.get('name')} {p.get('pct')}%" for t in d.get("_order", []) if isinstance(d.get(t), list)
                                      for i, r in enumerate(d[t]) for p in r if p.get("ps") == ps)[:3900])
+for t in d.get("_order", []):
+    if len(sys.argv) > 3 and sys.argv[3].lower() in t.lower():
+        print(f"::notice title={t}::" + json.dumps(d[t], ensure_ascii=False)[:3800])
