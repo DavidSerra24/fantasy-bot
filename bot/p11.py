@@ -61,10 +61,62 @@ def build_entries(comp, sidata, slugs):
             missing.append(f"{t} (sense equip a Predicted11)")
             continue
         if not isinstance(rows, list) or len(sum(rows, [])) < 11:
-            waiting.append(t)  # els experts encara no han penjat l'onze
+            waiting.append((t, slug, rows if isinstance(rows, list) else []))  # els experts encara no han penjat l'onze
             continue
         out[slug] = {"team": t, "rows": [[{**p, "name": alias.get(p["name"], p["name"]), "row": i} for p in r] for i, r in enumerate(rows)]}
     return out, missing, waiting
+
+
+POS = {"Portero": 0, "Defensa": 1, "Mediocampista": 2, "Delantero": 3}
+
+
+def ff_lineup(page, comp, slug, si_rows, alias):
+    """Onze probable de l'usuari «FutbolFantasy» a Predicted11 (rànquing de l'equip → api/p11/jornada/.../FutbolFantasy),
+    per als equips que SorareInside encara no té complets. Files com les de SorareInside (porter, defenses, migcampistes,
+    davanters; d'esquerra a dreta); el PS, el % i els gols surten de SorareInside si el jugador hi és."""
+    got = []
+    def on_resp(r):
+        if "/api/p11/jornada/" in r.url and "/FutbolFantasy/" in r.url:
+            try:
+                got.append(r.json())
+            except Exception:
+                pass
+    page.on("response", on_resp)
+    try:
+        page.goto(f"{BASE}{comp}/equipo/{slug}", wait_until="domcontentloaded")
+        page.wait_for_timeout(2500)
+        link = page.locator('a.ranking-link-block[data-username="FutbolFantasy"]')
+        if not link.count():
+            return None
+        link.first.click()
+        for _ in range(20):
+            if got:
+                break
+            page.wait_for_timeout(500)
+    finally:
+        page.remove_listener("response", on_resp)
+    part = (got[0] if got else {}).get("participacion") or []
+    if len(part) != 11:
+        return None
+    flat_si = [p for r in si_rows or [] for p in r]
+    def si_of(name):
+        n = norm(name)
+        return next((p for p in flat_si if norm(p["name"]) == n), None) or next(
+            (p for p in flat_si if norm(p["name"]).split()[-1:] == n.split()[-1:] and len(n) > 3), None)
+    rows = [[], [], [], []]
+    for q in part:
+        x, _, y = (q.get("jugador_posicion") or "50-50").partition("-")
+        rows[POS.get(q.get("posicion"), 2)].append((-float(y or 50), float(x or 50), q))
+    out = []
+    for i, r in enumerate(x for x in rows if x):
+        r.sort(key=lambda t: (t[0], t[1]) if POS.get(t[2].get("posicion")) == 2 else (t[1],))
+        line = []
+        for _, _, q in r:
+            sp = si_of(q["nombre"]) or {}
+            line.append({"name": alias.get(q["nombre"], q["nombre"]), "pct": sp.get("pct"), "ps": sp.get("ps"), "goals": sp.get("goals", 0),
+                         "subs": sp.get("subs") or [], "row": i})
+        out.append(line)
+    return {"team": None, "rows": out, "src": "ff", "updated": (got[0] or {}).get("fecha_actualizacion")}
 
 
 def fill_team(page, comp, slug, entry, prev):
@@ -115,6 +167,18 @@ def run(comps, force=False, max_hours=30.0):
             sidata = si.extract_league(spg, lg["si"][0], lg["si"][1], day)
             save_json(f"si_{comp}.json", sidata)
             entries, missing, waiting = build_entries(comp, sidata, info["slugs"])
+            ffused = []
+            for t, slug, rows in waiting:  # SorareInside incomplet → onze probable de FutbolFantasy (publicat a Predicted11)
+                try:
+                    e = ff_lineup(pg, comp, slug, rows, CFG["alias"])
+                except Exception as ex:
+                    e = None
+                    print(f"::warning title=p11 ff::{slug}: {type(ex).__name__} {str(ex)[:120]}")
+                if e:
+                    e["team"] = t
+                    entries[slug] = e
+                    ffused.append(t)
+            waiting = [t for t, _, _ in waiting if t not in ffused]
             prev_all = load_json(f"p11_{comp}.json")
             ok, bad, pending = 0, [], []
             skipped = 0
@@ -155,6 +219,8 @@ def run(comps, force=False, max_hours=30.0):
             line = f"✅ {comp} ({sidata.get('_gw')}): {ok}/{len(info['slugs'])} equips correctes ({skipped} sense canvis), tanca d'aquí a {info['hours']:.1f} h"
             if waiting:
                 line += f"\n  ⏳ onze encara no disponible a SorareInside: {', '.join(waiting)}"
+            if ffused:
+                line += f"\n  📋 sense onze complet a SorareInside, he posat l'onze probable de FutbolFantasy: {', '.join(ffused)}"
             if pending:
                 line += f"\n  ⏳ icones pendents (encara sense punts projectats): {', '.join(pending)}"
             if bad or missing:
