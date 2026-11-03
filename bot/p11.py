@@ -74,9 +74,9 @@ def ff_lineup(page, comp, slug, si_rows, alias):
     """Onze probable de l'usuari «FutbolFantasy» a Predicted11 (rànquing de l'equip → api/p11/jornada/.../FutbolFantasy),
     per als equips que SorareInside encara no té complets. Files com les de SorareInside (porter, defenses, migcampistes,
     davanters; d'esquerra a dreta); el PS, el % i els gols surten de SorareInside si el jugador hi és."""
-    got = []
+    got, who = [], ["FutbolFantasy"]
     def on_resp(r):
-        if "/api/p11/jornada/" in r.url and "/FutbolFantasy/" in r.url:
+        if "/api/p11/jornada/" in r.url and f"/{who[0]}/" in r.url:
             try:
                 got.append(r.json())
             except Exception:
@@ -85,7 +85,14 @@ def ff_lineup(page, comp, slug, si_rows, alias):
     try:
         page.goto(f"{BASE}{comp}/equipo/{slug}", wait_until="domcontentloaded")
         page.wait_for_timeout(2500)
-        link = page.locator('a.ranking-link-block[data-username="FutbolFantasy"]')
+        # el primer del rànquing general de l'equip («RANKING BODØ/GLIMT», no el destacat ni el de la jornada; decisió
+        # del David, 3/11); si no hi és, l'usuari FutbolFantasy
+        best = page.evaluate("""() => { for (const a of document.querySelectorAll('a.ranking-link-block')) {
+            let x = a; while (x && !/^\\s*RANKING /i.test(x.innerText || '')) x = x.parentElement;
+            const h = x ? x.innerText.trim().split('\\n')[0] : '';
+            if (/^RANKING /i.test(h) && !/DESTACADO|JORNADA/i.test(h)) return a.dataset.username; } return null; }""")
+        who[0] = best or "FutbolFantasy"
+        link = page.locator(f'a.ranking-link-block[data-username="{who[0]}"]')
         if not link.count():
             return None
         link.first.click()
@@ -116,7 +123,7 @@ def ff_lineup(page, comp, slug, si_rows, alias):
             line.append({"name": alias.get(q["nombre"], q["nombre"]), "pct": sp.get("pct"), "ps": sp.get("ps"), "goals": sp.get("goals", 0),
                          "subs": sp.get("subs") or [], "row": i})
         out.append(line)
-    return {"team": None, "rows": out, "src": "ff", "updated": (got[0] or {}).get("fecha_actualizacion")}
+    return {"team": None, "rows": out, "src": who[0], "updated": (got[0] or {}).get("fecha_actualizacion")}
 
 
 def fill_team(page, comp, slug, entry, prev):
@@ -177,8 +184,8 @@ def run(comps, force=False, max_hours=30.0):
                 if e:
                     e["team"] = t
                     entries[slug] = e
-                    ffused.append(t)
-            waiting = [t for t, _, _ in waiting if t not in ffused]
+                    ffused.append(f"{t} (de {e['src']})")
+            waiting = [t for t, slug, _ in waiting if slug not in entries]
             prev_all = load_json(f"p11_{comp}.json")
             ok, bad, pending = 0, [], []
             skipped = 0
@@ -220,7 +227,7 @@ def run(comps, force=False, max_hours=30.0):
             if waiting:
                 line += f"\n  ⏳ onze encara no disponible a SorareInside: {', '.join(waiting)}"
             if ffused:
-                line += f"\n  📋 sense onze complet a SorareInside, he posat l'onze probable de FutbolFantasy: {', '.join(ffused)}"
+                line += f"\n  📋 sense onze complet a SorareInside, he posat l'onze del primer del rànquing de l'equip: {', '.join(ffused)}"
             if pending:
                 line += f"\n  ⏳ icones pendents (encara sense punts projectats): {', '.join(pending)}"
             if bad or missing:
