@@ -29,7 +29,7 @@ with sync_playwright() as p:
             body = r.text()
         except Exception:
             body = "?"
-        print(f"::notice title=xhr {r.request.method} {r.url[:200]}::" + (r.request.post_data or "")[:300] + " → " + body[:3000].replace("\n", " "))
+        print("::notice::URL " + r.request.method + " " + r.url[:300] + " DATA " + (r.request.post_data or "")[:300] + " → " + body[-1500:].replace("\n", " "))
     m = pg.evaluate("() => { const d = [...document.querySelectorAll('.modal.show, .modal[style*=block], [role=dialog]')].pop(); return d ? d.innerText + ' ||| ' + d.outerHTML.slice(0, 6000) : 'sense modal'; }")
     for k in range(0, min(len(m), 11000), 3800):
         print(f"::notice title=modal{k}::" + m[k:k + 3800].replace("\n", " ¶ "))
