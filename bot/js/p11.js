@@ -139,6 +139,8 @@ window.__p11 = (function () {
       // primer el nom sencer (com abans); si no, per paraules: «R. Sociedad B» = «Real Sociedad B», «Nott. Forest» = «Nott'm Forest»
       let bx = boxes.find(x => (x.l.includes(H) || H.includes(x.l)) && (x.v.includes(A) || A.includes(x.v)));
       if (!bx) { let best = 0; for (const x of boxes) { const sc = Math.min(tsc(h, x.lt), tsc(a, x.vt)); if (sc > best) { best = sc; bx = x; } } }
+      // si un dels dos noms no s'assembla gens («Club Brugge» = «Brujas»), n'hi ha prou amb l'altre si només hi ha un partit possible
+      if (!bx) { const one = boxes.filter(x => x.l === H || x.v === A || (H.length >= 3 && x.l.includes(H)) || (A.length >= 3 && x.v.includes(A))); if (one.length === 1) bx = one[0]; }
       if (!bx) { log.push('NOMATCH ' + h + '-' + a); continue; }
       const st = [...bx.b.querySelectorAll('.stepper-container')];
       for (const [c, t] of [[st[0], gh], [st[1], ga]]) { const inp = c.querySelector('input'); const btn = s => [...c.querySelectorAll('.stepper-btn')].find(b => b.textContent.trim() === s);
