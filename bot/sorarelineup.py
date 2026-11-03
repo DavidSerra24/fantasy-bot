@@ -66,11 +66,17 @@ def bench(slug, rng=None, pos=None):
     return out
 
 
-def cards(lb):
-    """Cartes de la competició (de la seva raresa) amb ≥80%, una per jugador (la de més XP), en ordre de la llista."""
+def cards(lb, floor=8000):
+    """Cartes de la competició (de la seva raresa) amb ≥80% (o ≥ floor), una per jugador (la de més XP), en ordre de la
+    llista. Amb floor < 8000 (All Star Rare quan no n'hi ha prou; decisió del David, 3/11) cada carta porta «tier»:
+    0 = ≥80%, 1 = 70%, 2 = 60%…, i els de més % van primer."""
     # la llista sense filtre és la de la posició Extra (jugadors de camp); els porters van a part
-    hi = bench(lb["slug"], {"min": 8000}) + bench(lb["slug"], {"min": 8000}, ["Goalkeeper"])
-    ok = {n["anyCard"]["slug"] for n in hi}
+    tier = {}
+    for t, lo in enumerate(range(8000, floor - 1, -1000)):
+        rng = {"min": lo} if lo == 8000 else {"min": lo, "max": lo + 999}
+        for n in bench(lb["slug"], rng) + bench(lb["slug"], rng, ["Goalkeeper"]):
+            tier.setdefault(n["anyCard"]["slug"], t)
+    ok = set(tier)
     allc = bench(lb["slug"]) + bench(lb["slug"], None, ["Goalkeeper"])
     LOG.append(f"{lb['displayName']}: {len(allc)} cartes, {len(ok)} amb ≥80%")
     seen, copies, gazza = {}, {}, []
@@ -87,7 +93,7 @@ def cards(lb):
              "avg": n.get("avg10") or 0, "avg15": n.get("avg15") or 0, "idx": i,
              "grade": ((g.get("projection") or {}).get("grade")), "proj": (g.get("projection") or {}).get("score"),
              "game": game.get("id"), "rival": next((t for t in teams if t and t != club), None),
-             "girona": "girona" in club.lower(), "gazza": "gazzaniga" in p["slug"]}
+             "girona": "girona" in club.lower(), "gazza": "gazzaniga" in p["slug"], "tier": tier.get(c["slug"], 0)}
         q["imp"] = GRADE.get(q["grade"], -1)
         copies[q["player"]] = copies.get(q["player"], 0) + 1
         if q["gazza"]:
@@ -593,6 +599,21 @@ def run(mode="dry"):
                 pool = [q for q in pool if q["player"] not in used[rarity]]
                 plan.append((lb, pick, cap))
                 rep.append(f"🃏 {lb['displayName']} #{n}: {describe(pick, cap)} · {preview(lb, pick, cap)}")
+            if n == 0 and rarity == "rare" and allstar:
+                # All Star Rare: si no hi ha prou jugadors amb ≥80%, s'agafen els de més % (70%, 60%…), per impacte (el David, 3/11)
+                for floor in range(7000, 1999, -1000):
+                    pool2 = [q for q in cards(lb, floor) if q["player"] not in used[rarity]]
+                    if not girona_rare_allstar:
+                        pool2 = [q for q in pool2 if not q["girona"]]
+                    pick = build(pool2, CLASSIC)
+                    if pick:
+                        cap = captain(pick)
+                        n += 1; made += 1
+                        used[rarity] |= {q["player"] for q in pick}
+                        plan.append((lb, pick, cap))
+                        low = [q["name"] + f" ({80 - 10 * q['tier']}%)" for q in pick if q.get("tier")]
+                        rep.append(f"🃏 {lb['displayName']} #1 (amb jugadors de menys del 80%: {', '.join(low)}): {describe(pick, cap)} · {preview(lb, pick, cap)}")
+                        break
             if n == 0:
                 rep.append(f"{lb['displayName']}: no hi ha prou jugadors amb ≥80% per a una alineació")
             elif n < 4 and not total:
