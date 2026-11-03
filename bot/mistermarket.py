@@ -203,7 +203,9 @@ def resolve_by_search(pg, players, entries, field, report, ask=True):
                 break
             tried += 1
             try:
-                if str(q["pid"]) in search_ids(pg, e["name"])[:6]:
+                same = _ln(e["name"]) == _ln(q.get("name") or q.get("short") or "")
+                # «Quique Ribes» no surt al buscador si el Mister li diu «Kike Ribes»: amb el mateix cognom, també pel cognom sol
+                if str(q["pid"]) in search_ids(pg, e["name"])[:6] or (same and str(q["pid"]) in search_ids(pg, e["name"].split()[-1])[:10]):
                     hit = e
                     break
             except Exception:
