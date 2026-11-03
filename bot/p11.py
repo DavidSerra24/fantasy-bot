@@ -110,20 +110,45 @@ def ff_lineup(page, comp, slug, si_rows, alias):
         n = norm(name)
         return next((p for p in flat_si if norm(p["name"]) == n), None) or next(
             (p for p in flat_si if norm(p["name"]).split()[-1:] == n.split()[-1:] and len(n) > 3), None)
-    rows = [[], [], [], []]
+    groups = [[], [], [], []]  # POR, DEF, MIG, DAV del primer del rànquing
     for q in part:
         x, _, y = (q.get("jugador_posicion") or "50-50").partition("-")
-        rows[POS.get(q.get("posicion"), 2)].append((-float(y or 50), float(x or 50), q))
-    out = []
-    for i, r in enumerate(x for x in rows if x):
-        r.sort(key=lambda t: (t[0], t[1]) if POS.get(t[2].get("posicion")) == 2 else (t[1],))
-        line = []
+        groups[POS.get(q.get("posicion"), 2)].append((-float(y or 50), float(x or 50), q))
+    for g, r in enumerate(groups):
+        r.sort(key=lambda t: (t[0], t[1]) if g == 2 else (t[1],))
+    # Primer els jugadors que SorareInside sí que té (decisió del David, 3/11); els que falten, del primer del rànquing.
+    # Posició dels de SorareInside: la del mateix jugador al rànquing; si no hi és, per la fila (0 porter, 1 defenses,
+    # l'última davanters si hi ha 4 files o més, la resta migcampistes).
+    rk = {norm(q["nombre"]): g for g, r in enumerate(groups) for _, _, q in r}
+    nrows = len(si_rows or [])
+    chosen = [[], [], [], []]
+    for ri, r in enumerate(si_rows or []):
+        for sp in r:
+            g = rk.get(norm(sp["name"]))
+            if g is None:
+                g = 0 if ri == 0 else 1 if ri == 1 else 3 if (ri == nrows - 1 and nrows >= 4) else 2
+            chosen[g].append(dict(sp, src="si"))
+    n_si = sum(map(len, chosen))
+    taken = {norm(p["name"]) for c in chosen for p in c}
+    taken_last = {norm(p["name"]).split()[-1] for c in chosen for p in c if p["name"].split()}
+    def add(g, q):
+        sp = si_of(q["nombre"]) or {}
+        chosen[g].append({"name": alias.get(q["nombre"], q["nombre"]), "pct": sp.get("pct"), "ps": sp.get("ps"), "goals": sp.get("goals", 0),
+                          "subs": sp.get("subs") or [], "src": "rk"})
+        taken.add(norm(q["nombre"]))
+    free = lambda q: norm(q["nombre"]) not in taken and norm(q["nombre"]).split()[-1:] != [] and norm(q["nombre"]).split()[-1] not in taken_last
+    for g, r in enumerate(groups):  # cada línia fins a la mida que té al rànquing
         for _, _, q in r:
-            sp = si_of(q["nombre"]) or {}
-            line.append({"name": alias.get(q["nombre"], q["nombre"]), "pct": sp.get("pct"), "ps": sp.get("ps"), "goals": sp.get("goals", 0),
-                         "subs": sp.get("subs") or [], "row": i})
-        out.append(line)
-    return {"team": None, "rows": out, "src": who[0], "updated": (got[0] or {}).get("fecha_actualizacion")}
+            if sum(map(len, chosen)) < 11 and len(chosen[g]) < len(r) and free(q):
+                add(g, q)
+    for g, r in enumerate(groups):  # si encara en falten (SorareInside en té de més en alguna línia)
+        for _, _, q in r:
+            if sum(map(len, chosen)) < 11 and free(q):
+                add(g, q)
+    if sum(map(len, chosen)) != 11 or len(chosen[0]) != 1:
+        return None
+    out = [[dict(p, row=i) for p in c] for i, c in enumerate(x for x in chosen if x)]
+    return {"team": None, "rows": out, "src": who[0], "n_si": n_si, "updated": (got[0] or {}).get("fecha_actualizacion")}
 
 
 def fill_team(page, comp, slug, entry, prev):
@@ -184,7 +209,7 @@ def run(comps, force=False, max_hours=30.0):
                 if e:
                     e["team"] = t
                     entries[slug] = e
-                    ffused.append(f"{t} (de {e['src']})")
+                    ffused.append(f"{t} ({e['n_si']} de SorareInside + {11 - e['n_si']} de {e['src']})")
             waiting = [t for t, slug, _ in waiting if slug not in entries]
             prev_all = load_json(f"p11_{comp}.json")
             ok, bad, pending = 0, [], []
@@ -227,7 +252,7 @@ def run(comps, force=False, max_hours=30.0):
             if waiting:
                 line += f"\n  ⏳ onze encara no disponible a SorareInside: {', '.join(waiting)}"
             if ffused:
-                line += f"\n  📋 sense onze complet a SorareInside, he posat l'onze del primer del rànquing de l'equip: {', '.join(ffused)}"
+                line += f"\n  📋 sense onze complet a SorareInside, els que falten, del primer del rànquing de l'equip: {', '.join(ffused)}"
             if pending:
                 line += f"\n  ⏳ icones pendents (encara sense punts projectats): {', '.join(pending)}"
             if bad or missing:
