@@ -11,3 +11,6 @@ for t in d.get("_order", []):
         gk = rows[0][0]
         out.append(f"{t}: {gk.get('name')} {gk.get('pct')}% {gk.get('ps')} PS (subs {[s['name'] for s in gk.get('subs') or []]})")
 print("::notice title=porters::" + " ¶ ".join(out)[:3900])
+ps = int(sys.argv[2]) if len(sys.argv) > 2 else 66
+print("::notice title=ps::" + " ¶ ".join(f"{t} fila {i}: {p.get('name')} {p.get('pct')}%" for t in d.get("_order", []) if isinstance(d.get(t), list)
+                                     for i, r in enumerate(d[t]) for p in r if p.get("ps") == ps)[:3900])
