@@ -301,7 +301,11 @@ def use_items(page, comp_slug, pick, report):
             if not eligible:
                 continue
             target = max(eligible, key=lambda c: (c["ps"], -c["idx"]))
-            page.locator(".modal.show").get_by_text(target["ff"], exact=True).first.click()
+            el = page.locator(".modal.show").get_by_text(target["ff"], exact=True).first
+            try:
+                el.click(timeout=8000)
+            except Exception:  # (3/11) el text no rep el clic (tapat o fora de pantalla): clic per JS al seu element clicable
+                el.evaluate("e => (e.closest('button, a, li, .sel-item, [onclick]') || e).click()")
             page.wait_for_timeout(2000)
             report.append(f"   🎁 {name} → {target['ff']}")
             done = True

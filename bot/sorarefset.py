@@ -18,7 +18,7 @@ import datetime as dt
 
 from bot.notify import telegram
 from bot.sorare import gql, token
-from bot.sorareset import CLAIM, RESTART, UPSERT
+from bot.sorareset import RESTART, UPSERT, claim_step
 from bot.web import load_json, save_json
 
 STEP = """query($m: BoardMode!) { currentUser { setBoard(mode: $m, sport: FOOTBALL) { id title
@@ -119,9 +119,7 @@ def run(dry=False, focus=None):
             continue
         if st["state"] == "CLAIMABLE" and not dry:
             try:
-                d = gql(CLAIM, {"input": {"stepId": st["id"]}}, token=token())["acknowledgeStep"]
-                if d.get("errors"):
-                    raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
+                claim_step(st, mode)
                 rep.append(f"🎁 {label}: nivell {st['level'] + 1} superat, recompensa reclamada")
             except Exception as e:
                 rep.append(f"⚠️ {label}: no he pogut reclamar ({str(e)[:150]})")

@@ -1,7 +1,7 @@
 // Predicted11: omplir l'onze d'un equip, posar emoticones i Quiniela (provat al navegador del David).
 window.__p11 = (function () {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/ø/g, 'o').replace(/ł/g, 'l').replace(/đ/g, 'dj').replace(/ı/g, 'i').replace(/\bfdez\b/g, 'fernandez').replace(/\bquique\b/g, 'kike').replace(/[^a-z0-9 .'-]/g, ' ');
+  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/ø/g, 'o').replace(/æ/g, 'ae').replace(/ß/g, 'ss').replace(/ł/g, 'l').replace(/đ/g, 'dj').replace(/ı/g, 'i').replace(/\bfdez\b/g, 'fernandez').replace(/\bglez\b/g, 'gonzalez').replace(/\brguez\b/g, 'rodriguez').replace(/\bhdez\b/g, 'hernandez').replace(/\bmtnez\b/g, 'martinez').replace(/\bmtez\b/g, 'martinez').replace(/\bglez\b/g, 'gonzalez').replace(/\bquique\b/g, 'kike').replace(/[^a-z0-9 .'-]/g, ' ');
   const toks = s => norm(s).replace(/[.'-]/g, ' ').split(/\s+/).filter(Boolean);
   function score(si, it) {
     const n = norm(it.nombre), c = norm(it.corto || ''); const sn = norm(si).replace(/\./g, '').trim();

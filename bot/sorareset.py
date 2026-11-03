@@ -33,6 +33,28 @@ BENCH = """query($st: String!, $after: String, $f: BenchFilterInput!) { currentU
     eligiblePlayerGameScores(stepId: $st) { anyGame { id date } projectedScore } } } } } } }"""
 CLAIM = """mutation($input: acknowledgeStepInput!) { acknowledgeStep(input: $input) { errors { message } } }"""  # claimStep està obsolet
 RESTART = """mutation($input: restartTasksTrackInput!) { restartTasksTrack(input: $input) { errors { message } newTask { ... on TaskInterface { id } } } }"""
+CLAIMTASK = """mutation($t: ID!) { claimTask(input: {taskId: $t}) { errors { message } } }"""
+
+
+def claim_step(st, mode):
+    """Reclama la recompensa d'un nivell superat. Tauler d'equip: acknowledgeStep. Tauler personal: el pas és una «Task»
+    i Sorare diu «Acknowledging a career step is not supported» (3/11) → claimTask amb el seu id."""
+    if mode == "CAREER":
+        err = ""
+        for tid in (st["id"].split(":")[-1], st["id"]):
+            try:
+                d = gql(CLAIMTASK, {"t": tid}, token=token())["claimTask"]
+                if not d.get("errors"):
+                    return
+                err = "; ".join(e["message"] for e in d["errors"])
+            except Exception as e:
+                err = str(e)[:200]
+        raise RuntimeError(err)
+    d = gql(CLAIM, {"input": {"stepId": st["id"]}}, token=token())["acknowledgeStep"]
+    if d.get("errors"):
+        raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
+
+
 UPSERT = """mutation($input: upsertStepLineupInput!) { upsertStepLineup(input: $input) { errors { message } lineup { id } } }"""
 
 
@@ -85,9 +107,7 @@ def run(dry=False, sports=("NBA",), scan=False):
             if st["state"] == "CLAIMABLE" and sp == "NBA" and not dry:
                 # pas superat: es reclama la recompensa i es passa al pas següent (decisió del David, 31/10: a la nit ell dorm)
                 try:
-                    d = gql(CLAIM, {"input": {"stepId": st["id"]}}, token=token())["acknowledgeStep"]
-                    if d.get("errors"):
-                        raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
+                    claim_step(st, mode)
                     rep.append(f"🎁 {label}: nivell {st['level'] + 1} superat, recompensa reclamada")
                     b = gql(STEP, {"sp": sp, "m": mode}, token=token())["currentUser"]["setBoard"]
                     st = (b or {}).get("myCurrentStep") or st
