@@ -205,16 +205,23 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): tipus per a les alineacions del Set de futbol."""
-    import re as _re
-    import requests as _rq
-    sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
-    sdl1 = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", sdl)
-    def T(n):
-        mm = _re.search(r"\n((?:type|input|enum|interface|union) " + n + r"\b[^{=]*(?:\{.*?\n\}|=[^\n]*))", sdl1, _re.S)
-        return _re.sub(r"\s+", " ", mm.group(1)) if mm else f"{n}: ?"
-    print("::notice title=tipus::" + " ¶ ".join(T(n)[:900] for n in ("upsertStepLineupInput", "StepAppearanceInput", "TaskAppearanceInput", "So5AppearanceInput", "BenchFilterInput"))[:3900])
-    print("::notice title=tipus2::" + " ¶ ".join(T(n)[:1200] for n in ("PlayerGameScore", "PlayerGameScoreProjection", "Game"))[:3900])
+    """Prova (només lectura): porters del tauler d'equip del Set de futbol i els seus partits."""
+    import datetime as _dt
+    from bot.sorarefset import STEP, bench
+    st = gql(STEP, {"m": "SQUAD"}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
+    now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+    for f in ({"includeUsed": True}, {"includeUsed": True, "positions": ["Goalkeeper"]}):
+        try:
+            ns = bench(st["id"], f)
+        except Exception as e:
+            print(f"::notice title=gk {f}::{str(e)[:300]}"); continue
+        gk = [n for n in ns if "Goalkeeper" in (n.get("positions") or [n.get("position")])]
+        print(f"::notice title=gk {list(f)}::total {len(ns)}, porters {len(gk)}: " + " ¶ ".join(
+            f"{n['anyPlayer']['displayName']} ({n['anyCard']['slug'][-12:]}): " + ", ".join(
+                g["anyGame"]["date"][5:16] + (" ✔" if g["anyGame"]["date"] > now else " (començat)") for g in (n.get("eligiblePlayerGameScores") or []) if g and g.get("anyGame"))
+            for n in gk)[:3800])
+    rules = {r["key"]: r for r in st.get("displayedTypedRules") or []}
+    print("::notice title=regles::" + str(list(rules))[:500] + " " + str(rules.get("Appearances"))[:1500])
 
 
 
