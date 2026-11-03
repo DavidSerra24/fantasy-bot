@@ -194,6 +194,9 @@ def resolve_by_search(pg, players, entries, field, report, ask=True):
         if not pool:
             continue  # la font no té l'equip
         hit = next((e for e in pool if e["name"] == alias.get(str(q["pid"]))), None)
+        # primer els de la font amb el mateix cognom (Kike Ribes = Quique Ribes): només se'n proven 5 al buscador
+        _ln = lambda x: (list(sources.norm(x)) or [""])[-1]
+        pool.sort(key=lambda e: _ln(e["name"]) != _ln(q.get("name") or q.get("short") or ""))
         tried = 0
         for e in ([] if hit else pool):
             if tried >= 5:
