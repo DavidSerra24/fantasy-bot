@@ -198,10 +198,13 @@ def plan(now=None, done=None):
         if not kq:
             raise FileNotFoundError
         until = dt.datetime.fromisoformat(kq).astimezone(UTC)
+        # només el dia que comença la jornada, de les 5:00 (ja resoltes les ofertes del mercat) fins a l'inici
+        # (decisió del David, 4/11)
+        start = until.astimezone(MADRID).replace(hour=5, minute=0, second=0, microsecond=0).astimezone(UTC)
         for h in range(0, 3):
             T = (now + dt.timedelta(hours=h)).replace(minute=10, second=0, microsecond=0)
             k = f"misterloan:{T.isoformat()}"
-            if T <= until and due(k, T, T + dt.timedelta(minutes=50)):
+            if start <= T <= until and due(k, T, T + dt.timedelta(minutes=50)):
                 add(k, T, "misterloan", None, T + dt.timedelta(minutes=50))
     except FileNotFoundError:
         pass
