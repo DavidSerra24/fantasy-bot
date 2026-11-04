@@ -124,7 +124,7 @@ def postponed(days=6, ccode="ESP"):
                 continue
             # només LaLiga i LaLiga 2 (no la femenina, la Primera RFEF ni la Copa)
             lname = (lg.get("name") or "").lower()
-            if not re.search(r"laliga|la liga|segunda|primera division", lname) or re.search(r"women|femen|f$|rfef|copa|cup", lname):
+            if not re.search(r"laliga|la liga|segunda|primera division", lname) or re.search(r"women|femen|f$|rfef|federaci|copa|cup", lname):
                 continue
             for m in lg.get("matches", []):
                 st = m.get("status") or {}
