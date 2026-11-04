@@ -30,8 +30,10 @@ BENCH = """query($st: String!, $after: String, $f: BenchFilterInput!) { currentU
   pageInfo { hasNextPage endCursor }
   nodes { ... on ComposeTeamBenchCard { position positions anyCard { slug xp }
     anyPlayer { displayName slug ... on Player { activeClub { slug } avg: averageScore(type: LAST_FIFTEEN_SO5_AVERAGE_SCORE) } }
-    eligiblePlayerGameScores(stepId: $st) { anyGame { id date ... on Game { homeTeam { slug } awayTeam { slug } } }
+    eligiblePlayerGameScores(stepId: $st) { anyGame { id date ... on Game { homeTeam { slug name } awayTeam { slug name } } }
       projectedScore ... on PlayerGameScore { projection { grade } } } } } } } } }"""
+from zoneinfo import ZoneInfo
+MAD = ZoneInfo("Europe/Madrid")
 GRADE = {"A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5}
 D = lambda x: dt.datetime.fromisoformat(x.replace("Z", "+00:00"))
 
@@ -220,6 +222,16 @@ def run(dry=False, focus=None):
                 games.add(min((q["game"]["date"] for q in pick.values()), key=D))
             except Exception as e:
                 lines.append(f"   ❌ {name}: {str(e)[:200]}")
+        # revisió final (els últims minuts abans del primer partit de l'alineació): jugadors de partits posteriors que
+        # encara no tenen l'onze oficial (Sorare el posa ~1 h abans) → l'impacte no és el definitiu; avís perquè el David
+        # l'acabi a mà (decisió del David, 4/11)
+        if focus and now >= F - dt.timedelta(minutes=6):
+            for l, pick in targets:
+                late = [q for q in pick.values() if q["date"] > F and not q["confirmed"]]
+                if late:
+                    nm = f"alineació {open_.index(l) + 1}" if l is not None else "alineació nova"
+                    lines.append(f"   ⚠️ {nm}: {', '.join(q['name'] + ' (' + q['date'].astimezone(MAD).strftime('%H:%M') + ')' for q in late)}"
+                                 " encara sense onze oficial: l'impacte no és el definitiu. Revisa-la tu quan surtin els onzes.")
         head = f"{label} ({b.get('title')}, nivell {st['level'] + 1}, objectiu {st['target']}, {len(locked)} en joc)"
         rep.append(head + ("\n" + "\n".join(lines) if lines else ""))
     st_ = load_json("sorare_fset.json", {})
