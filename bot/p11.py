@@ -203,6 +203,14 @@ def run(comps, force=False, max_hours=30.0):
             save_json(f"si_{comp}.json", sidata)
             entries, missing, waiting = build_entries(comp, sidata, info["slugs"])
             ffused = []
+            # partits aplaçats: no es fan (Predicted11 els tornarà a obrir el dia que es juguin; decisió del David, 4/11)
+            try:
+                from bot import fotmob
+                pp = fotmob.postponed()
+            except Exception:
+                pp = set()
+            skipped_pp = [t for t, _, _ in waiting if any(fotmob.team_score(t, n) > 0 for n in pp)] if pp else []
+            waiting = [w for w in waiting if w[0] not in skipped_pp]
             for t, slug, rows in waiting:  # SorareInside incomplet → onze probable de FutbolFantasy (publicat a Predicted11)
                 try:
                     e = ff_lineup(pg, comp, slug, rows, CFG["alias"])
@@ -260,6 +268,8 @@ def run(comps, force=False, max_hours=30.0):
             line = f"✅ {comp} ({sidata.get('_gw')}): {ok}/{len(info['slugs'])} equips correctes ({skipped} sense canvis), tanca d'aquí a {info['hours']:.1f} h"
             if waiting:
                 line += f"\n  ⏳ onze encara no disponible a SorareInside: {', '.join(waiting)}"
+            if skipped_pp:
+                line += f"\n  ⏸️ partit aplaçat, no el faig: {', '.join(skipped_pp)}"
             if ffused:
                 line += f"\n  📋 sense onze complet a SorareInside, els que falten, del primer del rànquing de l'equip: {', '.join(ffused)}"
             if pending:
