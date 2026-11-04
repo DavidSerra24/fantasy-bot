@@ -203,11 +203,12 @@ def final_extras(page, report, dry=False):
         top = desired[:3]
         keep = [s_ for s_ in slots if any(ff.name_score(s_["name"], d) >= 60 for d in top)]
         out = [s_ for s_ in slots if s_ not in keep]
-        if not out:
+        empty = max(0, 3 - len(slots))  # caselles buides (4/11: a Resiliencia només hi havia 1 porter i no s'omplia)
+        if not out and not empty:
             report.append(f"✅ {KINDS[kind]}: revisat, sense canvis")
             continue
         if dry:
-            report.append(f"🧪 {KINDS[kind]}: canviaria {', '.join(s_['name'] for s_ in out)} (millors ara: {', '.join(top)}) — no he fet cap canvi")
+            report.append(f"🧪 {KINDS[kind]}: canviaria {', '.join(s_['name'] for s_ in out) or '-'}, {empty} buides (millors ara: {', '.join(top)}) — no he fet cap canvi")
             continue
         for s_ in out:
             ff.remove_slot(page, card["id"], s_["slot"])
@@ -216,14 +217,15 @@ def final_extras(page, report, dry=False):
         inject(page, "ff")
         todo = [d for d in desired if not any(ff.name_score(s_["name"], d) >= 60 for s_ in keep)]
         tmp = []
-        placed = fill_names(page, card["id"], todo, tmp, KINDS[kind], want=len(out))
+        placed = fill_names(page, card["id"], todo, tmp, KINDS[kind], want=len(out) + empty)
         # si els millors no tenen usos, pot tornar a entrar el mateix que s'havia tret: llavors no és cap canvi
         back = [s_["name"] for s_ in out if any(ff.name_score(s_["name"], p_["n"]) >= 60 for p_ in placed)]
         gone = [s_["name"] for s_ in out if s_["name"] not in back]
         came = [p_["n"] for p_ in placed if not any(ff.name_score(p_["n"], b_) >= 60 for b_ in back)]
-        ok = len(placed) == len(out)
-        if not gone and ok:
+        ok = len(placed) == len(out) + empty
+        if not gone and ok and not empty:
             report.append(f"✅ {KINDS[kind]}: sense canvis (els que tenen més PS no tenen usos o no es poden triar; es queden {', '.join(back)})")
         else:
             report.append(f"{'✅' if ok else '⚠️'} {KINDS[kind]}: " + (f"surten {', '.join(gone)} → entren {', '.join(came) or 'cap'}" if gone else "")
-                          + (f" (es queda {', '.join(back)})" if back else "") + ("" if ok else f" — REVISA-HO: només {len(placed)} de {len(out)}"))
+                          + (f"entren {', '.join(came)}" if (not gone and came) else "")
+                          + (f" (es queda {', '.join(back)})" if back else "") + ("" if ok else f" — REVISA-HO: només {len(placed)} de {len(out) + empty}"))
