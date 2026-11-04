@@ -191,10 +191,13 @@ def plan(now=None, done=None):
                     add(k, T, "collectibol", f"{mid}|{mins}", T + dt.timedelta(minutes=30))
     except Exception as e:
         print(f"::warning title=collectibol::{str(e)[:200]}")
-    # Mister: vigilància de cessions (Quique, 80–90%) cada hora fins a l'hora de config/mister_loanwatch.json
+    # Mister: vigilància de cessions (Quique, 80–90%) cada hora fins a l'inici de la jornada de LaLiga 2
     try:
-        lw = json.load(open("config/mister_loanwatch.json"))
-        until = dt.datetime.fromisoformat(lw["until"]).astimezone(UTC)
+        # cada setmana fins que comença la jornada de LaLiga 2 (decisió del David, 4/11); abans, una data fixa
+        kq = KICK.get("laliga2") or load_json("mister_kickoffs.json", {}).get("laliga2")
+        if not kq:
+            raise FileNotFoundError
+        until = dt.datetime.fromisoformat(kq).astimezone(UTC)
         for h in range(0, 3):
             T = (now + dt.timedelta(hours=h)).replace(minute=10, second=0, microsecond=0)
             k = f"misterloan:{T.isoformat()}"
@@ -283,17 +286,19 @@ def telegram_commands(now):
             from bot.web import save_json as _sj
             _sj("sorare_yes.json", (load_json("sorare_yes.json", []) + [m.get("date", 0)])[-20:])
             continue
-        if t.lower().startswith("/nom"):  # «/nom Rodrigo = Rodri» (o «= no»): equivalències de FutbolFantasy
+        cmd_ = next((c for c in ("/nom", "/p11", "/mister") if t.lower().startswith(c)), None)
+        if cmd_:  # equivalències de noms: /nom (FutbolFantasy), /p11 (Predicted11), /mister (Mister); «A = B» o «A = no»
             from bot.web import save_json as _sj
-            conf, done_ = load_json("ff_alias.json", {}), []
+            fname = {"/nom": "ff_alias.json", "/p11": "p11_alias.json", "/mister": "mister_names.json"}[cmd_]
+            conf, done_ = load_json(fname, {}), []
             for line in re.split(r"\n|;", t):
-                mm = re.match(r"\s*(?:/nom\S*)?\s*(.+?)\s*=\s*(.+?)\s*$", line)
+                mm = re.match(r"\s*(?:/(?:nom|p11|mister)\S*)?\s*(.+?)\s*=\s*(.+?)\s*$", line)
                 if mm:
                     conf[mm.group(1)] = mm.group(2)
                     done_.append(f"{mm.group(1)} = {mm.group(2)}")
-            _sj("ff_alias.json", conf)
+            _sj(fname, conf)
             requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat, "text":
-                          ("👍 Desat: " + "; ".join(done_)) if done_ else "⚠️ Format: /nom Nom de SorareInside = Nom de FutbolFantasy"}, timeout=20)
+                          ("👍 Desat: " + "; ".join(done_)) if done_ else f"⚠️ Format: {cmd_} Nom = Nom (o = no)"}, timeout=20)
             continue
         from bot.quiniela import parse_grok
         grok = parse_grok(t)

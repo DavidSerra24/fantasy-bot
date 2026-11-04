@@ -7,6 +7,7 @@
 import re
 
 from bot.ff import name_score, norm
+from bot.web import load_json
 
 JP = "https://www.jornadaperfecta.com/segunda/onces-posibles/"
 
@@ -102,8 +103,20 @@ def assign(players, entries, field="src"):
             pool = [e for e in pool if "line" not in e or (e["line"] == "G") == (p["P"] == "G")]
         pool = sorted(pool, key=lambda e: not e.get("starter", True))  # a igualtat de nom, primer el titular
         n = best_name(p["name"], [e["name"] for e in pool])
+        # confirmats: pel buscador del Mister (state/mister_alias.json, id → nom) o pel David (/mister A = B)
+        conf = load_json("mister_names.json", {}).get(p["name"])
+        byid = load_json("mister_alias.json", {}).get(str(p.get("pid")))
+        if conf and conf.lower() == "no":
+            n = None
+        elif conf or byid:
+            n = next((e["name"] for e in pool if norm(e["name"]) == norm(conf or byid)), n)
         cand = [e for e in pool if e["name"] == n] if n else []
         if not slug and not (len(cand) == 1 and name_score(p["name"], n) == 100):
+            cand = []
+        # nom semblant però no idèntic (decisió del David, 4/11): no es fa servir fins que el buscador del Mister o el
+        # David el confirmen; mentrestant el jugador queda sense % (no es ven ni es compra per aquest motiu)
+        if cand and norm(p["name"]) != norm(n) and not (conf or byid):
+            p["doubt"] = n
             cand = []
         p[field] = cand[0] if cand else None
     return players

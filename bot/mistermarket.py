@@ -196,7 +196,7 @@ def resolve_by_search(pg, players, entries, field, report, ask=True):
         hit = next((e for e in pool if e["name"] == alias.get(str(q["pid"]))), None)
         # primer els de la font amb el mateix cognom (Kike Ribes = Quique Ribes): només se'n proven 5 al buscador
         _ln = lambda x: (list(sources.norm(x)) or [""])[-1]
-        pool.sort(key=lambda e: _ln(e["name"]) != _ln(q.get("name") or q.get("short") or ""))
+        pool.sort(key=lambda e: (e["name"] != q.get("doubt"), _ln(e["name"]) != _ln(q.get("name") or q.get("short") or "")))
         tried = 0
         for e in ([] if hit else pool):
             if tried >= 5:
@@ -211,13 +211,14 @@ def resolve_by_search(pg, players, entries, field, report, ask=True):
             except Exception:
                 break
         if hit:
-            q[field] = hit; used.add((hit["name"], hit["key"])); alias[str(q["pid"])] = hit["name"]
+            q[field] = hit; used.add((hit["name"], hit["key"])); alias[str(q["pid"])] = hit["name"]; q.pop("doubt", None)
         elif ask and q.get("in_squad"):
-            asked.append(f"{q['short']} ({q['team']})")
+            asked.append(f"{q['short']} ({q['team']})" + (f": és «{q['doubt']}»? → /mister {q['name']} = {q['doubt']}" if q.get("doubt") else ""))
     save_json("mister_alias.json", alias)
     if asked:
-        report.append("❓ No trobo a la font (ni amb el buscador del Mister): " + ", ".join(asked)
-                      + ". Compten com a 0%. Si surten amb un altre nom, digues-me quin i ho corregeixo.")
+        report.append("❓ No trobo a la font (ni amb el buscador del Mister): " + "; ".join(asked)
+                      + ". Els que tenen un nom semblant es queden sense % fins que em responguis «/mister Nom Mister = Nom font»"
+                      " (o «= no»); la resta compten com a 0%.")
 
 
 def league_data(b, pg, spg, cid, country, league, report, cache):
@@ -267,7 +268,7 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
     keys = {e["key"] for e in (cache.get("ffp") or [])} if league == "Primera División" else \
            {t for t in sidata.get("_order", []) if isinstance(sidata.get(t), list) and sidata.get(t)}
     for q in squad + market:
-        if q["pct"] is None and q.get("team") and any(sources.team_ok(q["team"], k) for k in keys):
+        if q["pct"] is None and not q.get("doubt") and q.get("team") and any(sources.team_ok(q["team"], k) for k in keys):
             q["pct"], q["src"], q["absent"] = 0, (q.get("src") or "SI") + " (no hi surt)", True
     return bal, squad, market, have, cap
 
