@@ -29,7 +29,7 @@ STEP = """query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, 
 BENCH = """query($st: String!, $after: String, $f: BenchFilterInput!) { currentUser { step(id: $st) { myFilteredBench(filters: $f, first: 100, after: $after) {
   pageInfo { hasNextPage endCursor }
   nodes { ... on ComposeTeamBenchCard { position positions bonus anyCard { slug xp }
-    anyPlayer { displayName slug ... on NBAPlayer { gameplayTierStars activeInjuries { id } } }
+    anyPlayer { displayName slug ... on NBAPlayer { gameplayTierStars activeInjuries { id } activeClub { slug } } }
     eligiblePlayerGameScores(stepId: $st) { anyGame { id date } projectedScore } } } } } } }"""
 CLAIM = """mutation($input: acknowledgeStepInput!) { acknowledgeStep(input: $input) { errors { message } } }"""  # claimStep està obsolet
 RESTART = """mutation($input: restartTasksTrackInput!) { restartTasksTrack(input: $input) { errors { message } newTask { ... on TaskInterface { id } } } }"""
@@ -69,7 +69,25 @@ def bench(step_id, used=False):
     return out
 
 
+def no_rivals(players):
+    """Cap parell de jugadors del mateix partit i d'equips diferents (decisió del David, 4/11)."""
+    seen = {}
+    for c in players:
+        g = (c.get("game") or {}).get("id")
+        if not g or not c.get("team"):
+            continue
+        if any(t != c["team"] for t in seen.get(g, ())):
+            return False
+        seen.setdefault(g, set()).add(c["team"])
+    return True
+
+
 def best(cands, slots, cap):
+    """Sense rivals; només si així no surt cap alineació, amb rivals."""
+    return _best(cands, slots, cap, True) or _best(cands, slots, cap, False)
+
+
+def _best(cands, slots, cap, strict):
     """Millor alineació (suma de punts previstos) amb una carta per casella (posició permesa) i estrelles ≤ cap."""
     top = sorted(cands, key=lambda c: -c["proj"])[:18]
     bestv = None
@@ -77,6 +95,8 @@ def best(cands, slots, cap):
         if cap is not None and sum(c["stars"] for c in combo) > cap:
             continue
         if len({c["player"] for c in combo}) < len(combo):
+            continue
+        if strict and not no_rivals(combo):
             continue
         # assignació a les caselles (5! = 120 com a màxim)
         for perm in itertools.permutations(combo):
@@ -157,6 +177,7 @@ def run(dry=False, sports=("NBA",), scan=False):
                 for g in games:  # també els de previsió 0: només omplen les alineacions que sobren (decisió del David, 30/10)
                     if True:
                         cands.append({"card": n["anyCard"]["slug"], "xp": n["anyCard"].get("xp") or 0, "bonus": n.get("bonus") or 0, "player": p["slug"], "name": p["displayName"],
+                                      "team": (p.get("activeClub") or {}).get("slug"),
                                       "stars": p.get("gameplayTierStars") or 0, "positions": n.get("positions") or [n.get("position")],
                                       "proj": g.get("projectedScore") or 0, "game": g["anyGame"]})
             # només els partits del mateix dia (decisió del David, 30/10): la jornada del primer partit (12 h des de l'inici)
@@ -262,6 +283,11 @@ LINEUPS = """query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $
 
 
 def best_fill(pool, slots, cap, fixed):
+    """Sense rivals (també amb els bloquejats); només si així no es pot, amb rivals."""
+    return _best_fill(pool, slots, cap, fixed, True) or _best_fill(pool, slots, cap, fixed, False)
+
+
+def _best_fill(pool, slots, cap, fixed, strict):
     """Millor manera d'omplir les caselles lliures (les de `fixed` ja estan bloquejades: partit començat)."""
     free_idx = [i for i in range(len(slots)) if i not in fixed]
     if not free_idx:
@@ -274,6 +300,8 @@ def best_fill(pool, slots, cap, fixed):
         if cap is not None and fstars + sum(c["stars"] for c in combo) > cap:
             continue
         if len({c["player"] for c in combo}) < len(combo):
+            continue
+        if strict and not no_rivals(list(combo) + list(fixed.values())):
             continue
         v = sum(c["proj"] for c in combo)
         if bestv is not None and v <= bestv[0]:
@@ -311,6 +339,7 @@ def review(sports=("NBA",), dry=False):
             for n in bench(st["id"], used=True):
                 p = n["anyPlayer"]
                 info[n["anyCard"]["slug"]] = {"card": n["anyCard"]["slug"], "player": p["slug"], "name": p["displayName"], "stars": p.get("gameplayTierStars") or 0,
+                                              "team": (p.get("activeClub") or {}).get("slug"),
                                               "inj": bool(p.get("activeInjuries")), "positions": n.get("positions") or [n.get("position")],
                                               "bonus": n.get("bonus") or 0, "xp": n["anyCard"].get("xp") or 0,
                                               "games": [g for g in n.get("eligiblePlayerGameScores") or [] if g and g.get("anyGame")]}
