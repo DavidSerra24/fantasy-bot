@@ -218,6 +218,18 @@ def probe():
             break
         after = d["pageInfo"]["endCursor"]
     rep = []
+    import itertools
+    errs = []
+    for n in out[:60]:
+        sl = n["anyPlayer"]["slug"]
+        gs = [g for g in n.get("eligiblePlayerGameScores") or [] if g and g.get("projectedScore")]
+        if gs:
+            p = gql(NBA_FORM, {"s": sl}, token=token())["anyPlayer"]
+            f = (p.get("anyFutureGameStats") or [{}])[0] or {}
+            calc = (f.get("projectedPoints") or 0) + 1.2 * (f.get("projectedRebounds") or 0) + 1.5 * (f.get("projectedAssists") or 0) \
+                + 3 * (f.get("projectedSteals") or 0) + 3 * (f.get("projectedBlocks") or 0) + (f.get("projectedThreePointsMade") or 0)
+            errs.append(f"{p['displayName'][:14]} {gs[0]['projectedScore']:.1f}/{calc:.1f}")
+    print("::notice title=calc::" + " ¶ ".join(errs)[:3900])
     for n in out:
         sl = n["anyPlayer"]["slug"]
         if any(k in sl for k in names):
