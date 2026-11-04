@@ -123,11 +123,16 @@ def order(pool):
     return sorted(pool, key=lambda q: (q.get("tier", 0), q["gazza"] is not True and q["gazza"] >= 2, -q["imp"], -(q.get("proj") or 0), -(q.get("avg15") or q.get("avg") or 0), q["idx"]))
 
 
-RIVALS_OK = [False]  # només quan sense rivals no surt cap alineació (decisió del David, 4/11: «si s'ha de fer, es fa»)
+# Norma de rivals (decisió del David, 4/11): "all" = cap jugador amb un del rival; si no surt cap alineació, "back" =
+# cap porter ni defensa amb un rival (migcampistes i davanters rivals sí); si tampoc, "none" = sense norma.
+RIVALS = ["all"]
+BACK = ("Goalkeeper", "Defender")
 
 
 def faces(a, b):
-    return not RIVALS_OK[0] and a["game"] and a["game"] == b["game"] and a["club"] != b["club"]
+    if RIVALS[0] == "none" or not (a["game"] and a["game"] == b["game"] and a["club"] != b["club"]):
+        return False
+    return RIVALS[0] == "all" or a["pos"] in BACK or b["pos"] in BACK
 
 
 def fits(q, slot):
@@ -138,15 +143,17 @@ def fits(q, slot):
 
 def build(pool, slots, cap=CAP, avg="avg", hard=False):
     """Sense rivals; si així no surt cap alineació, amb rivals (es marquen amb «rivals» a cada jugador)."""
-    pick = _build(pool, slots, cap, avg, hard)
-    if pick is None:
-        RIVALS_OK[0] = True
-        try:
+    pick = None
+    try:
+        for lvl in ("all", "back", "none"):
+            RIVALS[0] = lvl
             pick = _build(pool, slots, cap, avg, hard)
-        finally:
-            RIVALS_OK[0] = False
-        if pick:
-            pick = [dict(q, rivals=True) for q in pick]
+            if pick is not None:
+                if lvl != "all":
+                    pick = [dict(q, rivals=lvl) for q in pick]
+                break
+    finally:
+        RIVALS[0] = "all"
     return pick
 
 
@@ -226,8 +233,11 @@ def describe(pick, cap, slots=CLASSIC):
     total = sum(q["avg"] for q in pick)
     s = ", ".join(f"{SHORT[sl]} {q['name']}{' ©' if q is cap else ''} ({q['grade'] or '?'}, {q['avg']:.0f})" for sl, q in zip(slots, pick))
     flags = ("✅" if max(clubs.values()) <= 2 else "⚠️ >2 d'un club") + " · " + (f"✅ {total:.0f}/370" if total <= CAP else f"⚠️ {total:.0f}/370")
-    if any(q.get("rivals") for q in pick):
-        flags += " · ⚠️ amb jugadors d'equips que s'enfronten (sense rivals no sortia)"
+    lv = next((q.get("rivals") for q in pick if q.get("rivals")), None)
+    if lv == "back":
+        flags += " · ⚠️ amb migcampistes/davanters d'equips que s'enfronten (sense rivals no sortia)"
+    elif lv:
+        flags += " · ⚠️ amb jugadors d'equips que s'enfronten, també porter/defensa (no sortia d'una altra manera)"
     return s + " · " + flags
 
 

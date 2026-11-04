@@ -81,9 +81,13 @@ def candidates(step_id, now, used_cards, locked_players, squad=False):
     return out
 
 
-def rivals(a, b):
+def rivals(a, b, level="all"):
+    """level "all": cap jugador amb un del rival; "back": només porter/defensa amb un rival (decisió del David, 4/11)."""
     ga, gb = a["game"], b["game"]
-    return ga["id"] == gb["id"] and a.get("team") and b.get("team") and a["team"] != b["team"]
+    if not (ga["id"] == gb["id"] and a.get("team") and b.get("team") and a["team"] != b["team"]):
+        return False
+    back = lambda q: bool(set(q["pos"]) & {"Goalkeeper", "Defender"})
+    return level == "all" or back(a) or back(b)
 
 
 def fill(cands, slots, taken):
@@ -94,26 +98,28 @@ def fill(cands, slots, taken):
     Primer només els bons (≥80% o titulars); si no s'omple, es completa amb els següents («per si de cas», 🔸)."""
     pick = {}
     snap = set(taken)
-    res = _fill(cands, slots, taken, False)
-    if res is None:  # sense rivals no surt: amb rivals, només si s'ha de fer (decisió del David, 4/11)
+    res = None
+    for lvl in ("all", "back", "none"):  # sense rivals → cap porter/defensa amb un rival → sense norma (4/11)
         taken.clear(); taken |= snap
-        res = _fill(cands, slots, taken, True)
+        res = _fill(cands, slots, taken, lvl)
+        if res is not None:
+            break
     return res
 
 
-def _fill(cands, slots, taken, rivals_ok):
+def _fill(cands, slots, taken, lvl):
     pick = {}
     for only_ok in (True, False):
         for q in cands:
             if len(pick) == len(slots):
                 break
-            if q["slug"] in taken or (only_ok and not q["ok"]) or (not rivals_ok and any(rivals(q, x) for x in pick.values())):
+            if q["slug"] in taken or (only_ok and not q["ok"]) or (lvl != "none" and any(rivals(q, x, lvl) for x in pick.values())):
                 continue
             free = [i for i, s_ in enumerate(slots) if i not in pick and set(q["pos"]) & set(s_["positions"])]
             if not free:
                 continue
             i = min(free, key=lambda i: len(slots[i]["positions"]))  # la casella de la seva posició abans que l'Extra
-            pick[i] = dict(q, extra=not only_ok, rival=rivals_ok and any(rivals(q, x) for x in pick.values()))
+            pick[i] = dict(q, extra=not only_ok, rival=lvl != "all" and any(rivals(q, x) for x in pick.values()))
             taken.add(q["slug"])
     return pick if len(pick) == len(slots) else None
 
