@@ -30,6 +30,17 @@ def best_name(full, names):
     return best if bs >= 60 else None
 
 
+def same_name(a, b):
+    """Mateix nom sense dubte: idèntic sense accents, o inicial + cognom igual («R. Jureskin» = Roko Jureskin)."""
+    ta, tb = norm(a), norm(b)
+    if ta == tb:
+        return True
+    for x, y in ((ta, tb), (tb, ta)):
+        if len(x) >= 2 and len(y) >= 2 and x[-1] == y[-1] and all(len(t) == 1 for t in x[:-1]) and x[0] == y[0][0]:
+            return True
+    return False
+
+
 def ff_probs(page):
     """Entrades {name, key (URL del partit), pct} de les alineacions probables de FutbolFantasy (LaLiga)."""
     from bot.extras import match_pages
@@ -115,7 +126,7 @@ def assign(players, entries, field="src"):
             cand = []
         # nom semblant però no idèntic (decisió del David, 4/11): no es fa servir fins que el buscador del Mister o el
         # David el confirmen; mentrestant el jugador queda sense % (no es ven ni es compra per aquest motiu)
-        if cand and norm(p["name"]) != norm(n) and not (conf or byid):
+        if cand and not same_name(p["name"], n) and not (conf or byid):
             p["doubt"] = n
             cand = []
         p[field] = cand[0] if cand else None
