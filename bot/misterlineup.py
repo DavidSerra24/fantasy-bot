@@ -35,12 +35,16 @@ def match_keys(squad, sidata):
         q["side"] = q.get("team")
 
 
+LEVEL = ["all"]  # norma de rivals que s'està provant: "all" (cap rival) → "back" (cap porter/defensa amb un rival)
+
+
 def clash(q, pick):
-    """Norma de rivals al Mister (Sofascore): un porter o defensa no va amb cap jugador de l'equip rival."""
+    """Norma de rivals (decisió del David, 4/11): cap jugador amb un de l'equip rival. Si així no surt l'onze, la
+    norma antiga (un porter o defensa no va amb cap jugador del rival) i, si tampoc, se salta (best_lineup)."""
     if not q.get("match"):
         return False
     for o in pick:
-        if o.get("match") == q["match"] and o.get("side") != q.get("side") and (q["P"] in "GD" or o["P"] in "GD"):
+        if o.get("match") == q["match"] and o.get("side") != q.get("side") and (LEVEL[0] == "all" or q["P"] in "GD" or o["P"] in "GD"):
             return True
     return False
 
@@ -55,6 +59,18 @@ def lband(q):
 
 
 def best_lineup(squad):
+    """Primer sense cap rival; si no surt cap onze complet així, amb la norma antiga; si tampoc, saltant-la."""
+    res = None
+    for lvl in ("all", "back"):
+        LEVEL[0] = lvl
+        res = _best_lineup(squad)
+        if res and not any(q.get("rule_skip") for q in res[1]):
+            break
+    LEVEL[0] = "all"
+    return res
+
+
+def _best_lineup(squad):
     """(tàctica, onze, capità). Ordre: no en venda, franja de %, amb PS, més PS."""
     for q in squad:
         q.pop("rule_skip", None)

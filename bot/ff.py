@@ -279,16 +279,29 @@ def lookup_open(page, cands, limit=60):
 
 
 def optimise(found, tactics):
+    # Rivals (decisió del David, 4/11): cap jugador amb un de l'equip rival. Només si així no surt cap onze complet,
+    # la norma antiga (cap porter o defensa amb un rival) i, si tampoc, sense norma (com al Mister).
+    for level in ("all", "back", "none"):
+        best = _optimise(found, tactics, level)
+        if best:
+            return best
+    return None
+
+
+def _optimise(found, tactics, level):
     best = None
     for tac in tactics:
         d, m, f = map(int, tac.split("-"))
         need = {"G": 1, "D": d, "M": m, "F": f}
-        # Rivals: només resten punts els gols encajats als porters i defenses. Per tant, un porter o defensa no pot
-        # coincidir amb cap jugador de l'equip rival; migcampistes i davanters de dos rivals sí que poden anar junts.
         pick, teams, back = [], set(), set()
         for c in sorted(found, key=lambda c: not c.get("lock")):  # primer els que s'han de mantenir; després per PS
             gd = c["pos"] in ("G", "D")
-            clash = c["opp"] is not None and (c["opp"] in back or (gd and c["opp"] in teams))
+            if level == "all":
+                clash = c["opp"] is not None and c["opp"] in teams
+            elif level == "back":
+                clash = c["opp"] is not None and (c["opp"] in back or (gd and c["opp"] in teams))
+            else:
+                clash = False
             if need[c["pos"]] and not clash:
                 pick.append(c)
                 need[c["pos"]] -= 1

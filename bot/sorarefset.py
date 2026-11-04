@@ -93,17 +93,27 @@ def fill(cands, slots, taken):
     primer i els seus rivals (Selvik, Magnetti, Ajorque) queden fora; el porter surt de l'hora següent (Leo Román).
     Primer només els bons (≥80% o titulars); si no s'omple, es completa amb els següents («per si de cas», 🔸)."""
     pick = {}
+    snap = set(taken)
+    res = _fill(cands, slots, taken, False)
+    if res is None:  # sense rivals no surt: amb rivals, només si s'ha de fer (decisió del David, 4/11)
+        taken.clear(); taken |= snap
+        res = _fill(cands, slots, taken, True)
+    return res
+
+
+def _fill(cands, slots, taken, rivals_ok):
+    pick = {}
     for only_ok in (True, False):
         for q in cands:
             if len(pick) == len(slots):
                 break
-            if q["slug"] in taken or (only_ok and not q["ok"]) or any(rivals(q, x) for x in pick.values()):
+            if q["slug"] in taken or (only_ok and not q["ok"]) or (not rivals_ok and any(rivals(q, x) for x in pick.values())):
                 continue
             free = [i for i, s_ in enumerate(slots) if i not in pick and set(q["pos"]) & set(s_["positions"])]
             if not free:
                 continue
             i = min(free, key=lambda i: len(slots[i]["positions"]))  # la casella de la seva posició abans que l'Extra
-            pick[i] = dict(q, extra=not only_ok)
+            pick[i] = dict(q, extra=not only_ok, rival=rivals_ok and any(rivals(q, x) for x in pick.values()))
             taken.add(q["slug"])
     return pick if len(pick) == len(slots) else None
 
@@ -196,7 +206,7 @@ def run(dry=False, focus=None):
             if l is None:
                 k_new += 1
             name = f"alineació {open_.index(l) + 1}" if l is not None else f"alineació nova {k_new}"
-            txt = ", ".join(f"{'🔸' if q['extra'] else ''}{q['name']} ({q['grade']}, {q['proj']:.0f}, {q['date']:%d/%m %H:%M}Z{', titular' if q['confirmed'] and q['ok'] else ''})"
+            txt = ", ".join(f"{'🔸' if q['extra'] else ''}{'⚔️' if q.get('rival') else ''}{q['name']} ({q['grade']}, {q['proj']:.0f}, {q['date']:%d/%m %H:%M}Z{', titular' if q['confirmed'] and q['ok'] else ''})"
                             for _, q in sorted(pick.items()))
             if l:
                 old = {a["anyCard"]["slug"] for a in l["taskAppearances"] if a}

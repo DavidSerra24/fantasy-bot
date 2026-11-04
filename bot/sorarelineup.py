@@ -123,8 +123,11 @@ def order(pool):
     return sorted(pool, key=lambda q: (q.get("tier", 0), q["gazza"] is not True and q["gazza"] >= 2, -q["imp"], -(q.get("proj") or 0), -(q.get("avg15") or q.get("avg") or 0), q["idx"]))
 
 
+RIVALS_OK = [False]  # només quan sense rivals no surt cap alineació (decisió del David, 4/11: «si s'ha de fer, es fa»)
+
+
 def faces(a, b):
-    return a["game"] and a["game"] == b["game"] and a["club"] != b["club"]
+    return not RIVALS_OK[0] and a["game"] and a["game"] == b["game"] and a["club"] != b["club"]
 
 
 def fits(q, slot):
@@ -134,6 +137,20 @@ def fits(q, slot):
 
 
 def build(pool, slots, cap=CAP, avg="avg", hard=False):
+    """Sense rivals; si així no surt cap alineació, amb rivals (es marquen amb «rivals» a cada jugador)."""
+    pick = _build(pool, slots, cap, avg, hard)
+    if pick is None:
+        RIVALS_OK[0] = True
+        try:
+            pick = _build(pool, slots, cap, avg, hard)
+        finally:
+            RIVALS_OK[0] = False
+        if pick:
+            pick = [dict(q, rivals=True) for q in pick]
+    return pick
+
+
+def _build(pool, slots, cap=CAP, avg="avg", hard=False):
     """Alineació (llista de jugadors per casella, en l'ordre de `slots`) o None. Ordre: impacte i llista; sense rivals.
     Cada jugador va a la casella de la seva posició; si està plena, a una altra de les seves posicions i, si no, a Extra.
     Després quadra la bonificació (màx. 2 per club i suma de mitjanes ≤ cap). Amb hard=True, el límit és obligatori."""
@@ -209,6 +226,8 @@ def describe(pick, cap, slots=CLASSIC):
     total = sum(q["avg"] for q in pick)
     s = ", ".join(f"{SHORT[sl]} {q['name']}{' ©' if q is cap else ''} ({q['grade'] or '?'}, {q['avg']:.0f})" for sl, q in zip(slots, pick))
     flags = ("✅" if max(clubs.values()) <= 2 else "⚠️ >2 d'un club") + " · " + (f"✅ {total:.0f}/370" if total <= CAP else f"⚠️ {total:.0f}/370")
+    if any(q.get("rivals") for q in pick):
+        flags += " · ⚠️ amb jugadors d'equips que s'enfronten (sense rivals no sortia)"
     return s + " · " + flags
 
 
