@@ -320,7 +320,10 @@ def use_items(page, comp_slug, pick, report):
     btn = page.locator("a, button").filter(has_text=re.compile(r"Ítems")).first
     if not btn.count():
         return
-    for _ in range(5):
+    # Tots els ítems que hi hagi (decisió del David, 4/11): cada un al jugador elegible amb més PS; si un jugador ja
+    # n'ha rebut un en aquesta passada, el següent ítem va al següent elegible amb més PS (si n'hi ha cap altre).
+    given, tried = {}, set()
+    for _ in range(40):
         btn.click()
         page.wait_for_timeout(1500)
         cards = page.locator(".modal.show .item-card")
@@ -329,21 +332,28 @@ def use_items(page, comp_slug, pick, report):
         for i in range(n):
             card = cards.nth(i)
             name = card.get_attribute("data-nombre")
+            key = f"{i}|{name}"
+            if key in tried:
+                continue
             card.click()
             page.wait_for_timeout(1500)
             txt = page.locator(".modal.show").inner_text()
-            if "Elige un jugador" not in txt:
-                continue
-            eligible = [c for c in pick if c["ff"] in txt]
+            eligible = [c for c in pick if c["ff"] in txt] if "Elige un jugador" in txt else []
             if not eligible:
+                tried.add(key)  # aquest ítem no es pot posar a ningú de l'onze
+                close_modal(page)
+                btn.click()
+                page.wait_for_timeout(1500)
+                cards = page.locator(".modal.show .item-card")
                 continue
-            target = max(eligible, key=lambda c: (c["ps"], -c["idx"]))
+            target = max(eligible, key=lambda c: (-given.get(c["ff"], 0), c["ps"], -c["idx"]))
             el = page.locator(".modal.show").get_by_text(target["ff"], exact=True).first
             try:
                 el.click(timeout=8000)
             except Exception:  # (3/11) el text no rep el clic (tapat o fora de pantalla): clic per JS al seu element clicable
                 el.evaluate("e => (e.closest('button, a, li, .sel-item, [onclick]') || e).click()")
             page.wait_for_timeout(2000)
+            given[target["ff"]] = given.get(target["ff"], 0) + 1
             report.append(f"   🎁 {name} → {target['ff']}")
             done = True
             break
