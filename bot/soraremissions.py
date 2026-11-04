@@ -95,6 +95,29 @@ NBA_STAT = {"rebounds": "projectedRebounds", "points": "projectedPoints", "assis
 _NBA = {}
 
 
+_GPROJ = {}
+
+
+def game_proj(slug, game_id):
+    """Punts previstos de Sorare per a un partit concret (NBAPlayer.playerGameScore(gameId).projectedScore)."""
+    if not game_id:
+        return None
+    k = (slug, game_id)
+    if k not in _GPROJ:
+        _GPROJ[k] = None
+        for gid in dict.fromkeys([str(game_id).split(":")[-1], str(game_id)]):
+            try:
+                d = gql("""query($s: String!, $g: ID!) { anyPlayer(slug: $s) { ... on NBAPlayer { playerGameScore(gameId: $g) { projectedScore } } } }""",
+                        {"s": slug, "g": gid}, token=token())
+                v = ((d.get("anyPlayer") or {}).get("playerGameScore") or {}).get("projectedScore")
+                if v is not None:
+                    _GPROJ[k] = v
+                    break
+            except Exception as e:
+                print(f"::warning title=nba proj {slug}::{str(e)[:200]}")
+    return _GPROJ[k]
+
+
 def nba_score(slug, task, game_id=None):
     """NBA: amb les previsions de RotoWire que dona Sorare (no hi ha % de titularitat).
     Retorna (juga, valor, detall): juga = 1 si té minuts previstos i no està lesionat.
@@ -120,7 +143,11 @@ def nba_score(slug, task, game_id=None):
         return 0, -99, f"{p.get('gameplayTierStars')}★ (massa estrelles)"
     if task.get("mode") == "SCORE":
         l10 = p.get("l10") or 0
-        proj = p.get("nextDailyFixtureProjectedScore") or p.get("nextClassicFixtureProjectedScore") or 0
+        # punts previstos d'AQUEST partit (4/11: «nextClassicFixtureProjectedScore» és el de tota la jornada Classic i
+        # donava 36 a Day'Ron Sharpe quan per al partit d'avui Sorare en preveu 23)
+        proj = game_proj(slug, game_id)
+        if proj is None:
+            proj = p.get("nextDailyFixtureProjectedScore") or p.get("nextClassicFixtureProjectedScore") or 0
         thr = max(20, l10 + 7)
         return plays, proj - thr, f"previsió {fut.get('projectedPoints') or 0:.0f} punts reals · {proj:.0f} punts Sorare, cal {thr:.0f} (L10 {l10:.0f})"
     if re.search(r"double[- ]double", desc, re.I) or "double_double" in [a.lower() for a in task.get("decisiveActions") or []]:
@@ -360,7 +387,7 @@ def run(dry=False):
                 if p["slug"] not in cand or (c.get("xp") or 0) > cand[p["slug"]]["xp"]:
                     cand[p["slug"]] = {"slug": p["slug"], "name": p["displayName"], "card": c["slug"], "xp": c.get("xp") or 0, "game": g, "date": D}
         for q in (cand.values() if nba else []):
-            plays, margin, info = nba_score(q["slug"], task)
+            plays, margin, info = nba_score(q["slug"], task, (q.get("game") or {}).get("id"))
             q.update(l5=0, l10=0, l20=0, tit=float(plays), confirmed=False, chance=margin if plays else -99, info=info, margin=margin)
         for q in (cand.values() if not nba else []):
             l5, l10, l20, st10 = form(q["slug"], stat, need)
