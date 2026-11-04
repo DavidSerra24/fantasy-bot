@@ -205,29 +205,28 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): porters del tauler d'equip del Set de futbol i els seus partits."""
-    import datetime as _dt
-    from bot.sorarefset import STEP, bench
-    st = gql(STEP, {"m": "SQUAD"}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
-    now = _dt.datetime.now(_dt.timezone.utc).isoformat()
-    for f in ({"includeUsed": True}, {"includeUsed": True, "positions": ["Goalkeeper"]}):
-        try:
-            ns = bench(st["id"], f)
-        except Exception as e:
-            print(f"::notice title=gk {f}::{str(e)[:300]}"); continue
-        gk = [n for n in ns if "Goalkeeper" in (n.get("positions") or [n.get("position")])]
-        print("::notice title=tots::" + " ¶ ".join(f"{n['anyPlayer']['displayName']} {n.get('position')} {(n['anyPlayer'].get('activeClub') or {}).get('slug')}: " + ",".join(
-            g["anyGame"]["date"][5:16] + " " + (g["anyGame"].get("homeTeam") or {}).get("slug", "?") + "-" + (g["anyGame"].get("awayTeam") or {}).get("slug", "?")
-            for g in (n.get("eligiblePlayerGameScores") or []) if g and g.get("anyGame")) for n in ns)[:3800])
-        print(f"::notice title=gk {list(f)}::total {len(ns)}, porters {len(gk)}: " + " ¶ ".join(
-            f"{n['anyPlayer']['displayName']} ({n['anyCard']['slug'][-12:]}): " + ", ".join(
-                g["anyGame"]["date"][5:16] + (" ✔" if g["anyGame"]["date"] > now else " (començat)") for g in (n.get("eligiblePlayerGameScores") or []) if g and g.get("anyGame"))
-            for n in gk)[:3800])
-    rules = {r["key"]: r for r in st.get("displayedTypedRules") or []}
-    print("::notice title=regles::" + str(rules.get("Competitions"))[:1500] + " ¶ " + str(rules.get("Scarcity"))[:500])
-    ps = gql(STEP, {"m": "CAREER"}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
-    gk = [n for n in bench(ps["id"], {"includeUsed": True}) if "Goalkeeper" in (n.get("positions") or [n.get("position")])]
-    print("::notice title=porters personal::" + " ¶ ".join(f"{n['anyPlayer']['displayName']}: " + ", ".join(g["anyGame"]["date"][5:16] for g in (n.get("eligiblePlayerGameScores") or []) if g and g.get("anyGame")) for n in gk)[:3000])
+    """Prova (només lectura): punts previstos NBA de Sorare per a uns jugadors (perfil vs. partit del tauler del Set)."""
+    from bot.soraremissions import NBA_FORM
+    from bot.sorareset import BENCH, STEP
+    names = ["sharpe", "hartenstein", "mccollum", "mitchell-robinson"]
+    st = gql(STEP, {"sp": "NBA", "m": "CAREER"}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
+    out, after = [], None
+    for _ in range(10):
+        d = gql(BENCH, {"st": st["id"], "after": after, "f": {"includeUsed": True}}, token=token())["currentUser"]["step"]["myFilteredBench"]
+        out += [n for n in d["nodes"] if n]
+        if not d["pageInfo"]["hasNextPage"]:
+            break
+        after = d["pageInfo"]["endCursor"]
+    rep = []
+    for n in out:
+        sl = n["anyPlayer"]["slug"]
+        if any(k in sl for k in names):
+            p = gql(NBA_FORM, {"s": sl}, token=token())["anyPlayer"]
+            fut = (p.get("anyFutureGameStats") or [{}])[0] or {}
+            rep.append(f"{p['displayName']}: L10 {p.get('l10')} · nextDaily {p.get('nextDailyFixtureProjectedScore')} · nextClassic {p.get('nextClassicFixtureProjectedScore')}"
+                       f" · Set {[ (g['anyGame']['date'][5:16], g.get('projectedScore')) for g in n.get('eligiblePlayerGameScores') or [] if g]}"
+                       f" · RotoWire {fut.get('projectedPoints')} pts {fut.get('projectedRebounds')} reb {fut.get('projectedAssists')} ast {fut.get('projectedMinsPlayed')} min ({(fut.get('anyGame') or {}).get('date')})")
+    print("::notice title=nba::" + " ¶ ".join(dict.fromkeys(rep))[:3900])
 
 
 
