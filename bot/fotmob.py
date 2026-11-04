@@ -122,11 +122,18 @@ def postponed(days=6, ccode="ESP"):
         for lg in lgs:
             if ccode and lg.get("ccode") != ccode:
                 continue
+            # només LaLiga i LaLiga 2 (no la femenina, la Primera RFEF ni la Copa)
+            lname = (lg.get("name") or "").lower()
+            if not re.search(r"laliga|la liga|segunda|primera division", lname) or re.search(r"women|femen|f$|rfef|copa|cup", lname):
+                continue
             for m in lg.get("matches", []):
                 st = m.get("status") or {}
                 txt = _json.dumps(st).lower()
                 if st.get("cancelled") or "postpon" in txt or '"pp"' in txt or "aplaz" in txt:
-                    for side in ("home", "away"):
-                        out.add(m[side].get("longName") or m[side]["name"])
+                    names = [m[side].get("longName") or m[side]["name"] for side in ("home", "away")]
+                    if any(YOUTH.search(x) for x in names):
+                        continue
+                    print(f"::notice title=aplaçat::{lg.get('name')}: {' - '.join(names)} ({st.get('utcTime')}) {txt[:200]}")
+                    out.update(names)
     return out
 
