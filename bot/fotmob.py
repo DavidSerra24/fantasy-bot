@@ -106,3 +106,27 @@ def starters_by_team(home, away, when):
     if any(len(s.get("starters") or []) < 11 for s in sides):
         return None
     return {s.get("name") or "": [p["name"] for p in s["starters"]] for s in sides}
+
+
+def postponed(days=6, ccode="ESP"):
+    """Equips (nom de FotMob) amb un partit aplaçat o suspès en els propers `days` dies (lligues del país `ccode`)."""
+    import json as _json
+    out = set()
+    now = dt.datetime.now(dt.timezone.utc)
+    for k in range(days + 1):
+        d = now + dt.timedelta(days=k)
+        try:
+            lgs = requests.get(f"https://www.fotmob.com/api/data/matches?date={d:%Y%m%d}", headers=H, timeout=20).json().get("leagues", [])
+        except Exception:
+            continue
+        for lg in lgs:
+            if ccode and lg.get("ccode") != ccode:
+                continue
+            for m in lg.get("matches", []):
+                st = m.get("status") or {}
+                txt = _json.dumps(st).lower()
+                if st.get("cancelled") or "postpon" in txt or '"pp"' in txt or "aplaz" in txt:
+                    for side in ("home", "away"):
+                        out.add(m[side].get("longName") or m[side]["name"])
+    return out
+

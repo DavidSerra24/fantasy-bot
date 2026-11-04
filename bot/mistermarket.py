@@ -273,6 +273,23 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
     for q in squad + market:
         if q["pct"] is None and not q.get("doubt") and q.get("team") and any(sources.team_ok(q["team"], k) for k in keys):
             q["pct"], q["src"], q["absent"] = 0, (q.get("src") or "SI") + " (no hi surt)", True
+    # partits aplaçats (4/11: Tenerife i Andorra): els jugadors d'aquells equips i dels seus rivals queden sense %
+    # (no es venen ni es compren per això, i a l'alineació van al final perquè no jugaran)
+    if cache.get("pp") is None:
+        try:
+            from bot import fotmob
+            cache["pp"] = fotmob.postponed()
+        except Exception as e:
+            cache["pp"] = set(); print(f"::warning title=aplaçats::{str(e)[:150]}")
+    if cache["pp"]:
+        hit = set()
+        for q in squad + market:
+            t = next((n for n in cache["pp"] if q.get("team") and sources.team_ok(q["team"], n)), None)
+            if t:
+                q["pct"], q["src"], q["postponed"] = None, f"aplaçat ({t})", True
+                hit.add(t)
+        if hit:
+            report.append("⏸️ Partits aplaçats (" + ", ".join(sorted(hit)) + "): els seus jugadors queden sense %, no es venen ni es compren i a l'alineació van al final.")
     return bal, squad, market, have, cap
 
 
