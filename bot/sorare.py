@@ -209,7 +209,8 @@ def probe():
     from bot.sorarelineup import FIXTURE_SLUG
     from bot.web import load_json
     w = load_json("sorare_gkwatch.json", {})
-    fxs = sorted({g.get("fixture") for g in (w.values() if isinstance(w, dict) else w) if isinstance(g, dict) and g.get("fixture")})
+    fxs = sorted({g.get("fixture") for g in w.get("gks", []) if g.get("fixture")} | ({w["fixture"]} if w.get("fixture") else set()))
+    print("::notice title=fx::" + str(fxs) + " " + str([(g["name"], g.get("fixture"), g["date"]) for g in w.get("gks", [])])[:1500])
     for f in fxs[-3:]:
         fx = gql(FIXTURE_SLUG, {"s": f}, token=token())["so5"]["so5Fixture"]
         print(f"::notice title={f}::" + " ¶ ".join(l["so5Leaderboard"]["displayName"] + ": " + ", ".join(a["anyPlayer"]["displayName"] for a in l["so5Appearances"])
