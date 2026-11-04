@@ -423,7 +423,8 @@ def gk_arena(gk, final=False):
     cache, pool, gkq = {}, [], None
     for i, n in enumerate(bench(arena["slug"]) + bench(arena["slug"], None, ["Goalkeeper"])):
         c, p = n["anyCard"], n["anyPlayer"]
-        if c["rarityTyped"].lower() != "limited" or c["slug"] in busy or (p["slug"] in busy_p and p["slug"] != gk["slug"]):
+        # Arena Limited: també hi van cartes de raresa superior (Rare, Super Rare, Unique; el David, 4/11: Rrahmani)
+        if c["rarityTyped"].lower() not in ("limited", "rare", "super_rare", "unique") or c["slug"] in busy or (p["slug"] in busy_p and p["slug"] != gk["slug"]):
             continue
         g = (n.get("eligiblePlayerGameScores") or [{}])[0] or {}
         game = g.get("anyGame") or {}
