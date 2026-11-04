@@ -137,3 +137,7 @@ def postponed(days=6, ccode="ESP"):
                     out.update(names)
     return out
 
+
+
+if __name__ == "__main__":
+    print("::notice title=aplaçats::" + ", ".join(sorted(postponed())))
