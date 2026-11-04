@@ -205,18 +205,15 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): camps de l'esquema amb punts previstos per partit."""
-    import re as _re
-    import requests as _rq
-    sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
-    sdl1 = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", sdl)
-    hits = []
-    for m in _re.finditer(r"\n(type|interface) (\w+)[^{]*\{(.*?)\n\}", sdl1, _re.S):
-        for line in m.group(3).splitlines():
-            if _re.search(r"(?i)projected|playerGameScore|gameScore\(", line) and _re.search(r"(?i)player|game|nba|basket|card", m.group(2)):
-                hits.append(m.group(2) + "." + _re.sub(r"\s+", " ", line.strip())[:160])
-    print("::notice title=schema::" + " ¶ ".join(hits)[:3900])
-    print("::notice title=schema2::" + " ¶ ".join(hits)[3900:7800])
+    """Prova (només lectura): alineacions de la jornada del porter vigilat (state/sorare_gkwatch.json)."""
+    from bot.sorarelineup import FIXTURE_SLUG
+    from bot.web import load_json
+    w = load_json("sorare_gkwatch.json", {})
+    fxs = sorted({g.get("fixture") for g in (w.values() if isinstance(w, dict) else w) if isinstance(g, dict) and g.get("fixture")})
+    for f in fxs[-3:]:
+        fx = gql(FIXTURE_SLUG, {"s": f}, token=token())["so5"]["so5Fixture"]
+        print(f"::notice title={f}::" + " ¶ ".join(l["so5Leaderboard"]["displayName"] + ": " + ", ".join(a["anyPlayer"]["displayName"] for a in l["so5Appearances"])
+                                                for l in fx.get("mySo5Lineups") or [])[:3800])
 
 
 
