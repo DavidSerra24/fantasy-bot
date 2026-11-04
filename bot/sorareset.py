@@ -147,7 +147,8 @@ def run(dry=False, sports=("NBA",), scan=False):
             cap = (rules.get("AverageScores") or {}).get("max") if (rules.get("AverageScores") or {}).get("averageType") == "STARS" else None
             used = {a["anyPlayer"]["slug"] for l in existing for a in l.get("taskAppearances") or [] if a and a.get("anyPlayer")}
             cands = []
-            for n in bench(st["id"]):
+            # tauler d'equip: qualsevol carta, encara que ja sigui en una alineació del personal (decisió del David, 4/11)
+            for n in bench(st["id"], used=(mode == "SQUAD")):
                 p = n["anyPlayer"]
                 if p["slug"] in used or p.get("activeInjuries"):
                     continue
@@ -342,7 +343,7 @@ def review(sports=("NBA",), dry=False):
             mine = {a["anyCard"]["slug"] for l in lineups if l["id"] not in locked_l for a in l["taskAppearances"] if a}
             pool = {}
             for c in info.values():
-                if c["player"] in locked_players or (c["card"] not in free_cards and c["card"] not in mine):
+                if c["player"] in locked_players or (mode != "SQUAD" and c["card"] not in free_cards and c["card"] not in mine):
                     continue
                 for g in c["games"]:
                     d = D(g["anyGame"]["date"])

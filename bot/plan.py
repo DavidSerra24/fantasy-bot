@@ -129,10 +129,10 @@ def plan(now=None, done=None):
         k = f"copa-final:{CT.isoformat()}"
         if due(k, CT - dt.timedelta(minutes=40), CT):
             add(k, CT - dt.timedelta(minutes=40), "copa", None, CT)
-    # Sorare Pro: omplir quan surt l'impacte previst (dimecres i diumenge 21:15), revisió 2 h abans i revisió final + Arena 40 min abans
+    # Sorare Pro: omplir quan surt l'impacte previst (dimecres i diumenge 20:15), revisió 2 h abans i revisió final + Arena 40 min abans
     for wd in (2, 6):
         if local.weekday() == wd:
-            t = local.replace(hour=21, minute=15, second=0, microsecond=0).astimezone(UTC)
+            t = local.replace(hour=20, minute=15, second=0, microsecond=0).astimezone(UTC)  # 20:15 (el David, 4/11)
             k = f"sorare-fill:{local.date()}"
             if due(k, t, t + dt.timedelta(hours=3)):
                 add(k, t, "sorare", "fill", t + dt.timedelta(hours=3))
