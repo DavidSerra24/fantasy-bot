@@ -215,10 +215,13 @@ def resolve_by_search(pg, players, entries, field, report, ask=True):
         elif ask and q.get("in_squad"):
             asked.append(f"{q['short']} ({q['team']})" + (f": és «{q['doubt']}»? → /mister {q['name']} = {q['doubt']}" if q.get("doubt") else ""))
     save_json("mister_alias.json", alias)
-    if asked:
-        report.append("❓ No trobo a la font (ni amb el buscador del Mister): " + "; ".join(asked)
-                      + ". Els que tenen un nom semblant es queden sense % fins que em responguis «/mister Nom Mister = Nom font»"
-                      " (o «= no»); la resta compten com a 0%.")
+    doubt = [a for a in asked if "/mister" in a]
+    absent = [a for a in asked if "/mister" not in a]
+    if doubt:  # nom semblant: es pregunta (sense % fins que el David respongui)
+        report.append("❓ Noms dubtosos (sense % fins que em responguis «/mister Nom Mister = Nom font» o «= no»): " + "; ".join(doubt))
+    if absent:  # cap nom semblant a la font: no són a l'onze previst ni als suplents (4/11: Ramón Martínez i Tomeo)
+        report.append("ℹ️ No surten a l'onze previst ni entre els suplents de la font (compten com a 0%): " + ", ".join(absent)
+                      + ". Si creus que hi són amb un altre nom, digues-m'ho.")
 
 
 def league_data(b, pg, spg, cid, country, league, report, cache):
