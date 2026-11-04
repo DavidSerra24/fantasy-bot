@@ -78,6 +78,12 @@ def name_score(a, b):
     if sa and sa <= sb or sb and sb <= sa:
         return 80
     if ta and tb and ta[-1] == tb[-1]:
+        # mateix cognom però nom clarament diferent («Javi Rodríguez» ≠ «Anxo Rodríguez»): no és el mateix jugador.
+        # Inicials («J. Rodríguez») i noms escurçats («Javi»/«Javier») sí que poden ser-ho.
+        if len(ta) >= 2 and len(tb) >= 2:
+            a0, b0 = ta[0], tb[0]
+            if a0[0] != b0[0] or (len(a0) > 1 and len(b0) > 1 and not (a0.startswith(b0[:3]) or b0.startswith(a0[:3]))):
+                return 0
         return 60
     # noms escurçats: "Rodri" / "Rodrigo" (mínim 4 lletres), el filtre d'equip evita confusions
     # Noms escurçats ("Rodri"/"Rodrigo"): entre cognoms, o qualsevol paraula si un dels dos és un sol nom
