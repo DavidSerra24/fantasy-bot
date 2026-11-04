@@ -205,40 +205,18 @@ def explore():
 
 
 def probe():
-    """Prova (només lectura): punts previstos NBA de Sorare per a uns jugadors (perfil vs. partit del tauler del Set)."""
-    from bot.soraremissions import NBA_FORM
-    from bot.sorareset import BENCH, STEP
-    names = ["sharpe", "hartenstein", "mccollum", "mitchell-robinson"]
-    st = gql(STEP, {"sp": "NBA", "m": "CAREER"}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
-    out, after = [], None
-    for _ in range(10):
-        d = gql(BENCH, {"st": st["id"], "after": after, "f": {"includeUsed": True}}, token=token())["currentUser"]["step"]["myFilteredBench"]
-        out += [n for n in d["nodes"] if n]
-        if not d["pageInfo"]["hasNextPage"]:
-            break
-        after = d["pageInfo"]["endCursor"]
-    rep = []
-    import itertools
-    errs = []
-    for n in out[:60]:
-        sl = n["anyPlayer"]["slug"]
-        gs = [g for g in n.get("eligiblePlayerGameScores") or [] if g and g.get("projectedScore")]
-        if gs:
-            p = gql(NBA_FORM, {"s": sl}, token=token())["anyPlayer"]
-            f = (p.get("anyFutureGameStats") or [{}])[0] or {}
-            calc = (f.get("projectedPoints") or 0) + 1.2 * (f.get("projectedRebounds") or 0) + 1.5 * (f.get("projectedAssists") or 0) \
-                + 3 * (f.get("projectedSteals") or 0) + 3 * (f.get("projectedBlocks") or 0) + (f.get("projectedThreePointsMade") or 0)
-            errs.append(f"{p['displayName'][:14]} {gs[0]['projectedScore']:.1f}/{calc:.1f}")
-    print("::notice title=calc::" + " ¶ ".join(errs)[:3900])
-    for n in out:
-        sl = n["anyPlayer"]["slug"]
-        if any(k in sl for k in names):
-            p = gql(NBA_FORM, {"s": sl}, token=token())["anyPlayer"]
-            fut = (p.get("anyFutureGameStats") or [{}])[0] or {}
-            rep.append(f"{p['displayName']}: L10 {p.get('l10')} · nextDaily {p.get('nextDailyFixtureProjectedScore')} · nextClassic {p.get('nextClassicFixtureProjectedScore')}"
-                       f" · Set {[ (g['anyGame']['date'][5:16], g.get('projectedScore')) for g in n.get('eligiblePlayerGameScores') or [] if g]}"
-                       f" · RotoWire {fut.get('projectedPoints')} pts {fut.get('projectedRebounds')} reb {fut.get('projectedAssists')} ast {fut.get('projectedMinsPlayed')} min ({(fut.get('anyGame') or {}).get('date')})")
-    print("::notice title=nba::" + " ¶ ".join(dict.fromkeys(rep))[:3900])
+    """Prova (només lectura): camps de l'esquema amb punts previstos per partit."""
+    import re as _re
+    import requests as _rq
+    sdl = _rq.get("https://api.sorare.com/graphql/schema", timeout=60).text
+    sdl1 = _re.sub(r'"""[\s\S]*?"""|"[^"\n]*"', "", sdl)
+    hits = []
+    for m in _re.finditer(r"\n(type|interface) (\w+)[^{]*\{(.*?)\n\}", sdl1, _re.S):
+        for line in m.group(3).splitlines():
+            if _re.search(r"(?i)projected|playerGameScore|gameScore\(", line) and _re.search(r"(?i)player|game|nba|basket|card", m.group(2)):
+                hits.append(m.group(2) + "." + _re.sub(r"\s+", " ", line.strip())[:160])
+    print("::notice title=schema::" + " ¶ ".join(hits)[:3900])
+    print("::notice title=schema2::" + " ¶ ".join(hits)[3900:7800])
 
 
 
