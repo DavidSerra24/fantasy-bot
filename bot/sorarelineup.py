@@ -118,9 +118,9 @@ def cards(lb, floor=8000):
 
 def order(pool):
     # gk_arena posa «tier» (0 = titular confirmat, 1 = 80–90%): primer els confirmats
-    # a igualtat de lletra, el número d'impacte previst (el que fa servir Sorare per ordenar la llista «per impacte»;
-    # el David agafa el primer de la llista, 4/11), i després l'ordre de la llista
-    return sorted(pool, key=lambda q: (q.get("tier", 0), q["gazza"] is not True and q["gazza"] >= 2, -q["imp"], -(q.get("proj") or 0), q["idx"]))
+    # a igualtat de lletra, els punts previstos de Sorare (el número d'on surt la lletra) i després la mitjana L15, com
+    # al Set de futbol (decisió del David, 4/11)
+    return sorted(pool, key=lambda q: (q.get("tier", 0), q["gazza"] is not True and q["gazza"] >= 2, -q["imp"], -(q.get("proj") or 0), -(q.get("avg15") or q.get("avg") or 0), q["idx"]))
 
 
 def faces(a, b):
