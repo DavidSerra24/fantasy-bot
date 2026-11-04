@@ -118,7 +118,9 @@ def cards(lb, floor=8000):
 
 def order(pool):
     # gk_arena posa «tier» (0 = titular confirmat, 1 = 80–90%): primer els confirmats
-    return sorted(pool, key=lambda q: (q.get("tier", 0), q["gazza"] is not True and q["gazza"] >= 2, -q["imp"], q["idx"]))
+    # a igualtat de lletra, el número d'impacte previst (el que fa servir Sorare per ordenar la llista «per impacte»;
+    # el David agafa el primer de la llista, 4/11), i després l'ordre de la llista
+    return sorted(pool, key=lambda q: (q.get("tier", 0), q["gazza"] is not True and q["gazza"] >= 2, -q["imp"], -(q.get("proj") or 0), q["idx"]))
 
 
 def faces(a, b):
@@ -434,7 +436,7 @@ def gk_arena(gk, final=False):
         club = (p.get("activeClub") or {}).get("name") or ""
         pos = n.get("position") or p.get("position")
         q = {"card": c["slug"], "xp": c["xp"] or 0, "name": p["displayName"], "player": p["slug"], "club": club, "pos": pos, "poss": [pos],
-             "avg": n.get("avg10") or 0, "idx": i, "grade": (g.get("projection") or {}).get("grade"), "game": game["id"], "date": D,
+             "avg": n.get("avg10") or 0, "idx": i, "grade": (g.get("projection") or {}).get("grade"), "proj": (g.get("projection") or {}).get("score"), "game": game["id"], "date": D,
              "girona": "girona" in club.lower(), "gazza": False}
         q["imp"] = GRADE.get(q["grade"], -1)
         if p["slug"] == gk["slug"]:

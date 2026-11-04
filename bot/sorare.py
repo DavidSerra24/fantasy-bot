@@ -215,7 +215,7 @@ def probe():
         sl = n["anyPlayer"]["slug"]
         if any(k in sl for k in ("mojica", "rrahmani", "norheim", "ramalho", "morales", "virgili")):
             g = (n.get("eligiblePlayerGameScores") or [{}])[0] or {}
-            rep.append(f"{n['anyPlayer']['displayName']} {n['anyCard']['rarityTyped']} pos={n.get('position')} ≥80%={n['anyCard']['slug'] in hi} grade={(g.get('projection') or {}).get('grade')} partit={(g.get('anyGame') or {}).get('date')}")
+            rep.append(f"{n['anyPlayer']['displayName']} {n['anyCard']['rarityTyped']} pos={n.get('position')} ≥80%={n['anyCard']['slug'] in hi} grade={(g.get('projection') or {}).get('grade')} score={(g.get('projection') or {}).get('score')} partit={(g.get('anyGame') or {}).get('date')}")
     print("::notice title=arena::" + " ¶ ".join(rep)[:3800])
 
 
