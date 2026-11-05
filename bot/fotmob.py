@@ -111,7 +111,11 @@ def starters_by_team(home, away, when):
 TOP = re.compile(r"laliga|la liga|segunda|primera division|premier league|serie a|bundesliga|ligue 1|champions league|europa league", re.I)
 
 
-def postponed(days=6, ccode="ESP", top=False):
+TOPC = {"ESP", "ENG", "ITA", "GER", "FRA", "INT"}
+_SQ = {}
+
+
+def postponed(days=6, ccode="ESP", top=False, squads=False):
     """Equips (nom de FotMob) amb un partit aplaçat o suspès en els propers `days` dies (lligues del país `ccode`).
     top=True: les lligues dels Fantasy de tots els països (LaLiga, Premier, Serie A, Champions…)."""
     import json as _json
@@ -125,6 +129,8 @@ def postponed(days=6, ccode="ESP", top=False):
             continue
         for lg in lgs:
             if ccode and not top and lg.get("ccode") != ccode:
+                continue
+            if top and lg.get("ccode") not in TOPC:
                 continue
             # només LaLiga i LaLiga 2 (no la femenina, la Primera RFEF ni la Copa); amb top, també les altres dels Fantasy
             lname = (lg.get("name") or "").lower()
@@ -140,9 +146,30 @@ def postponed(days=6, ccode="ESP", top=False):
                         continue
                     print(f"::notice title=aplaçat::{lg.get('name')}: {' - '.join(names)} ({st.get('utcTime')}) {txt[:200]}")
                     out.update(names)
+                    for side, nm in zip(("home", "away"), names):
+                        if m[side].get("id"):
+                            _SQ.setdefault(nm, m[side]["id"])
+    if squads:
+        return {nm: squad(_SQ[nm]) if nm in _SQ else [] for nm in out}
+    return out
+
+
+def squad(team_id):
+    """Noms dels jugadors de la plantilla d'un equip de FotMob."""
+    try:
+        d = requests.get(f"https://www.fotmob.com/api/data/teams?id={team_id}", headers=H, timeout=20).json()
+    except Exception:
+        return []
+    out = []
+    for grp in (d.get("squad") or {}).get("squad") or []:
+        for p in grp.get("members") or []:
+            if p.get("name"):
+                out.append(p["name"])
     return out
 
 
 
 if __name__ == "__main__":
     print("::notice title=aplaçats::" + ", ".join(sorted(postponed())))
+    for t, ns in postponed(days=10, top=True, squads=True).items():
+        print(f"::notice title=plantilla {t}::{len(ns)}: {', '.join(ns[:40])}")
