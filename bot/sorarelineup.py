@@ -187,29 +187,76 @@ def bonus_bad(pick, cap, avg, hard):
 
 
 def fit_bonus(pick, pool, slots, cap, avg, hard):
-    """Canvis d'un jugador, el que menys impacte perdi, fins a complir la bonificació (o el límit obligatori)."""
-    for _ in range(10):
+    """Canvis fins a complir la bonificació (o el límit obligatori), perdent el mínim d'impacte.
+    Primer un sol canvi; si cap canvi sol no hi arriba, parelles de canvis (error del 5/11: amb 10 canvis petits
+    d'un en un, All Star Limited #1 i #2 es quedaven a 401 i 408/370)."""
+    bad = bonus_bad(pick, cap, avg, hard)
+    if not bad:
+        return pick
+    used = {q["player"] for q in pick}
+
+    def options(cur_pick, k, extra_used=()):
+        for c in pool:
+            if c["player"] in used or c["player"] in extra_used or not fits(c, slots[k]):
+                continue
+            if any(faces(c, o) for j, o in enumerate(cur_pick) if j != k):
+                continue
+            yield c
+
+    def loss(old, new):
+        # impacte perdut, després els Gazzaniga repetits al final, després l'ordre de la llista
+        return (sum(o["imp"] - n["imp"] for o, n in zip(old, new)),
+                sum(n["gazza"] is not True and n["gazza"] >= 2 for n in new), sum(n["idx"] for n in new))
+
+    best = None
+    for k, cur in enumerate(pick):
+        for c in options(pick, k):
+            new = pick[:k] + [c] + pick[k + 1:]
+            if not bonus_bad(new, cap, avg, hard):
+                key = loss([cur], [c])
+                if best is None or key < best[0]:
+                    best = (key, new)
+    # parelles de canvis: només els candidats que baixen la mitjana (els 12 de més impacte per casella)
+    cands = {}
+    for k, cur in enumerate(pick):
+        cs = [c for c in options(pick, k) if c[avg] < cur[avg]]
+        cs.sort(key=lambda c: (-c["imp"], c["idx"]))
+        cands[k] = cs[:12]
+    for k1 in range(len(pick)):
+        for k2 in range(k1 + 1, len(pick)):
+            for c1 in cands[k1]:
+                for c2 in cands[k2]:
+                    if c1["player"] == c2["player"] or faces(c1, c2):
+                        continue
+                    new = list(pick)
+                    new[k1], new[k2] = c1, c2
+                    if any(faces(new[k], o) for k in (k1, k2) for j, o in enumerate(new) if j != k):
+                        continue
+                    if not bonus_bad(new, cap, avg, hard):
+                        key = loss([pick[k1], pick[k2]], [c1, c2])
+                        if best is None or key < best[0]:
+                            best = (key, new)
+    if best:
+        return best[1]
+    # si ni així, canvis d'un en un (el que més baixi per impacte perdut), com abans
+    for _ in range(20):
         bad = bonus_bad(pick, cap, avg, hard)
         if not bad:
             return pick
         used = {q["player"] for q in pick}
-        best = None
+        step = None
         for k, cur in enumerate(pick):
-            for c in pool:
-                if c["player"] in used or not fits(c, slots[k]):
-                    continue
-                if any(faces(c, o) for j, o in enumerate(pick) if j != k):
-                    continue
+            for c in options(pick, k):
                 new = pick[:k] + [c] + pick[k + 1:]
                 nb = bonus_bad(new, cap, avg, hard)
                 if nb >= bad:
                     continue
-                key = (nb > 0, cur["imp"] - c["imp"], c["gazza"] is not True and c["gazza"] >= 2, c["idx"])
-                if best is None or key < best[0]:
-                    best = (key, new)
-        if not best:
+                key = (cur["imp"] - c["imp"], nb, c["idx"])
+                if step is None or key < step[0]:
+                    step = (key, new)
+        if not step:
             break
-        pick = best[1]
+        pick = step[1]
     return None if hard and bonus_bad(pick, cap, avg, hard) else pick
 
 
