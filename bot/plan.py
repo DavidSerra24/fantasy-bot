@@ -289,6 +289,15 @@ def telegram_commands(now):
             from bot.web import save_json as _sj
             _sj("sorare_yes.json", (load_json("sorare_yes.json", []) + [m.get("date", 0)])[-20:])
             continue
+        ma = re.match(r"(?i)/apla[çc]a[tr]?\S*\s+(.+)$", t)
+        if ma:  # «/aplaçat Castellón»: partit aplaçat que FotMob encara no marca (5/11)
+            from bot import fotmob as _fm
+            teams_ = [x.strip() for x in re.split(r",|\n| i ", ma.group(1)) if x.strip()]
+            for x in teams_:
+                _fm.add_manual(x)
+            requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat, "text":
+                          "⏸️ Entesos: el proper partit de " + ", ".join(teams_) + " compta com a aplaçat (Mister, FutbolFantasy i Predicted11)."}, timeout=20)
+            continue
         cmd_ = next((c for c in ("/nom", "/p11", "/mister") if t.lower().startswith(c)), None)
         if cmd_:  # equivalències de noms: /nom (FutbolFantasy), /p11 (Predicted11), /mister (Mister); «A = B» o «A = no»
             # un missatge pot portar diverses ordres barrejades, en línies o seguides (5/11): cada tros va al fitxer de

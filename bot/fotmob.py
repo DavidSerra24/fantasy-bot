@@ -121,37 +121,110 @@ def postponed(days=6, ccode="ESP", top=False, squads=False):
     import json as _json
     out = set()
     now = dt.datetime.now(dt.timezone.utc)
+    man = _manual(now)
+    pages = []
     for k in range(days + 1):
         d = now + dt.timedelta(days=k)
         try:
-            lgs = requests.get(f"https://www.fotmob.com/api/data/matches?date={d:%Y%m%d}", headers=H, timeout=20).json().get("leagues", [])
+            pages.append(requests.get(f"https://www.fotmob.com/api/data/matches?date={d:%Y%m%d}", headers=H, timeout=20).json().get("leagues", []))
         except Exception:
             continue
-        for lg in lgs:
-            if ccode and not top and lg.get("ccode") != ccode:
-                continue
-            if top and lg.get("ccode") not in TOPC:
-                continue
-            # només LaLiga i LaLiga 2 (no la femenina, la Primera RFEF ni la Copa); amb top, també les altres dels Fantasy
-            lname = (lg.get("name") or "").lower()
-            ok = TOP.search(lname) if top else re.search(r"laliga|la liga|segunda|primera division", lname)
-            if not ok or re.search(r"women|femen|f$|rfef|federaci|copa|cup(?! )|u21|u19|youth", lname):
-                continue
+
+    def leagues():
+        for lgs in pages:
+            for lg in lgs:
+                if ccode and not top and lg.get("ccode") != ccode:
+                    continue
+                if top and lg.get("ccode") not in TOPC:
+                    continue
+                # només LaLiga i LaLiga 2 (no la femenina, la Primera RFEF ni la Copa); amb top, també les altres dels Fantasy
+                lname = (lg.get("name") or "").lower()
+                ok = TOP.search(lname) if top else re.search(r"laliga|la liga|segunda|primera division", lname)
+                if not ok or re.search(r"women|femen|f$|rfef|federaci|copa|cup(?! )|u21|u19|youth", lname):
+                    continue
+                yield lg, lname
+    if man and any(not e.get("date") for e in man.values()):  # primer partit de cada equip avisat a mà
+        for lg, lname in leagues():
             for m in lg.get("matches", []):
-                st = m.get("status") or {}
-                txt = _json.dumps(st).lower()
-                if st.get("cancelled") or "postpon" in txt or '"pp"' in txt or "aplaz" in txt:
-                    names = [m[side].get("longName") or m[side]["name"] for side in ("home", "away")]
-                    if any(YOUTH.search(x) for x in names):
-                        continue
-                    print(f"::notice title=aplaçat::{lg.get('name')}: {' - '.join(names)} ({st.get('utcTime')}) {txt[:200]}")
-                    out.update(names)
-                    for side, nm in zip(("home", "away"), names):
-                        if m[side].get("id"):
-                            _SQ.setdefault(nm, m[side]["id"])
+                _man_hit(man, m, lname)
+        _manual_save(man)
+    for lg, lname in leagues():
+        for m in lg.get("matches", []):
+            st = m.get("status") or {}
+            txt = _json.dumps(st).lower()
+            mt = _man_hit(man, m, lname)
+            if st.get("cancelled") or "postpon" in txt or '"pp"' in txt or "aplaz" in txt or mt:
+                names = [m[side].get("longName") or m[side]["name"] for side in ("home", "away")]
+                if any(YOUTH.search(x) for x in names):
+                    continue
+                print(f"::notice title=aplaçat::{lg.get('name')}: {' - '.join(names)} ({st.get('utcTime')}){' (avís del David)' if mt else ''} {txt[:200]}")
+                out.update(names)
+                for side, nm in zip(("home", "away"), names):
+                    if m[side].get("id"):
+                        _SQ.setdefault(nm, m[side]["id"])
+    _manual_save(man)
     if squads:
         return {nm: squad(_SQ[nm]) if nm in _SQ else [] for nm in out}
     return out
+
+
+# Aplaçaments que el David diu per Telegram («/aplaçat Castellón», 5/11) abans que FotMob ho marqui:
+# state/postponed_manual.json {equip: {"added": ISO, "date": ISO del partit aplaçat o null}}. S'aplica només al primer
+# partit de l'equip després de l'avís (el de la data desada) i s'esborra quan aquell dia ja ha passat.
+def _manual(now):
+    try:
+        from bot.web import load_json
+        man = load_json("postponed_manual.json", {})
+    except Exception:
+        return {}
+    for t, e in list(man.items()):
+        if e.get("date") and dt.datetime.fromisoformat(e["date"]) < now - dt.timedelta(hours=6):
+            del man[t]
+    return man
+
+
+def add_manual(team):
+    from bot.web import load_json, save_json
+    man = load_json("postponed_manual.json", {})
+    man[team] = {"added": dt.datetime.now(dt.timezone.utc).isoformat(), "date": None}
+    save_json("postponed_manual.json", man)
+
+
+def _man_hit(man, m, lname):
+    if not man or not re.search(r"laliga|la liga|segunda|primera division|premier|serie a|champions|europa", lname):
+        return None
+    try:
+        D = dt.datetime.fromisoformat(((m.get("status") or {}).get("utcTime") or "").replace("Z", "+00:00"))
+    except Exception:
+        return None
+    for t, e in man.items():
+        names = [m[side].get("longName") or m[side].get("name") or "" for side in ("home", "away")]
+        if not any(team_score(t, n) > 0 for n in names) or any(YOUTH.search(n) for n in names):
+            continue
+        if e.get("date"):
+            if abs((D - dt.datetime.fromisoformat(e["date"])).total_seconds()) < 3 * 3600:
+                return t
+        elif D > dt.datetime.fromisoformat(e["added"]) - dt.timedelta(hours=3):
+            if not e.get("_cand") or D < dt.datetime.fromisoformat(e["_cand"]):
+                e["_cand"] = D.isoformat()
+    return None
+
+
+def _manual_save(man):
+    if not man:
+        return
+    changed = False
+    for e in man.values():
+        if not e.get("date") and e.get("_cand"):
+            e["date"] = e.pop("_cand")
+            changed = True
+        e.pop("_cand", None)
+    if changed:
+        try:
+            from bot.web import save_json
+            save_json("postponed_manual.json", man)
+        except Exception:
+            pass
 
 
 def squad(team_id):
@@ -170,6 +243,9 @@ def squad(team_id):
 
 
 if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 2 and sys.argv[1] == "--aplaca":
+        add_manual(" ".join(sys.argv[2:]))
     print("::notice title=aplaçats::" + ", ".join(sorted(postponed())))
     for t, ns in postponed(days=10, top=True, squads=True).items():
         print(f"::notice title=plantilla {t}::{len(ns)}: {', '.join(ns[:40])}")
