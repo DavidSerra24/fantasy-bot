@@ -445,28 +445,30 @@ _PP = []
 
 
 def postponed_team(name, img=""):
-    """Equip (de SorareInside) del jugador si el seu partit està aplaçat (FotMob); si no, None.
-    L'equip surt de state/ff_player_teams.json (nom semblant) o, si no, de l'escut de la casella de FutbolFantasy."""
+    """Equip del jugador si el seu partit està aplaçat (FotMob); si no, None.
+    Es busca el nom a les plantilles de FotMob dels equips aplaçats i, si no, a state/ff_player_teams.json."""
     from bot.web import load_json as _lj
     if not _PP:
         try:
             from bot import fotmob
-            _PP.append(fotmob.postponed(days=10, top=True))
+            _PP.append(fotmob.postponed(days=10, top=True, squads=True))
         except Exception:
-            _PP.append(set())
-    if not _PP[0]:
+            _PP.append({})
+    pp = _PP[0]
+    if not pp:
         return None
+    for t, ns in pp.items():
+        if any(name_score(name, n) >= 75 for n in ns):
+            return t
     m = _lj("ff_player_teams.json", {})
     team = m.get(" ".join(norm(name)))
     if not team:
         best = max(((name_score(name, k), t) for k, t in m.items()), default=(0, None))
         team = best[1] if best[0] >= 75 else None
-    cands = [team] if team else []
-    cands += [w.replace("-", " ") for w in (img or "").split() if w]
-    for t in cands:
-        for n in _PP[0]:
-            if team_score(t, n) > 0:
-                return n
+    if team:
+        for t in pp:
+            if team_score(team, t) > 0:
+                return t
     return None
 
 
