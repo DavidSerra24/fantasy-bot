@@ -44,7 +44,8 @@ ALIASES = {"laliga": "laliga", "liga": "laliga", "laliga2": "laliga2", "laliga 2
 
 HEADERS = [(r"hypermotion|laliga\s*2|segunda", "laliga2"), (r"laliga|la liga|primera", "laliga"), (r"premier", "premier-league"),
            (r"serie\s*a", "serie-a"), (r"champions", "champions")]
-GROK = re.compile(r"(?:previst|\n|\t|^|(?<=\d-\d))\s*([^\n\t–]+?)\s+–\s+([^\n\t]+?)\s*([12X])\s*(\d{1,2})\s*-\s*(\d{1,2})(?!\d)")
+# «Torino – Monza 1 2-0» i també amb guionet normal «Sevilla - Alavés | 1 | 2-0» (5/11)
+GROK = re.compile(r"(?:previst|\n|\t|^|(?<=\d-\d))\s*([^\n\t–]+?)\s+[–-]\s+([^\n\t]+?)\s*([12X])\s*(\d{1,2})\s*-\s*(\d{1,2})(?!\d)")
 
 
 def parse_grok(text, default=None):
