@@ -291,17 +291,34 @@ def telegram_commands(now):
             continue
         cmd_ = next((c for c in ("/nom", "/p11", "/mister") if t.lower().startswith(c)), None)
         if cmd_:  # equivalències de noms: /nom (FutbolFantasy), /p11 (Predicted11), /mister (Mister); «A = B» o «A = no»
+            # un missatge pot portar diverses ordres barrejades, en línies o seguides (5/11): cada tros va al fitxer de
+            # la seva ordre; un tros sense ordre és de l'última ordre vista
             from bot.web import save_json as _sj
-            fname = {"/nom": "ff_alias.json", "/p11": "p11_alias.json", "/mister": "mister_names.json"}[cmd_]
-            conf, done_ = load_json(fname, {}), []
-            for line in re.split(r"\n|;", t):
-                mm = re.match(r"\s*(?:/(?:nom|p11|mister)\S*)?\s*(.+?)\s*=\s*(.+?)\s*$", line)
-                if mm:
-                    conf[mm.group(1)] = mm.group(2)
-                    done_.append(f"{mm.group(1)} = {mm.group(2)}")
-            _sj(fname, conf)
-            requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat, "text":
-                          ("👍 Desat: " + "; ".join(done_)) if done_ else f"⚠️ Format: {cmd_} Nom = Nom (o = no)"}, timeout=20)
+            files = {"/nom": "ff_alias.json", "/p11": "p11_alias.json", "/mister": "mister_names.json"}
+            confs, done_, bad_ = {}, [], []
+            cur = cmd_
+            for part in re.split(r"(?i)(?=/(?:nom|p11|mister)\b)|\n|;", t):
+                part = part.strip()
+                if not part:
+                    continue
+                mc = re.match(r"(?i)/(nom|p11|mister)\S*\s*(.*)$", part, re.S)
+                if mc:
+                    cur, part = "/" + mc.group(1).lower(), mc.group(2).strip()
+                if not part:
+                    continue
+                mm = re.match(r"(.+?)\s*=\s*(.+?)\s*$", part)
+                if not mm:
+                    bad_.append(f"{cur} {part}")
+                    continue
+                conf = confs.setdefault(cur, load_json(files[cur], {}))
+                conf[mm.group(1).strip()] = mm.group(2).strip()
+                done_.append(f"{cur} {mm.group(1).strip()} = {mm.group(2).strip()}")
+            for c, conf in confs.items():
+                _sj(files[c], conf)
+            msg = ("👍 Desat:\n" + "\n".join(done_)) if done_ else f"⚠️ Format: {cmd_} Nom = Nom (o = no)"
+            if bad_:
+                msg += "\n⚠️ Sense «=», no ho he desat: " + "; ".join(bad_)
+            requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat, "text": msg}, timeout=20)
             continue
         from bot.quiniela import parse_grok
         grok = parse_grok(t)
