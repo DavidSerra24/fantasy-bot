@@ -46,7 +46,8 @@ window.__ff = (function () {
     return [...card.querySelectorAll('a.fantasy-slot')].map(a => {
       const cls = (a.closest('.slot')?.className || '');
       const m = cls.match(/posicion-(\w+)/);
-      return { slot: +a.dataset.posicion, name: (a.querySelector('.slot-name')?.textContent || a.innerText).trim(), pos: m ? (map[m[1]] || m[1]) : null };
+      const img = [...(a.closest('.slot') || a).querySelectorAll('img')].map(i => (i.src || '').split('/').pop().replace(/\.(png|jpg|webp|svg).*$/, '')).join(' ');
+      return { slot: +a.dataset.posicion, name: (a.querySelector('.slot-name')?.textContent || a.innerText).trim(), pos: m ? (map[m[1]] || m[1]) : null, img };
     });
   }
   return { games, cards, results, search, rules, slots };

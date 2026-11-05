@@ -108,8 +108,12 @@ def starters_by_team(home, away, when):
     return {s.get("name") or "": [p["name"] for p in s["starters"]] for s in sides}
 
 
-def postponed(days=6, ccode="ESP"):
-    """Equips (nom de FotMob) amb un partit aplaçat o suspès en els propers `days` dies (lligues del país `ccode`)."""
+TOP = re.compile(r"laliga|la liga|segunda|primera division|premier league|serie a|bundesliga|ligue 1|champions league|europa league", re.I)
+
+
+def postponed(days=6, ccode="ESP", top=False):
+    """Equips (nom de FotMob) amb un partit aplaçat o suspès en els propers `days` dies (lligues del país `ccode`).
+    top=True: les lligues dels Fantasy de tots els països (LaLiga, Premier, Serie A, Champions…)."""
     import json as _json
     out = set()
     now = dt.datetime.now(dt.timezone.utc)
@@ -120,11 +124,12 @@ def postponed(days=6, ccode="ESP"):
         except Exception:
             continue
         for lg in lgs:
-            if ccode and lg.get("ccode") != ccode:
+            if ccode and not top and lg.get("ccode") != ccode:
                 continue
-            # només LaLiga i LaLiga 2 (no la femenina, la Primera RFEF ni la Copa)
+            # només LaLiga i LaLiga 2 (no la femenina, la Primera RFEF ni la Copa); amb top, també les altres dels Fantasy
             lname = (lg.get("name") or "").lower()
-            if not re.search(r"laliga|la liga|segunda|primera division", lname) or re.search(r"women|femen|f$|rfef|federaci|copa|cup", lname):
+            ok = TOP.search(lname) if top else re.search(r"laliga|la liga|segunda|primera division", lname)
+            if not ok or re.search(r"women|femen|f$|rfef|federaci|copa|cup(?! )|u21|u19|youth", lname):
                 continue
             for m in lg.get("matches", []):
                 st = m.get("status") or {}

@@ -427,6 +427,49 @@ def remove_players(page, jid, remove_ids, log):
     log.append("⚠️ no he pogut treure tots els jugadors")
 
 
+def remember_teams(sidata):
+    """Equip de cada jugador que ha sortit a SorareInside (state/ff_player_teams.json): així, si després el seu equip
+    desapareix de SorareInside (partit aplaçat), se sap de quin equip era."""
+    from bot.web import load_json as _lj
+    m = _lj("ff_player_teams.json", {})
+    for t in sidata.get("_order", []):
+        for r in sidata.get(t) or []:
+            if isinstance(r, list):
+                for p in r:
+                    if p.get("name"):
+                        m[" ".join(norm(p["name"]))] = t
+    save_json("ff_player_teams.json", m)
+
+
+_PP = []
+
+
+def postponed_team(name, img=""):
+    """Equip (de SorareInside) del jugador si el seu partit està aplaçat (FotMob); si no, None.
+    L'equip surt de state/ff_player_teams.json (nom semblant) o, si no, de l'escut de la casella de FutbolFantasy."""
+    from bot.web import load_json as _lj
+    if not _PP:
+        try:
+            from bot import fotmob
+            _PP.append(fotmob.postponed(days=10, top=True))
+        except Exception:
+            _PP.append(set())
+    if not _PP[0]:
+        return None
+    m = _lj("ff_player_teams.json", {})
+    team = m.get(" ".join(norm(name)))
+    if not team:
+        best = max(((name_score(name, k), t) for k, t in m.items()), default=(0, None))
+        team = best[1] if best[0] >= 75 else None
+    cands = [team] if team else []
+    cands += [w.replace("-", " ") for w in (img or "").split() if w]
+    for t in cands:
+        for n in _PP[0]:
+            if team_score(t, n) > 0:
+                return n
+    return None
+
+
 def final_review(page, g, cands, report, label, dry=False, known=None):
     """Revisió d'un onze ja (parcialment) ple. Retorna (tàctica, total, pick, canvis) o None.
     Els jugadors que ja són a l'onze no surten al buscador, així que s'identifiquen per les caselles.
@@ -447,10 +490,15 @@ def final_review(page, g, cands, report, label, dry=False, known=None):
             taken_c.add(id(best))
         if best:
             cur.append({**best, "ff": s_["name"], "pos": s_["pos"], "slot": s_["slot"], "current": True})
-        elif known is not None and not any(name_score(s_["name"], k) >= 60 for k in known):
+        elif known is not None and not any(name_score(s_["name"], k) >= 60 for k in known) and not (
+                _pp := postponed_team(s_["name"], s_.get("img"))):
+            print(f"::notice title=FF sense dades::{s_['name']} ({s_.get('img')}): es manté")
             cur.append({"si": s_["name"], "team": None, "opp": None, "ps": 0, "pct": 0, "idx": 99998,
                         "ff": s_["name"], "pos": s_["pos"], "slot": s_["slot"], "current": True, "lock": True})
-        else:  # ja no és candidat (p. ex. ara té menys del 80% o no és titular oficial): es canviarà si cal
+        else:
+            if known is not None and not any(name_score(s_["name"], k) >= 60 for k in known):
+                print(f"::notice title=FF aplaçat::{s_['name']} ({s_.get('img')}) → {_pp}: es canvia")
+            # ja no és candidat (p. ex. ara té menys del 80% o no és titular oficial): es canviarà si cal
             cur.append({"si": s_["name"], "team": None, "opp": None, "ps": -1, "pct": 0, "idx": 99999,
                         "ff": s_["name"], "pos": s_["pos"], "slot": s_["slot"], "current": True})
     removed_first = None
@@ -537,6 +585,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                 deadline = dt.datetime.now(MADRID) + dt.timedelta(hours=h)
                 sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
                 save_json(f"si_ff_{slug}.json", sidata)
+                remember_teams(sidata)
                 official, olog = {}, []
                 if final:
                     kickoff = deadline
