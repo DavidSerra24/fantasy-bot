@@ -175,8 +175,12 @@ def fill_team(page, comp, slug, entry, prev):
 def run(comps, force=False, max_hours=30.0):
     report = []
     # equivalències confirmades pel David per Telegram («/p11 A = B»; «= no» → es posa el suplent)
-    for k, v in load_json("p11_alias.json", {}).items():
+    _pa = load_json("p11_alias.json", {})
+    for k, v in _pa.items():
         CFG["alias"][k] = f"__no__ {k}" if str(v).lower() == "no" else v
+    for k, v in _pa.items():  # també escrit al revés (5/11)
+        if str(v).lower() != "no" and v not in _pa and v not in CFG["alias"]:
+            CFG["alias"][v] = k
     with sync_playwright() as p:
         b = p.chromium.launch()
         ctx_p11 = new_context(b, "predicted11")

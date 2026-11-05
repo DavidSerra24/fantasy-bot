@@ -46,6 +46,9 @@ def sure(si_name, team, ff_name):
         v = conf.get(k)
         if v is not None:
             return None if str(v).lower() == "no" else norm(v) == norm(ff_name)
+    # també escrit al revés («/nom Nom FutbolFantasy = Nom SorareInside», 5/11)
+    if any(str(v).lower() != "no" and norm(v) == norm(si_name) and norm(k.split("|")[-1]) == norm(ff_name) for k, v in conf.items()):
+        return True
     a = ALIAS.get(f"{team}|{si_name}", ALIAS.get(si_name))
     return norm(a or si_name) == norm(ff_name)
 DEFAULT_TACTICS = ["5-3-2", "5-4-1", "4-5-1", "4-4-2", "4-3-3", "3-5-2", "3-4-3"]
