@@ -133,7 +133,7 @@ def run(comp, picks, dry=False):
                         r = match(rows, h, a)
                         if r and not r["locked"]:
                             want[r["id"]] = sign(gh, ga)
-                    bad = [i for i, s_ in want.items() if after.get(i) and s_ not in after[i]]
+                    bad = [i for i, s_ in want.items() if s_ not in after.get(i, [])]  # 5/11: abans, sense cap marca no ho detectava
                     if bad:
                         line += f" | ❗ {len(bad)} no s'han desat bé, revisa-ho"
                 out.append(line)
