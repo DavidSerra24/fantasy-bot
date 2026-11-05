@@ -1,23 +1,23 @@
-"""Diagnosi (només lectura): quiniela del Mister tal com la veu l'API."""
+"""Diagnosi (només lectura): quiniela del Mister tal com es veu al navegador."""
 import json
 
 from playwright.sync_api import sync_playwright
 
-from bot import misterapi
 from bot.mister import login, new_context
+from bot.misterpool import open_pool
 
 with sync_playwright() as p:
     b = p.chromium.launch()
     pg = new_context(b).new_page()
     login(pg)
-    api = misterapi.API
-    for cid, kind in ((2519290, "public"), (2519290, "private"), (2499621, "private")):
-        api.community(cid)
-        post = "pool-" + kind
-        d = (api.ajax("sw/" + post, {"post": post}) or {})
-        dd = d.get("data") or {}
-        res = dd.get("results") or {}
-        print(f"::notice title=pool {cid} {kind}::keys={list(dd)} status={d.get('status')} popup={d.get('popup')} locked={res.get('locked')} "
-              + json.dumps([(m.get('home'), m.get('away'), m.get('prediction'), m.get('status')) for m in res.get('matches') or []], ensure_ascii=False)[:1500]
-              + " | " + json.dumps({k: v for k, v in dd.items() if k not in ('results', 'gameweeks')}, ensure_ascii=False)[:800])
+    for cid, sw in ((2519290, "pool-public"), (2519290, "pool-private"), (2499621, "pool-private")):
+        try:
+            rows = open_pool(pg, cid, sw)
+            print(f"::notice title=pool {cid} {sw}::" + json.dumps([(r['home'], r['away'], r['sel'], r['locked']) for r in rows], ensure_ascii=False)[:2500])
+        except Exception as e:
+            print(f"::notice title=pool {cid} {sw}::{type(e).__name__}: {str(e)[:300]}")
+        try:
+            print(f"::notice title=pool text {cid} {sw}::" + pg.locator(".sw-content").first.inner_text()[:1500].replace("\n", " · "))
+        except Exception as e:
+            print(f"::notice title=pool text::{e}")
     b.close()
