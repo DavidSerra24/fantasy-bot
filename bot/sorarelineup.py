@@ -66,7 +66,7 @@ def bench(slug, rng=None, pos=None):
     return out
 
 
-def cards(lb, floor=8000, rarities=None):
+def cards(lb, floor=8000, rarities=None, skip=()):
     """Cartes de la competició (de la seva raresa) amb ≥80% (o ≥ floor), una per jugador (la de més XP), en ordre de la
     llista. Amb floor < 8000 (All Star Rare quan no n'hi ha prou; decisió del David, 3/11) cada carta porta «tier»:
     0 = ≥80%, 1 = 70%, 2 = 60%…, i els de més % van primer."""
@@ -82,7 +82,8 @@ def cards(lb, floor=8000, rarities=None):
     seen, copies, gazza = {}, {}, []
     for i, n in enumerate(allc):
         c, p = n["anyCard"], n["anyPlayer"]
-        if (c["rarityTyped"].lower() not in rarities if rarities else c["rarityTyped"].lower() != (lb["mainRarityType"] or "").lower()) or c["slug"] not in ok:
+        if (c["rarityTyped"].lower() not in rarities if rarities else c["rarityTyped"].lower() != (lb["mainRarityType"] or "").lower()) or c["slug"] not in ok \
+                or c["slug"] in skip:  # cartes ja alineades: es tria la millor de les lliures (6/11: ter Stegen Rare ocupat, Limited lliure)
             continue
         g = (n.get("eligiblePlayerGameScores") or [{}])[0] or {}
         game = g.get("anyGame") or {}
@@ -694,7 +695,7 @@ def arena_props(fx, final=False):
     print("::notice title=sorare arenes ocupats::" + ", ".join(sorted(a["anyPlayer"]["displayName"] for l in lus for a in l["so5Appearances"]
                                                                        if a["anyPlayer"].get("slug") in busy_p))[:1500])
     cache, pool = {}, []
-    allq = cards(arena, floor=2000, rarities=ARENA_RAR)
+    allq = cards(arena, floor=2000, rarities=ARENA_RAR, skip=busy)
     print("::notice title=sorare arenes porters::" + ", ".join(f"{q['name']} (tier {q['tier']}, {q.get('date')}, carta {'ocupada' if q['card'] in busy else 'lliure'})"
                                                                  for q in allq if q["pos"] == "Goalkeeper")[:1500])
     for q in allq:
