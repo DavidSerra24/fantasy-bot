@@ -247,7 +247,7 @@ def run(dry=False, sports=("NBA",), scan=False):
         stt["games"] = sorted(set(games_used) | {g for g in stt.get("games", []) if g > now.isoformat()[:19]})
         save_json("sorare_set.json", stt)
         # revisions dins de la mateixa execució (accions dinàmiques), sense esperar la propera execució del planificador
-        dyn, done = load_json("dyn_actions.json", []), set(load_json("done.json", []))
+        dyn, done = [], set(load_json("done.json", []))
         for gd in stt["games"]:
             G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
             for mins in (20, 8, 2):
@@ -262,7 +262,8 @@ def run(dry=False, sports=("NBA",), scan=False):
             at = F - dt.timedelta(minutes=12)
             if k not in done and now < F - dt.timedelta(minutes=2) and at < now + dt.timedelta(minutes=95) and not any(d["key"] == k for d in dyn):
                 dyn.append({"key": k, "at": max(at, now).isoformat(), "do": "soraresetgo", "comp": fs, "deadline": (F - dt.timedelta(minutes=2)).isoformat()})
-        save_json("dyn_actions.json", dyn)
+        from bot.web import add_dyn
+        add_dyn(dyn)
         print(f"::notice title=set::primer partit amb jugadors del Set: {stt.get('first')} · partits de les alineacions: {', '.join(stt['games'])}")
         if any("🎁" in r or "🔄" in r for r in rep):
             telegram("Sorare · Set\n" + "\n".join(r for r in rep if "🎁" in r or "🔄" in r or "⚠️" in r)

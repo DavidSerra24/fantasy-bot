@@ -472,9 +472,8 @@ def gk_check(gid, mins):
                 lines.append(f"🏟️ Proposta d'Arena (100 d'essència): {arena_text(pick, cap)}\n"
                              f"La faig? Respon «sí». L'envio a les {sub.astimezone(M):%H:%M} (5 min abans del primer partit, {first.astimezone(M):%H:%M}), "
                              f"amb els titulars confirmats en aquell moment.")
-                from bot.web import load_json as _lj, save_json as _sj  # acció dinàmica dins de la mateixa execució
-                _sj("dyn_actions.json", _lj("dyn_actions.json", []) + [{"key": f"sorarearena:{key}", "at": sub.isoformat(), "do": "sorarearena",
-                                                                        "comp": key, "deadline": first.isoformat()}])
+                from bot.web import add_dyn  # acció dinàmica dins de la mateixa execució
+                add_dyn([{"key": f"sorarearena:{key}", "at": sub.isoformat(), "do": "sorarearena", "comp": key, "deadline": first.isoformat()}])
             else:
                 lines.append(f"🏟️ Amb {g['name']} no surt cap Arena vàlida (falten jugadors titulars o del 80–90%).")
         save_json("sorare_gkarena.json", st)

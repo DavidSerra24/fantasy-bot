@@ -42,12 +42,24 @@ def ff_deadline(comp, ffd):
     return None
 
 
+# Carril ràpid (decisió del David, 6/11): accions curtes i amb hora justa (Sorare, Collectibol) que no han d'esperar
+# les llargues (Fantasy, Predicted11, Mister amb el navegador). bot/execute.py les fa en paral·lel.
+FAST = {"sorare", "sorarefset", "sorarearenas", "sorarearena", "sorarexi", "soraremission", "soraresetscan",
+        "soraresetgo", "soraresetrev", "collectibol"}
+
+
+def is_fast(a):
+    return a.get("do") in FAST
+
+
 KICK = {}  # competició → primer partit de la propera jornada (es desa a state/mister_kickoffs.json)
 
 
-def plan(now=None, done=None):
+def plan(now=None, done=None, fast_only=False):
     """Retorna les accions pendents. Una acció és pendent si la seva hora ja ha arribat (o arriba
-    en els propers 30 min), el joc encara no ha tancat i no s'ha fet abans (done)."""
+    en els propers 30 min), el joc encara no ha tancat i no s'ha fet abans (done).
+    fast_only: només les accions ràpides (Sorare, Collectibol), sense llegir Predicted11 ni Telegram: les fa servir el
+    carril ràpid de bot/execute.py mentre l'altre carril encara treballa (6/11)."""
     now = now or dt.datetime.now(UTC)
     done = set(done or [])
     local = now.astimezone(MADRID)
@@ -64,7 +76,7 @@ def plan(now=None, done=None):
 
     morning_t = local.replace(hour=9, minute=0, second=0, microsecond=0).astimezone(UTC)
     ff_today = None
-    for comp in P11 + ["europa-league"]:
+    for comp in ([] if fast_only else P11 + ["europa-league"]):
         D = None
         if comp in P11:
             try:
@@ -270,6 +282,8 @@ def plan(now=None, done=None):
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
+    if fast_only:
+        return [a for a in acts if is_fast(a)], info
     try:  # els missatges de Telegram mai han d'aturar el planificador
         acts += telegram_commands(now)
     except Exception as e:

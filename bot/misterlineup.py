@@ -383,14 +383,15 @@ def schedule_loans(name):
         return
     K = dt.datetime.fromisoformat(k)
     now = dt.datetime.now(dt.timezone.utc)
-    dyn = _lj("dyn_actions.json", [])
+    dyn = []
     t = now + dt.timedelta(minutes=5)
     while t < K - dt.timedelta(minutes=1):
         dyn.append({"key": f"misterloanoff:{name}:{t.isoformat()[:16]}", "at": t.isoformat(), "do": "misterloanoff", "comp": f"{name}|{t.isoformat()[:16]}",
                     "deadline": K.isoformat()})
         t += dt.timedelta(minutes=5)
     dyn.append({"key": f"misterloanend:{name}:{k}", "at": K.isoformat(), "do": "misterloanend", "comp": name, "deadline": (K + dt.timedelta(hours=2)).isoformat()})
-    _sj("dyn_actions.json", dyn)
+    from bot.web import add_dyn
+    add_dyn(dyn)
 
 
 def run(dry=False, only=None, final=False, loans_only=False):

@@ -139,3 +139,16 @@ def load_json(name, default=None):
 
 def save_json(name, data):
     (STATE / name).write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+import threading as _th
+STATE_LOCK = _th.RLock()  # bot/execute.py fa dos carrils en paral·lel: dyn_actions.json, done.json i tries.json són compartits
+
+
+def add_dyn(items):
+    """Afegeix accions dinàmiques (state/dyn_actions.json) sense trepitjar les de l'altre carril. Salta les claus repetides."""
+    with STATE_LOCK:
+        dyn = load_json("dyn_actions.json", [])
+        have = {d["key"] for d in dyn}
+        dyn += [i for i in items if i["key"] not in have]
+        save_json("dyn_actions.json", dyn)
