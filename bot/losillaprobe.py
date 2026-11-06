@@ -19,9 +19,9 @@ with sync_playwright() as p:
     n0 = len(calls)
     for tab in ("QUINIELISTA", "PROBABLES", "LAE", "TÉCNICOS"):
         try:
-            el = pg.get_by_text(tab, exact=True).last
-            print(f"::notice title=tab {tab}::html " + el.evaluate("e => e.outerHTML.slice(0,300)"))
-            el.click()
+            h = pg.evaluate("""(t) => { const els=[...document.querySelectorAll('a,button,li,span,div,label')].filter(e=>e.textContent.trim().toUpperCase()===t);
+                 const e=els[els.length-1]; if(!e) return 'cap'; e.click(); return els.length+' '+e.outerHTML.slice(0,300); }""", tab)
+            print(f"::notice title=tab {tab}::" + h)
             pg.wait_for_timeout(2500)
             txt = pg.inner_text("body")
             i = txt.find("BASE")
