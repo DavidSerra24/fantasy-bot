@@ -170,9 +170,10 @@ def plan(now=None, done=None):
         K = dt.datetime.fromisoformat(K_)
         if K <= now:
             continue
-        k = f"sorarearenas-prop:{ar.get('fx')}:{K_}"
-        if due(k, K - dt.timedelta(minutes=50), K - dt.timedelta(minutes=8)):
-            add(k, K - dt.timedelta(minutes=50), "sorarearenas", "prop", K - dt.timedelta(minutes=8))
+        for m_ in (55, 45, 35, 25, 15):  # proposta quan ja hi ha l'onze del primer partit (surt ~1 h abans)
+            k = f"sorarearenas-prop:{ar.get('fx')}:{K_}:{m_}"
+            if due(k, K - dt.timedelta(minutes=m_), K - dt.timedelta(minutes=8)):
+                add(k, K - dt.timedelta(minutes=m_), "sorarearenas", "prop", K - dt.timedelta(minutes=8))
         if ar.get("approved", 0) > ar.get("made", 0) or ar.get("sent_at"):
             k = f"sorarearenas-go:{ar.get('fx')}:{K_}"
             if due(k, K - dt.timedelta(minutes=6), K - dt.timedelta(minutes=1)):

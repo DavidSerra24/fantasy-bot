@@ -764,19 +764,26 @@ def late_arenas(kind="prop", at=None):
         save_json(ARSTATE, st)
         print(f"::notice title=sorare arenes::go {at}: {len(due)} a punt, aprovades pendents {left}")
         return
-    # proposta: només si n'hi ha més de les ja aprovades i ha canviat respecte de l'última
+    # proposta: només les Arenes amb l'onze del seu primer partit ja publicat i aquell jugador TITULAR confirmat
+    # (decisió del David, 6/11: «apurar per confirmar mínim 1 jugador que juga»); les altres s'esperen
+    def ready(p):
+        f = min(_when(q) for q in p)
+        return all(q.get("tier") == 0 for q in p if _when(q) == f)
+    waiting = [x for x in props if not ready(x[0])]
+    props = [x for x in props if ready(x[0])]
     sig = " | ".join(",".join(q["player"] for q in p) for p, _ in props)
     if props and len(props) > left and sig != st.get("sig"):
         lines = [_arena_line(i, p, c) for i, (p, c) in enumerate(props, 1)]
         telegram(f"🏟️ Puc fer {len(props)} Arenes Beginner ({len(props) * (ess.get('quantity') or 100)} d'essència)"
                  + (f"; ja me n'has aprovat {left}" if left > 0 else "") + ":\n" + "\n".join(lines)
-                 + "\nLes faig? Respon «sí». Les envio 6 min abans del primer partit de cada una, refetes amb els titulars del moment."
-                 + " Abans de cada partit les torno a mirar.")
+                 + "\nEl jugador del primer partit de cada una ja és titular confirmat. Les faig? Respon «sí». Les envio 6 min abans d'aquell partit,"
+                 + " refetes amb els titulars del moment.")
         st.update(sent_at=int(time.time()) - 5, sent_n=len(props) - max(left, 0), sig=sig)
     elif not props:
         st["sig"] = ""
     save_json(ARSTATE, st)
-    print(f"::notice title=sorare arenes::prop: {len(props)} possibles, aprovades pendents {left} · " + " | ".join(arena_text(p, c) for p, c in props)[:2000])
+    print(f"::notice title=sorare arenes::prop: {len(props)} a punt (primer jugador titular confirmat), {len(waiting)} esperant l'onze, aprovades pendents {left} · "
+          + " | ".join(arena_text(p, c) for p, c in props + waiting)[:2000])
 
 
 def run(mode="dry"):
