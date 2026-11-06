@@ -17,17 +17,12 @@ with sync_playwright() as p:
     pg.goto("https://www.eduardolosilla.es/quiniela/ayudas/analisis", wait_until="networkidle", timeout=60000)
     pg.wait_for_timeout(2000)
     n0 = len(calls)
-    for tab in ("QUINIELISTA", "PROBABLES", "LAE", "TÉCNICOS"):
-        try:
-            h = pg.evaluate("""(t) => { const els=[...document.querySelectorAll('a,button,li,span,div,label')].filter(e=>e.textContent.trim().toUpperCase()===t);
-                 const e=els[els.length-1]; if(!e) return 'cap'; e.click(); return els.length+' '+e.outerHTML.slice(0,300); }""", tab)
-            print(f"::notice title=tab {tab}::" + h)
-            pg.wait_for_timeout(2500)
-            txt = pg.inner_text("body")
-            i = txt.find("BASE")
-            print(f"::notice title=filtre {tab}::" + txt[i:i + 1500].replace("\n", " | ").replace("\t", " ; "))
-        except Exception as e:
-            print(f"::notice title=err {tab}::{str(e)[:300]}")
+    h = pg.evaluate("""() => { const h=document.body.innerHTML; let out=[]; let i=0;
+        for (const k of ['PROBABLES','Probables','probables','TÉCNICOS','Técnicos','tecnicos']) { let j=h.indexOf(k); while(j>=0 && out.length<12){ out.push(k+'@'+j+': '+h.slice(Math.max(0,j-400), j+150).replace(/\\s+/g,' ')); j=h.indexOf(k,j+1);} }
+        return out.join(' ##### '); }""")
+    print("::notice title=html::" + h[:3900])
+    h2 = pg.evaluate("() => document.querySelector('.c-porcentajes-analisis') ? document.querySelector('.c-porcentajes-analisis').outerHTML.slice(0,3500) : 'cap'")
+    print("::notice title=taula::" + h2.replace("\n", " ")[:3900])
     tbl = pg.evaluate("() => { const t=[...document.querySelectorAll('table')].map(x=>x.outerHTML.length+' '+x.className); return t.join(' / ') }")
     print("::notice title=taules::" + tbl[:1000])
     b.close()
