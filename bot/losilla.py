@@ -97,7 +97,8 @@ def build(T):
 def message(sch, R, T):
     close = dt.datetime.fromisoformat(sch["kick"]).astimezone(MAD) - CLOSE_BEFORE
     names = sch.get("matches") or []
-    lines = [f"🎫 Quiniela J{sch['jornada']} · tanca a les {close:%H:%M} ({close:%a %d}). Proposta amb el teu mètode:",
+    dia = ["dilluns", "dimarts", "dimecres", "dijous", "divendres", "dissabte", "diumenge"][close.weekday()]
+    lines = [f"🎫 Quiniela J{sch['jornada']} · tanca {dia} a les {close:%H:%M}. Proposta amb el teu mètode:",
              f"Col. 1: X on {R['best'].capitalize()} té X a PROB. ({R['xcount'][R['best']]}); la resta, BASE de Técnicos",
              "Col. 2: Técnicos (PROB. si n'hi ha; si no, BASE)", ""]
     for i in range(14):
