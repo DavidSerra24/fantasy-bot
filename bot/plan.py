@@ -174,7 +174,7 @@ def plan(now=None, done=None):
             k = f"sorarearenas-prop:{ar.get('fx')}:{K_}:{m_}"
             if due(k, K - dt.timedelta(minutes=m_), K - dt.timedelta(minutes=8)):
                 add(k, K - dt.timedelta(minutes=m_), "sorarearenas", "prop", K - dt.timedelta(minutes=8))
-        if ar.get("approved", 0) > ar.get("made", 0) or ar.get("sent_at"):
+        if any(a.get("status") in ("asked", "approved") for a in (ar.get("asks") or {}).values()):
             k = f"sorarearenas-go:{ar.get('fx')}:{K_}"
             if due(k, K - dt.timedelta(minutes=6), K - dt.timedelta(minutes=1)):
                 add(k, K - dt.timedelta(minutes=6), "sorarearenas", "go|" + K_, K - dt.timedelta(minutes=1))
@@ -302,6 +302,7 @@ def telegram_commands(now):
         if re.fullmatch(r"s[ií]\W*|yes\W*|ok\W*|endavant\W*|fes-la\W*|fes-les\W*", t.lower()):  # «sí» per a una Arena de Sorare
             from bot.web import save_json as _sj
             _sj("sorare_yes.json", (load_json("sorare_yes.json", []) + [m.get("date", 0)])[-20:])
+            _sj("sorare_yes2.json", (load_json("sorare_yes2.json", []) + [{"d": m.get("date", 0), "r": (m.get("reply_to_message") or {}).get("message_id")}])[-30:])
             continue
         ma = re.match(r"(?i)/apla[çc]a[tr]?\S*\s+(.+)$", t)
         if ma:  # «/aplaçat Castellón»: partit aplaçat que FotMob encara no marca (5/11)
