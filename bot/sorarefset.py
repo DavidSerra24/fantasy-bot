@@ -139,7 +139,7 @@ def run(dry=False, focus=None):
     """focus = hora (ISO) del primer partit d'unes alineacions: revisió final només d'aquelles (les altres es mantenen;
     decisió del David, 2/11). Sense focus (cada hora): es refan totes les que no han començat i s'omplen les que falten."""
     now = dt.datetime.now(dt.timezone.utc)
-    rep, games = [], set()
+    rep, games, ends = [], set(), set()
     for mode in ("CAREER", "SQUAD"):
         label = f"⚽ Set · {'personal' if mode == 'CAREER' else 'equip'}"
         b = gql(STEP, {"m": mode}, token=token())["currentUser"]["setBoard"]
@@ -179,10 +179,15 @@ def run(dry=False, focus=None):
             ds = [a["game"]["date"] for a in l["taskAppearances"] if a and a.get("game")]
             if ds:
                 games.add(min(ds, key=D))  # revisió final abans del primer partit de cada alineació
+                if mode == "CAREER":
+                    ends.add(max(ds, key=D))  # l'últim partit: després es mira si el nivell es pot reclamar
         locked_players = {a["anyPlayer"]["slug"] for l in locked for a in l["taskAppearances"] if a}
         used_cards = {a["anyCard"]["slug"] for l in open_ for a in l["taskAppearances"] if a}
         n_total = (st.get("maxLineupsCount") or 4) if mode == "CAREER" else 1
         n_new = min(st.get("remainingLineupsCount") or 0, max(0, n_total - len(lineups))) if mode == "CAREER" else max(0, 1 - len(lineups))
+        if not open_ and n_new == 0:  # totes en joc: res a fer fins que acabin els partits (el David, 6/11)
+            rep.append(f"{label} ({b.get('title')}, nivell {st['level'] + 1}, objectiu {st['target']}, {len(locked)} en joc): totes en joc, res a revisar")
+            continue
         cands = candidates(st["id"], now, used_cards, locked_players, squad=mode == "SQUAD")
         first = lambda l: min((D(a["game"]["date"]) for a in l["taskAppearances"] if a and a.get("game")), default=None)
         if focus:  # només les alineacions que comencen a aquesta hora; els jugadors de les altres es queden on són
@@ -247,6 +252,8 @@ def run(dry=False, focus=None):
                     raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
                 lines.append(f"   {'🔁' if l else '✅'} {name}: {txt}")
                 games.add(min((q["game"]["date"] for q in pick.values()), key=D))
+                if mode == "CAREER":
+                    ends.add(max((q["game"]["date"] for q in pick.values()), key=D))
             except Exception as e:
                 lines.append(f"   ❌ {name}: {str(e)[:200]}")
         # revisió final (els últims minuts abans del primer partit de l'alineació): jugadors de partits posteriors que
@@ -263,6 +270,7 @@ def run(dry=False, focus=None):
         rep.append(head + ("\n" + "\n".join(lines) if lines else ""))
     st_ = load_json("sorare_fset.json", {})
     st_["games"] = sorted(g for g in games if D(g) > now)
+    st_["ends"] = sorted(g for g in ends if D(g) > now - dt.timedelta(hours=4))
     if not dry:
         save_json("sorare_fset.json", st_)
     for k, r in enumerate(rep):

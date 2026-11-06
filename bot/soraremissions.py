@@ -379,7 +379,8 @@ def run(dry=False):
             D = dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00"))
             if D <= now + dt.timedelta(minutes=2):
                 continue
-            games_seen.append(g["date"])
+            if len(locked) < n_max:  # si totes les places ja estan en joc, no cal tornar-hi fins a les missions noves (el David, 6/11)
+                games_seen.append(g["date"])
             for c in gnode["cards"]:
                 p = c["anyPlayer"]
                 if any(a["anyPlayer"]["slug"] == p["slug"] for a in locked.values()):

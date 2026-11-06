@@ -253,13 +253,16 @@ def plan(now=None, done=None, fast_only=False):
     k = f"sorarefset:{T.isoformat()}"
     if due(k, T, T + dt.timedelta(minutes=55)):
         add(k, T, "sorarefset", T.isoformat(), T + dt.timedelta(minutes=55))
-    # i cada 10 min, una comprovació curta: si el tauler personal està per reclamar o perdut, es reclama/reinicia i es fan
-    # les alineacions del nivell següent de seguida (decisió del David, 6/11)
-    for i in range(10):
-        T = now.replace(minute=(now.minute // 10) * 10, second=0, microsecond=0) + dt.timedelta(minutes=10 * i + 2)
-        k = f"sorarefclaim:{T.isoformat()}"
-        if due(k, T, T + dt.timedelta(minutes=9)):
-            add(k, T, "sorarefclaim", T.isoformat(), T + dt.timedelta(minutes=9))
+    # Reclamar com més aviat millor (decisió del David, 6/11), però només quan pot tocar: Sorare dona el nivell quan
+    # acaben els partits d'una alineació que supera l'objectiu. Comprovació curta cada 10 min de 1 h 50 a 3 h 30 després
+    # de l'inici de l'últim partit de cada alineació del tauler personal (fora d'aquí, la passada de cada hora també ho fa).
+    for ge in load_json("sorare_fset.json", {}).get("ends", []):
+        E = dt.datetime.fromisoformat(ge.replace("Z", "+00:00"))
+        for mins in range(110, 211, 10):
+            T = E + dt.timedelta(minutes=mins)
+            k = f"sorarefclaim:{T.isoformat()}"
+            if due(k, T, T + dt.timedelta(minutes=9)):
+                add(k, T, "sorarefclaim", T.isoformat(), T + dt.timedelta(minutes=9))
     for gd in load_json("sorare_fset.json", {}).get("games", []):
         G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
         for mins in (20, 8, 2):
