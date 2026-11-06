@@ -66,7 +66,7 @@ def bench(slug, rng=None, pos=None):
     return out
 
 
-def cards(lb, floor=8000):
+def cards(lb, floor=8000, rarities=None):
     """Cartes de la competició (de la seva raresa) amb ≥80% (o ≥ floor), una per jugador (la de més XP), en ordre de la
     llista. Amb floor < 8000 (All Star Rare quan no n'hi ha prou; decisió del David, 3/11) cada carta porta «tier»:
     0 = ≥80%, 1 = 70%, 2 = 60%…, i els de més % van primer."""
@@ -82,7 +82,7 @@ def cards(lb, floor=8000):
     seen, copies, gazza = {}, {}, []
     for i, n in enumerate(allc):
         c, p = n["anyCard"], n["anyPlayer"]
-        if c["rarityTyped"].lower() != (lb["mainRarityType"] or "").lower() or c["slug"] not in ok:
+        if (c["rarityTyped"].lower() not in rarities if rarities else c["rarityTyped"].lower() != (lb["mainRarityType"] or "").lower()) or c["slug"] not in ok:
             continue
         g = (n.get("eligiblePlayerGameScores") or [{}])[0] or {}
         game = g.get("anyGame") or {}
@@ -92,7 +92,7 @@ def cards(lb, floor=8000):
              "pos": n.get("position") or p.get("position"), "poss": [n.get("position") or p.get("position")],  # la posició de la carta "age": p.get("age"),
              "avg": n.get("avg10") or 0, "avg15": n.get("avg15") or 0, "idx": i,
              "grade": ((g.get("projection") or {}).get("grade")), "proj": (g.get("projection") or {}).get("score"),
-             "game": game.get("id"), "rival": next((t for t in teams if t and t != club), None),
+             "game": game.get("id"), "gobj": game, "date": game.get("date"), "rival": next((t for t in teams if t and t != club), None),
              "girona": "girona" in club.lower(), "gazza": "gazzaniga" in p["slug"], "tier": tier.get(c["slug"], 0)}
         q["imp"] = GRADE.get(q["grade"], -1)
         copies[q["player"]] = copies.get(q["player"], 0) + 1
@@ -662,6 +662,121 @@ def wait_yes(since, until):
     return None
 
 
+# ── Arenes fins a l'últim moment (decisió del David, 6/11) ─────────────────────────────────────────────────────────
+# L'Arena es tanca quan comença el primer partit dels seus 5 jugadors. El bot proposa les Arenes possibles a la
+# revisió final i abans de cada hora de partits (també amb la Gameweek ja començada), el David diu «sí» (= fins a N
+# Arenes) i el bot no les envia fins 6 min abans del primer partit de cada una, refetes amb les dades del moment
+# (titulars confirmats; si el del primer partit no és titular, es canvia). Les ja enviades no es toquen.
+ARSTATE = "sorare_arenas.json"
+ARENA_RAR = ("limited", "rare", "super_rare", "unique")  # a l'Arena Limited hi van també rareses superiors (el David, 4/11)
+
+
+def _when(q):
+    import datetime as dt
+    return dt.datetime.fromisoformat(q["date"].replace("Z", "+00:00"))
+
+
+def arena_props(fx, final=False):
+    """Arenes Beginner possibles ara amb les cartes lliures. Retorna (arena, props [(pick, cap)], dates dels candidats)."""
+    import datetime as dt
+    arena = next((l for l in fx["so5Leaderboards"] if l["isArena"] and "beginner" in l["slug"]), None)
+    if not arena:
+        return None, [], []
+    now = dt.datetime.now(dt.timezone.utc)
+    lus = fx.get("mySo5Lineups") or []
+    busy = {a["anyCard"]["slug"] for l in lus for a in l["so5Appearances"]}
+    busy_p = {a["anyPlayer"].get("slug") for l in lus for a in l["so5Appearances"]}
+    cache, pool = {}, []
+    for q in cards(arena, floor=2000, rarities=ARENA_RAR):
+        base_p = q["player"].split("#")[0]
+        if q["card"] in busy or (base_p in busy_p and not q["gazza"]) or not q.get("date") or (q["girona"] and not q["gazza"]):
+            continue
+        D = _when(q)
+        if D < now + dt.timedelta(minutes=3 if final else 10):
+            continue  # partit començat o a punt
+        g = dict(q.get("gobj") or {}, id=q["game"])
+        xi = lineup_status(g, cache)
+        if xi is not None:
+            if not starts(xi, base_p, q["name"]):
+                continue  # onze oficial publicat i no hi és
+            q = dict(q, tier=0, src=xi[0])  # titular confirmat
+        elif q["tier"] == 0 and not (final and D - now < dt.timedelta(minutes=50)):
+            q = dict(q, tier=1)  # ≥80%, encara sense onze
+        else:
+            continue  # <80% sense onze, o partit que ja hauria de tenir onze i no se sap
+        pool.append(q)
+    dates = sorted({_when(q) for q in pool})
+    props = []
+    while True:
+        pick = build(pool, ARENA, ARENA_CAP, "avg", hard=True)
+        if not pick:
+            break
+        props.append((pick, captain(pick)))
+        got = {q["player"] for q in pick}
+        pool = [q for q in pool if q["player"] not in got]
+    return arena, props, dates
+
+
+def _arena_line(i, pick, cap):
+    from zoneinfo import ZoneInfo
+    first = min(_when(q) for q in pick)
+    return (f"   Arena {i} (l'envio a les {(first - __import__('datetime').timedelta(minutes=6)).astimezone(ZoneInfo('Europe/Madrid')):%a %H:%M}): "
+            + arena_text(pick, cap))
+
+
+def late_arenas(kind="prop", at=None):
+    """kind="prop": proposa (o actualitza) les Arenes possibles i en demana el «sí».
+    kind="go": 6 min abans del partit `at` (ISO), envia les Arenes aprovades que tenen el primer partit aleshores,
+    refetes amb les dades del moment."""
+    import datetime as dt
+    import time
+    from bot.web import load_json, save_json
+    st = load_json(ARSTATE, {})
+    slug = st.get("fx") or load_json("sorare_fixture.json", {}).get("slug")
+    if not slug:
+        return
+    fx = gql(FIXTURE_SLUG, {"s": slug}, token=token())["so5"]["so5Fixture"]
+    if st.get("fx") != fx["slug"]:
+        st = {"fx": fx["slug"], "approved": 0, "made": 0}
+    if st.get("sent_at") and yes_after(st["sent_at"]):  # «sí» a l'última proposta: fins a N Arenes
+        st["approved"] = max(st.get("approved", 0), st.get("made", 0) + st.get("sent_n", 0))
+        st["sent_at"] = None
+    arena, props, dates = arena_props(fx, final=kind == "go")
+    st["kicks"] = [d.isoformat() for d in dates]
+    left = st.get("approved", 0) - st.get("made", 0)
+    ess = (arena or {}).get("format", {}).get("entryItem") or {}
+    if kind == "go":
+        T = dt.datetime.fromisoformat(at) if at else dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=6)
+        due = [(p, c) for p, c in props if min(_when(q) for q in p) <= T + dt.timedelta(minutes=2)]
+        if left > 0 and due:
+            ok, msgs = 0, []
+            for pick, cap in due[:left]:
+                try:
+                    save_lineup(arena, pick, cap, entry=ess.get("myEntryItemId"))
+                    ok += 1
+                    msgs.append("✅ " + arena_text(pick, cap))
+                except Exception as e:
+                    msgs.append(f"❗ {str(e)[:200]}")
+            st["made"] = st.get("made", 0) + ok
+            telegram(f"🏟️ Arenes enviades ara ({ok} × {ess.get('quantity') or 100} d'essència; en queden {st['approved'] - st['made']} d'aprovades):\n" + "\n".join(msgs))
+        save_json(ARSTATE, st)
+        print(f"::notice title=sorare arenes::go {at}: {len(due)} a punt, aprovades pendents {left}")
+        return
+    # proposta: només si n'hi ha més de les ja aprovades i ha canviat respecte de l'última
+    sig = " | ".join(",".join(q["player"] for q in p) for p, _ in props)
+    if props and len(props) > left and sig != st.get("sig"):
+        lines = [_arena_line(i, p, c) for i, (p, c) in enumerate(props, 1)]
+        telegram(f"🏟️ Puc fer {len(props)} Arenes Beginner ({len(props) * (ess.get('quantity') or 100)} d'essència)"
+                 + (f"; ja me n'has aprovat {left}" if left > 0 else "") + ":\n" + "\n".join(lines)
+                 + "\nLes faig? Respon «sí». Les envio 6 min abans del primer partit de cada una, refetes amb els titulars del moment."
+                 + " Abans de cada partit les torno a mirar.")
+        st.update(sent_at=int(time.time()) - 5, sent_n=len(props) - max(left, 0), sig=sig)
+    elif not props:
+        st["sig"] = ""
+    save_json(ARSTATE, st)
+    print(f"::notice title=sorare arenes::prop: {len(props)} possibles, aprovades pendents {left} · " + " | ".join(arena_text(p, c) for p, c in props)[:2000])
+
+
 def run(mode="dry"):
     """mode: dry (només proposta), fill (omple/actualitza les alineacions Classic), final (com fill + Arena amb el «sí»)."""
     import datetime as dt
@@ -768,30 +883,17 @@ def run(mode="dry"):
             pool = [q for q in pool if q["player"] not in got]
         lines = [f"   Arena {i}: " + ", ".join(f"{SHORT[sl]} {q['name']}{' ©' if q is cap else ''} ({q['grade'] or '?'})" for sl, q in zip(ARENA, pick))
                  + f" · {sum(q['avg'] for q in pick):.0f}/260 · {preview(arena, pick, cap)}" for i, (pick, cap) in enumerate(props, 1)]
-        if props and mode == "final":
-            ess = (arena["format"].get("entryItem") or {})
-            rep.append(f"🏟️ Puc fer {len(props)} Arenes Beginner ({len(props) * (ess.get('quantity') or 100)} d'essència):")
-            rep += lines
-            rep.append("Les faig? Respon «sí» o «no» (espero fins 5 min abans del tancament).")
-            telegram("\n".join(rep)); sent = len(rep)
-            ans = wait_yes(int(time.time()) - 5, cut - dt.timedelta(minutes=5))
-            rep2 = []
-            if ans:
-                ok = 0
-                for i, (pick, cap) in enumerate(props, 1):
-                    try:
-                        save_lineup(arena, pick, cap, entry=ess.get("myEntryItemId")); ok += 1
-                    except Exception as e:
-                        rep2.append(f"❗ Arena {i}: {str(e)[:200]}")
-                rep2.insert(0, f"{'✅' if ok == len(props) else '⚠️'} Arenes fetes: {ok} de {len(props)}")
-            else:
-                rep2.append("🏟️ Arenes: no les faig (" + ("m'has dit que no" if ans is False else "no he rebut el «sí» a temps") + ")")
-            print("::notice title=sorare::" + " ¶ ".join(rep + rep2 + LOG)[:60000])
-            telegram("\n".join(rep2))
+        if mode == "final":
+            print("::notice title=sorare::" + " ¶ ".join(rep + LOG)[:60000])
+            telegram("\n".join(rep))
             gk_watch(fx, [])
+            from bot.web import load_json as _lj, save_json as _sj
+            if _lj(ARSTATE, {}).get("fx") != fx["slug"]:
+                _sj(ARSTATE, {"fx": fx["slug"], "approved": 0, "made": 0})
+            late_arenas("prop")  # (6/11) ja no s'espera el «sí» aquí: s'envien 6 min abans del primer partit de cada Arena
             return plan
         if props:
-            rep.append(f"🏟️ Arenes possibles: {len(props)} ({len(props) * 100} d'essència). Te les proposaré a la revisió final i només les faré si dius «sí»:")
+            rep.append(f"🏟️ Arenes possibles: {len(props)} ({len(props) * 100} d'essència). Te les proposaré a la revisió final i abans de cada partit, i només les faré si dius «sí»:")
             rep += lines
         else:
             rep.append("🏟️ Arena: no queden prou jugadors amb ≥80% per a cap Arena")

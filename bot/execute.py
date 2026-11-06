@@ -42,8 +42,8 @@ while queue:
             "misterxi": "Mister: alineació i capità" + (f" ({names.get(a['comp'], a['comp'])}, revisió final)" if a["comp"] else ""),
             "fffinal": f"revisió final del Fantasy {names.get(a['comp'], a['comp'])} (onzes oficials)",
             "sorare": "Sorare: " + ("revisió final de les alineacions + Arenes" if a["comp"] == "final" else "omplir/revisar les alineacions"),
-            "sorarexi": "Sorare: porters", "sorarearena": "Sorare: Arena amb porter", "soraremission": "Sorare: Decisive Picker", "misterloan": "Mister: cessions", "soraresetscan": "Sorare Set: partits", "soraresetgo": "Sorare Set: alineacions", "soraresetrev": "Sorare Set: revisió", "misterloanoff": "Mister: peticions de cessió", "misterloanend": "Mister: fi de les cessions", "collectibol": "Collectibol: resultat", "sorarefset": "Sorare Set futbol"}[a["do"]]
-    if a["do"] not in ("quinrem", "sorarexi", "sorarearena", "soraremission", "misterloan", "soraresetscan", "soraresetgo", "soraresetrev", "misterloanoff", "misterloanend", "collectibol", "sorarefset"):  # el recordatori ja envia el seu missatge (només si cal)
+            "sorarexi": "Sorare: porters", "sorarearena": "Sorare: Arena amb porter", "sorarearenas": "Sorare: Arenes", "soraremission": "Sorare: Decisive Picker", "misterloan": "Mister: cessions", "soraresetscan": "Sorare Set: partits", "soraresetgo": "Sorare Set: alineacions", "soraresetrev": "Sorare Set: revisió", "misterloanoff": "Mister: peticions de cessió", "misterloanend": "Mister: fi de les cessions", "collectibol": "Collectibol: resultat", "sorarefset": "Sorare Set futbol"}[a["do"]]
+    if a["do"] not in ("quinrem", "sorarexi", "sorarearena", "sorarearenas", "soraremission", "misterloan", "soraresetscan", "soraresetgo", "soraresetrev", "misterloanoff", "misterloanend", "collectibol", "sorarefset"):  # el recordatori ja envia el seu missatge (només si cal)
         telegram(f"▶️ Començo: {what}")
     try:
         if a["do"] == "p11":
@@ -100,6 +100,10 @@ while queue:
         elif a["do"] == "soraremission":
             from bot import soraremissions
             soraremissions.run()
+        elif a["do"] == "sorarearenas":
+            from bot import sorarelineup
+            kind, _, at = a["comp"].partition("|")
+            sorarelineup.late_arenas(kind, at or None)
         elif a["do"] == "sorarearena":
             from bot import sorarelineup
             sorarelineup.gk_arena_final(a["comp"])

@@ -164,6 +164,19 @@ def plan(now=None, done=None):
             k = f"sorarearena:{key_}"
             if due(k, S, S + dt.timedelta(minutes=5)):
                 add(k, S, "sorarearena", key_, S + dt.timedelta(minutes=5))
+    # Sorare: Arenes fins a l'últim moment (6/11): proposta 50 min abans de cada hora de partits i enviament 6 min abans
+    ar = load_json("sorare_arenas.json", {})
+    for K_ in sorted(set(ar.get("kicks") or []))[:40]:
+        K = dt.datetime.fromisoformat(K_)
+        if K <= now:
+            continue
+        k = f"sorarearenas-prop:{ar.get('fx')}:{K_}"
+        if due(k, K - dt.timedelta(minutes=50), K - dt.timedelta(minutes=8)):
+            add(k, K - dt.timedelta(minutes=50), "sorarearenas", "prop", K - dt.timedelta(minutes=8))
+        if ar.get("approved", 0) > ar.get("made", 0) or ar.get("sent_at"):
+            k = f"sorarearenas-go:{ar.get('fx')}:{K_}"
+            if due(k, K - dt.timedelta(minutes=6), K - dt.timedelta(minutes=1)):
+                add(k, K - dt.timedelta(minutes=6), "sorarearenas", "go|" + K_, K - dt.timedelta(minutes=1))
     # Sorare: Decisive Picker (les missions es renoven a les 9:00) a les 9:05 i 15 min abans de cada partit amb candidats
     t10 = local.replace(hour=9, minute=5, second=0, microsecond=0).astimezone(UTC)
     k = f"soraremission:{local.date()}"
