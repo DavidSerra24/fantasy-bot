@@ -71,7 +71,7 @@ def extract_league(page, country, league, day, log=print, use_cache=True):
     now = dt.datetime.now(dt.timezone.utc)
     age = league_age_minutes(page, country, league)
     cache = load_json(key)
-    if use_cache and cache and age is not None:
+    if use_cache and cache and age is not None and "_bench" in (cache.get("data") or {}):  # (6/11) les antigues no tenen Bench/DNP
         updated_at = now - dt.timedelta(minutes=age)
         read_at = dt.datetime.fromisoformat(cache["read_at"])
         if updated_at < read_at - dt.timedelta(minutes=5):
