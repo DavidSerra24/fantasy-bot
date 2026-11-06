@@ -13,8 +13,9 @@ H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 def ff_points(comp="laliga2"):
     url = f"https://www.futbolfantasy.com/analytics/{comp + '/' if comp != 'laliga' else ''}estadisticas-puntos/2027?puntuacion=futbolfantasy-rpg"
     h = requests.get(url, headers=H, timeout=60).text
+    print(f"::notice title=ff html::{len(h)} trs {h.count('<tr data-name')}")
     out = []
-    for m in re.finditer(r'<tr data-name="([^"]+)" data-posicion="([^"]*)" data-equipo="(\d+)">(.*?)</tr>', h, re.S):
+    for m in re.finditer(r'<tr data-name="([^"]+)"\s+data-posicion="([^"]*)"\s+data-equipo="(\d+)"[^>]*>(.*?)</tr>', h, re.S):
         row = m.group(4)
         team = re.search(r'<div class="player-equipo">.*?<span>([^<]+)</span>', row, re.S)
         c = dict((a, (b, cc, d)) for a, b, cc, d in re.findall(r'data-value="([^"]+)"[^>]*data-total="([^"]*)"[^>]*data-casa="([^"]*)"[^>]*data-fuera="([^"]*)"', row))
@@ -95,5 +96,22 @@ for comp, key in (("laliga2", "si_ff_laliga2.json"),):
         x3, r2c = lsq([[r["pct"] / 100, r["pct"] / 100 * r[src]] for r in sub], y)
         print(f"::notice title=model {src}::n={len(sub)} corr {corr([r[src] for r in sub], y):.2f} | PS=a+b·x R²={r2a:.2f} ({x1[0]:.1f}+{x1[1]:.2f}x) | "
               f"+%+casa+línia R²={r2b:.2f} coef {[round(v, 2) for v in x2]} | PS=%·(a+b·x) R²={r2c:.2f} {[round(v, 2) for v in x3]}")
+    for src in ("miavg", "ffavg", "ff"):
+        sub = [r for r in rows if r[src] is not None]
+        if len(sub) < 10:
+            continue
+        y = [r["ps"] for r in sub]
+        x, _ = lsq([[1, r[src], 1 if r["home"] else 0] for r in sub], y)
+        pred = [x[0] + x[1] * r[src] + x[2] * (1 if r["home"] else 0) for r in sub]
+        res = [t - p for t, p in zip(y, pred)]
+        loo = []
+        for i, r in enumerate(sub):
+            o = [res[j] for j, q in enumerate(sub) if q["t"] == r["t"] and j != i]
+            loo.append(pred[i] + (statistics.mean(o) if o else 0))
+        my = statistics.mean(y)
+        r2 = 1 - sum((p - t) ** 2 for p, t in zip(loo, y)) / sum((t - my) ** 2 for t in y)
+        mae = statistics.mean(abs(p - t) for p, t in zip(loo, y))
+        mae0 = statistics.mean(abs(p - t) for p, t in zip(pred, y))
+        print(f"::notice title=amb factor equip {src}::coef {[round(v, 2) for v in x]} R² (sense el propi jugador)={r2:.2f}, error mitjà {mae:.1f} (sense factor {mae0:.1f})")
     sample = sorted(rows, key=lambda r: -r["ps"])[:12] + sorted(rows, key=lambda r: r["ps"])[:8]
     print("::notice title=mostra::" + " · ".join(f"{r['name']} PS{r['ps']} {r['pct']}% L{r['line']} ff{r['ff']} mi{r['mi'] and round(r['mi'], 1)}" for r in sample))
