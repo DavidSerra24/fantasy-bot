@@ -6,8 +6,8 @@ H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 url = "https://www.futbolfantasy.com/analytics/laliga2/estadisticas-puntos/2027?puntuacion=futbolfantasy-rpg"
 h = requests.get(url, headers=H, timeout=60).text
 print(f"::notice title=len::{len(h)}")
-for kw in ("Otero", "<tr", "data-", "Media"):
-    ms = list(re.finditer(re.escape(kw), h))
-    print(f"::notice title=count {kw}::{len(ms)}")
-    for m in ms[:2]:
-        print(f"::notice title=kw {kw}::" + re.sub(r"\s+", " ", h[max(0, m.start() - 1200):m.start() + 1500]))
+i = h.find('data-name="juan otero"')
+row = h[i:h.find("</tr>", i)]
+cells = re.findall(r'<td[^>]*data-value="([^"]+)"[^>]*data-total="([^"]*)"[^>]*data-casa="([^"]*)"[^>]*data-fuera="([^"]*)"', row)
+print("::notice title=cells::" + " | ".join(f"{a}={b}/{c}/{d}" for a, b, c, d in cells)[:6000])
+print("::notice title=rest::" + re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", row[-3000:]))[:2000])
