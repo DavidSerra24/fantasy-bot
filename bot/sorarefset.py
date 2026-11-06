@@ -179,8 +179,8 @@ def run(dry=False, focus=None):
             ds = [a["game"]["date"] for a in l["taskAppearances"] if a and a.get("game")]
             if ds:
                 games.add(min(ds, key=D))  # revisió final abans del primer partit de cada alineació
-                if mode == "CAREER":
-                    ends.add(max(ds, key=D))  # l'últim partit: després es mira si el nivell es pot reclamar
+                if mode == "CAREER":  # del primer partit a l'últim: el nivell es pot superar abans que juguin tots
+                    ends.add((min(ds, key=D), max(ds, key=D)))
         locked_players = {a["anyPlayer"]["slug"] for l in locked for a in l["taskAppearances"] if a}
         used_cards = {a["anyCard"]["slug"] for l in open_ for a in l["taskAppearances"] if a}
         n_total = (st.get("maxLineupsCount") or 4) if mode == "CAREER" else 1
@@ -253,7 +253,8 @@ def run(dry=False, focus=None):
                 lines.append(f"   {'🔁' if l else '✅'} {name}: {txt}")
                 games.add(min((q["game"]["date"] for q in pick.values()), key=D))
                 if mode == "CAREER":
-                    ends.add(max((q["game"]["date"] for q in pick.values()), key=D))
+                    ds_ = [q["game"]["date"] for q in pick.values()]
+                    ends.add((min(ds_, key=D), max(ds_, key=D)))
             except Exception as e:
                 lines.append(f"   ❌ {name}: {str(e)[:200]}")
         # revisió final (els últims minuts abans del primer partit de l'alineació): jugadors de partits posteriors que
@@ -270,7 +271,8 @@ def run(dry=False, focus=None):
         rep.append(head + ("\n" + "\n".join(lines) if lines else ""))
     st_ = load_json("sorare_fset.json", {})
     st_["games"] = sorted(g for g in games if D(g) > now)
-    st_["ends"] = sorted(g for g in ends if D(g) > now - dt.timedelta(hours=4))
+    st_["spans"] = sorted(list(g) for g in ends if D(g[1]) > now - dt.timedelta(hours=4))
+    st_.pop("ends", None)
     if not dry:
         save_json("sorare_fset.json", st_)
     for k, r in enumerate(rep):
