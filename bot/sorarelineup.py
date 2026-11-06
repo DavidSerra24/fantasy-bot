@@ -260,6 +260,44 @@ def fit_bonus(pick, pool, slots, cap, avg, hard):
     return None if hard and bonus_bad(pick, cap, avg, hard) else pick
 
 
+def clean_level(pick):
+    """Norma de rivals més estricta que compleix l'alineació: 0 = cap rival, 1 = només migcampistes/davanters, 2 = cap."""
+    try:
+        for i, lvl in enumerate(("all", "back")):
+            RIVALS[0] = lvl
+            if not any(faces(a, b) for x, a in enumerate(pick) for b in pick[x + 1:]):
+                return i
+        return 2
+    finally:
+        RIVALS[0] = "all"
+
+
+def swap_rivals(pick, others, slots=CLASSIC, cap=CAP, avg="avg"):
+    """(6/11, el David: Mbeumo ↔ Félix Correia) Si una alineació només surt amb rivals, prova d'intercanviar un jugador
+    amb una alineació anterior de la mateixa competició: els mateixos jugadors, però repartits sense rivals.
+    Només si l'altra alineació no empitjora (rivals i bonificació). Retorna (pick, índex de l'altra, altra nova) o None."""
+    lvl0 = clean_level(pick)
+    if lvl0 == 0:
+        return None
+    best = None
+    for oi, other in enumerate(others):
+        ol0, ob0 = clean_level(other), bonus_bad(other, cap, avg, False)
+        pb0 = bonus_bad(pick, cap, avg, False)
+        for k, a in enumerate(pick):
+            for j, b in enumerate(other):
+                if not (fits(b, slots[k]) and fits(a, slots[j])):
+                    continue
+                np_ = pick[:k] + [b] + pick[k + 1:]
+                no_ = other[:j] + [a] + other[j + 1:]
+                l1, l2 = clean_level(np_), clean_level(no_)
+                if l1 >= lvl0 or l2 > ol0 or bonus_bad(np_, cap, avg, False) > pb0 or bonus_bad(no_, cap, avg, False) > ob0:
+                    continue
+                key = (l1, l2, abs(a["imp"] - b["imp"]))
+                if best is None or key < best[0]:
+                    best = (key, np_, oi, no_)
+    return best and best[1:]
+
+
 def captain(pick):
     return min(pick, key=lambda q: (-q["imp"], q["pos"] == "Goalkeeper", q["idx"]))
 
@@ -672,6 +710,17 @@ def run(mode="dry"):
                 pick = build(pool, CLASSIC)
                 if not pick:
                     break
+                same = [i for i, (l_, _, _) in enumerate(plan) if l_ is lb]
+                sw = swap_rivals(pick, [plan[i][1] for i in same]) if same else None
+                if sw:  # repartir els jugadors entre aquesta alineació i una d'anterior perquè cap tingui rivals
+                    pick, oi, newo = sw
+                    lvl = ("all", "back", "none")[clean_level(pick)]
+                    pick = [dict({k: v for k, v in q.items() if k != "rivals"}, **({"rivals": lvl} if lvl != "all" else {})) for q in pick]
+                    newo = [{k: v for k, v in q.items() if k != "rivals"} for q in newo]
+                    pi = same[oi]
+                    ocap = captain(newo)
+                    plan[pi] = (lb, newo, ocap)
+                    rep.append(f"🔄 {lb['displayName']}: he intercanviat jugadors amb una alineació anterior per evitar rivals → {describe(newo, ocap)} · {preview(lb, newo, ocap)}")
                 cap = captain(pick)
                 n += 1; made += 1
                 used[rarity] |= {q["player"] for q in pick}
