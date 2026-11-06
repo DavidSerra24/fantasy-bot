@@ -87,5 +87,8 @@ def extract_league(page, country, league, day, log=print, use_cache=True):
     data = {"_gw": gw, "_order": teams}
     for t in teams:
         data[t] = page.evaluate("(t) => __si2.team(t)", t)
+    ex = page.evaluate("() => window.__siExtra || {}")
+    data["_bench"] = {t: (ex.get(t) or {}).get("bench") or [] for t in teams}
+    data["_dnp"] = {t: (ex.get(t) or {}).get("dnp") or [] for t in teams}
     save_json(key, {"read_at": now.isoformat(), "data": data})
     return data

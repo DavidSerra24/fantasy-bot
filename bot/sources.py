@@ -73,6 +73,13 @@ def si_entries(sidata):
                 out.append({"name": q.get("name") or "", "key": t, "pct": q.get("pct"), "ps": q.get("ps"), "line": line, "starter": True, "est": bool(q.get("ps_est"))})
                 for sub in q.get("subs") or []:
                     out.append({"name": sub.get("name") or "", "key": t, "pct": sub.get("pct"), "ps": None, "line": line, "starter": False})
+        # «Bench Players» i «DNP Players» de l'expert (6/11): el jugador hi és, amb un 0% de ser titular
+        seen = {e["name"] for e in out if e["key"] == t}
+        for kind in ("_bench", "_dnp"):
+            for n in (sidata.get(kind) or {}).get(t) or []:
+                if n and n not in seen:
+                    out.append({"name": n, "key": t, "pct": 0, "ps": None, "line": "X", "starter": False, kind[1:]: True})
+                    seen.add(n)
     return out
 
 

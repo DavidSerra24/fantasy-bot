@@ -36,6 +36,15 @@ window.__si2 = (function () {
     return rows;
   }
   // Extreu un sol equip (Python fa el bucle per evitar límits de temps).
-  async function team(t) { const st = await __si.openTeam(t); let out; if (st === 'ok') { try { out = await extract(); } catch (e) { out = { err: String(e) }; } } else out = { st }; await __si.close(); await sleep(500); return out; }
-  return { extract, team, slotRows };
+  // Llistes «Bench Players» i «DNP Players» de l'anàlisi de l'expert (6/11: Lapeña era DNP i el bot preguntava per ell)
+  function lists() {
+    const d = dlg(); if (!d) return { bench: [], dnp: [] };
+    const L = d.innerText.split('\n').map(x => x.trim()).filter(Boolean);
+    const grab = (h) => { const i = L.findIndex(x => x === h); if (i < 0) return []; const out = [];
+      for (let k = i + 1; k < L.length && k < i + 40; k++) { if (/^(Bench Players|DNP Players|Copy lineup URL|Comments|Updates)$/.test(L[k])) break; out.push(L[k]); } return out; };
+    return { bench: grab('Bench Players'), dnp: grab('DNP Players') };
+  }
+  window.__siExtra = window.__siExtra || {};
+  async function team(t) { const st = await __si.openTeam(t); let out; if (st === 'ok') { try { out = await extract(); window.__siExtra[t] = lists(); } catch (e) { out = { err: String(e) }; } } else out = { st }; await __si.close(); await sleep(500); return out; }
+  return { extract, team, slotRows, lists };
 })();
