@@ -27,7 +27,7 @@ with sync_playwright() as p:
         inject(pg, "si")
         st = pg.evaluate("(t) => __si.openTeam(t)", t)
         txt = pg.evaluate("() => (document.querySelector('[role=dialog]')||{}).innerText || 'SENSE DIÀLEG'")
-        n = pg.evaluate("() => { const d = document.querySelector('[role=dialog]'); const f = d && d.querySelector('[class*=\\"_field_\\"]'); return f ? f.querySelectorAll('[data-has-player]').length : -1; }")
+        n = pg.evaluate("() => { const d = document.querySelector('[role=dialog]'); const f = d && d.querySelector('[class*=_field_]'); return f ? f.querySelectorAll('[data-has-player]').length : -1; }")
         print(f"::notice title=reobro {t}::{st} · caselles {n} · " + txt.replace("\\n", " | ")[:1500])
         pg.evaluate("() => __si.close()")
     b.close()
