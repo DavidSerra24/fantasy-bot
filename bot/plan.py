@@ -109,6 +109,24 @@ def plan(now=None, done=None, fast_only=False):
             k = f"ff-final:{comp}:{K.isoformat()}"
             if due(k, K - LEAD, K):
                 add(k, K - LEAD, "fffinal", comp, K)
+    # Quiniela (LAE) amb el mètode del David: proposta per Telegram 2 h abans que tanqui l'app (15 min abans del primer
+    # partit; decisió del David, 7/11). Hores de la jornada de static.eduardolosilla.es, refetes cada 6 h.
+    if not fast_only:
+        try:
+            from bot import losilla
+            lst = load_json("losilla.json", {})
+            if not lst.get("at") or now - dt.datetime.fromisoformat(lst["at"]) > dt.timedelta(hours=6) \
+                    or (lst.get("kick") and dt.datetime.fromisoformat(lst["kick"]) < now):
+                lst = dict(lst, **losilla.schedule())
+            if lst.get("kick"):
+                KQ = dt.datetime.fromisoformat(lst["kick"])
+                CQ = KQ - losilla.CLOSE_BEFORE
+                info.append(f"Quiniela J{lst['jornada']}: tanca {CQ.astimezone(MADRID):%a %d %H:%M}")
+                k = f"losilla:{lst['temporada']}_{lst['jornada']}"
+                if f"{lst['temporada']}_{lst['jornada']}" not in lst.get("sent", []) and due(k, CQ - dt.timedelta(hours=2), CQ):
+                    add(k, CQ - dt.timedelta(hours=2), "losilla", f"{lst['temporada']}_{lst['jornada']}", CQ)
+        except Exception as e:
+            info.append(f"Quiniela (Eduardo Losilla): error ({type(e).__name__}: {str(e)[:150]})")
     # Mister: revisió abans de la resolució del mercat (5:00): retira pujes i ven els que han baixat de %
     pre_t = local.replace(hour=4, minute=15, second=0, microsecond=0).astimezone(UTC)
     k = f"mister-pre:{local.date()}"
