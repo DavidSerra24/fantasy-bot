@@ -124,6 +124,17 @@ def _fill(cands, slots, taken, lvl):
     return pick if len(pick) == len(slots) else None
 
 
+def claim_check():
+    """Comprovació curta (cada 10 min; decisió del David, 6/11: reclamar com més aviat millor i fer les alineacions del
+    nivell següent, per si s'acaba just quan comencen més partits). Una sola consulta: només si el tauler personal està
+    per reclamar (CLAIMABLE) o perdut (FAILED) es fa la passada sencera (reclama/reinicia i omple les 4 alineacions)."""
+    b = gql(STEP, {"m": "CAREER"}, token=token())["currentUser"]["setBoard"]
+    st = (b or {}).get("myCurrentStep") or {}
+    if st.get("state") in ("CLAIMABLE", "FAILED"):
+        print(f"::notice title=set futbol::tauler personal {st['state']}: passada sencera")
+        run()
+
+
 def run(dry=False, focus=None):
     """focus = hora (ISO) del primer partit d'unes alineacions: revisió final només d'aquelles (les altres es mantenen;
     decisió del David, 2/11). Sense focus (cada hora): es refan totes les que no han començat i s'omplen les que falten."""

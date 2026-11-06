@@ -235,7 +235,6 @@ if __name__ == "__main__":
          "setrevgo": lambda: __import__("bot.sorareset", fromlist=["review"]).review(dry=False),
          "setgo": lambda: __import__("bot.sorareset", fromlist=["run"]).run(dry=False),
          "arenas": lambda: __import__("bot.sorarelineup", fromlist=["late_arenas"]).late_arenas("prop"),
-         "fsetprobe": lambda: __import__("bot.fsetprobe"),
          "plandry": lambda: __import__("bot.plandry")}[cmd]()
     except Exception as e:
         import traceback

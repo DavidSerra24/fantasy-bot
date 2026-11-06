@@ -45,7 +45,7 @@ def ff_deadline(comp, ffd):
 # Carril ràpid (decisió del David, 6/11): accions curtes i amb hora justa (Sorare, Collectibol) que no han d'esperar
 # les llargues (Fantasy, Predicted11, Mister amb el navegador). bot/execute.py les fa en paral·lel.
 FAST = {"sorare", "sorarefset", "sorarearenas", "sorarearena", "sorarexi", "soraremission", "soraresetscan",
-        "soraresetgo", "soraresetrev", "collectibol"}
+        "soraresetgo", "soraresetrev", "collectibol", "sorarefclaim"}
 
 
 def is_fast(a):
@@ -253,6 +253,13 @@ def plan(now=None, done=None, fast_only=False):
     k = f"sorarefset:{T.isoformat()}"
     if due(k, T, T + dt.timedelta(minutes=55)):
         add(k, T, "sorarefset", T.isoformat(), T + dt.timedelta(minutes=55))
+    # i cada 10 min, una comprovació curta: si el tauler personal està per reclamar o perdut, es reclama/reinicia i es fan
+    # les alineacions del nivell següent de seguida (decisió del David, 6/11)
+    for i in range(10):
+        T = now.replace(minute=(now.minute // 10) * 10, second=0, microsecond=0) + dt.timedelta(minutes=10 * i + 2)
+        k = f"sorarefclaim:{T.isoformat()}"
+        if due(k, T, T + dt.timedelta(minutes=9)):
+            add(k, T, "sorarefclaim", T.isoformat(), T + dt.timedelta(minutes=9))
     for gd in load_json("sorare_fset.json", {}).get("games", []):
         G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
         for mins in (20, 8, 2):
