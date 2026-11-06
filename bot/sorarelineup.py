@@ -861,7 +861,8 @@ def late_arenas(kind="prop", at=None):
         sent += 1
     save_json(ARSTATE, st)
     print(f"::notice title=sorare arenes::prop: {sent} propostes noves; {len(props)} possibles; aprovades {len(approved)} · "
-          + " | ".join(arena_text(p, c) for p, c in props)[:2000])
+          + " | ".join(arena_text(p, c) + " · primer partit " + min(_when(q) for q in p).astimezone(M).strftime("%a %d %H:%M")
+                       + " (" + ", ".join(q["name"] for q in p if _when(q) == min(_when(x) for x in p)) + ")" for p, c in props)[:2500])
 
 
 def run(mode="dry"):
