@@ -87,6 +87,18 @@ def extract_league(page, country, league, day, log=print, use_cache=True):
     data = {"_gw": gw, "_order": teams}
     for t in teams:
         data[t] = page.evaluate("(t) => __si2.team(t)", t)
+    # (6/11) SorareInside de vegades triga a obrir la fitxa i surt «no disponible» o l'onze buit quan sí que hi és:
+    # es torna a provar fins a 2 vegades més els equips que han fallat
+    for _ in range(2):
+        bad = [t for t in teams if not isinstance(data.get(t), list) or sum(len(r) for r in data[t]) < 11]
+        if not bad:
+            break
+        page.wait_for_timeout(2500)
+        for t in bad:
+            r = page.evaluate("(t) => __si2.team(t)", t)
+            if isinstance(r, list) and sum(len(x) for x in r) >= sum(len(x) for x in (data.get(t) if isinstance(data.get(t), list) else [])):
+                data[t] = r
+        log(f"SorareInside {league}: reintent de {len(bad)} equips → {sum(1 for t in bad if isinstance(data.get(t), list) and sum(len(r) for r in data[t]) >= 11)} ara bé")
     ex = page.evaluate("() => window.__siExtra || {}")
     data["_bench"] = {t: (ex.get(t) or {}).get("bench") or [] for t in teams}
     data["_dnp"] = {t: (ex.get(t) or {}).get("dnp") or [] for t in teams}
