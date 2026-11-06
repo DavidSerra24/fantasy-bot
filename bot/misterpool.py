@@ -1,6 +1,6 @@
 """Quiniela del Mister (1 X 2), a partir dels resultats de la quiniela de Predicted11 que envia el David.
 
-- LaLiga  → quiniela «Oficial» i la de la «Comunitat» de Fentaniños.
+- LaLiga  → quiniela de la «Comunitat» de Fentaniños (l'«Oficial» no: el David no la fa).
 - LaLiga 2 → quiniela de la «Comunitat» de Quique.
 Pronòstic: guanya el local → 1, empat → X, guanya el visitant → 2.
 Ús: python -m bot.misterpool laliga "Villarreal 2-1 Espanyol; ..." [--dry]
@@ -13,7 +13,8 @@ from playwright.sync_api import sync_playwright
 from bot.ff import team_score
 from bot.mister import U, login, new_context
 
-POOLS = {"laliga": [(2519290, "pool-public", "Oficial"), (2519290, "pool-private", "Fentaniños")],
+# només les de les comunitats: les oficials el David no les fa (6/11)
+POOLS = {"laliga": [(2519290, "pool-private", "Fentaniños")],
          "laliga2": [(2499621, "pool-private", "Quique")]}
 
 ROWS = """() => [...document.querySelectorAll('.sw-content ul.pool-games > li')].map(li => { const bs = [...li.querySelectorAll('button.btn-pools')];
