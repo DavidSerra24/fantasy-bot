@@ -97,6 +97,8 @@ def cards(lb, floor=8000, rarities=None):
         q["imp"] = GRADE.get(q["grade"], -1)
         copies[q["player"]] = copies.get(q["player"], 0) + 1
         if q["gazza"]:
+            if c["rarityTyped"].lower() != "limited":
+                continue  # (6/11) a l'Arena (amb rareses superiors), el Gazzaniga Rare no compta: es reserva per a l'Arena del David
             gazza.append(q)
         if q["player"] not in seen or q["xp"] > seen[q["player"]]["xp"]:
             seen[q["player"]] = q
