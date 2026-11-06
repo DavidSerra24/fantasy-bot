@@ -158,7 +158,7 @@ def candidates(sidata, official=None, ffp=None):
                         p = dict(p, pct=fp)
                     elif (p.get("pct") or 0) < 80:
                         continue
-                out.append({"si": p["name"], "team": t, "opp": opp.get(t), "ps": p["ps"], "pct": 100 if off is not None else p["pct"]})
+                out.append({"si": p["name"], "team": t, "opp": opp.get(t), "ps": p["ps"], "pct": 100 if off is not None else p["pct"], "est": bool(p.get("ps_est"))})
     out.sort(key=lambda x: -x["ps"])  # ordenació estable: en cas d'empat, l'ordre de la llista
     for i, c in enumerate(out):
         c["idx"] = i
@@ -628,6 +628,9 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                     save_session(sctx, "sorareinside")
                 deadline = dt.datetime.now(MADRID) + dt.timedelta(hours=h)
                 sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
+                if league == "Segunda División":  # PS estimat per als que no en tenen (decisió del David, 6/11)
+                    from bot import psest
+                    sidata = psest.fill(sidata)
                 save_json(f"si_ff_{slug}.json", sidata)
                 remember_teams(sidata)
                 official, olog = {}, []
@@ -636,6 +639,9 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                     official = official_lineups(slug, kickoff, sidata, wait_until=kickoff.astimezone(dt.timezone.utc) - dt.timedelta(minutes=20), log=olog)
                     if official:  # dades fresques: els onzes poden haver canviat mentre esperàvem
                         sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
+                        if league == "Segunda División":
+                            from bot import psest
+                            sidata = psest.fill(sidata)
                 ffp = None
                 if slug == "laliga":  # % de futbolfantasy.com (alineacions probables de la jornada)
                     try:
@@ -659,7 +665,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                     tac, total, pick, changes = r[:4]
                     miss = r[4] if len(r) > 4 else []
                     order = {"G": 0, "D": 1, "M": 2, "F": 3}
-                    names = ", ".join(f"{c['ff']} {c['ps']}" for c in sorted(pick, key=lambda c: order.get(c["pos"], 9)))
+                    names = ", ".join(f"{c['ff']} {'≈' if c.get('est') else ''}{c['ps']}" for c in sorted(pick, key=lambda c: order.get(c["pos"], 9)))
                     sl = read_slots(pg, jid)
                     ok = len(sl) == 11
                     extra = (" | " + "; ".join(olog)) if olog else ""
@@ -675,7 +681,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                     continue
                 (total, _), tac, pick = best
                 order = {"G": 0, "D": 1, "M": 2, "F": 3}
-                names = ", ".join(f"{c['ff']} {c['ps']}" for c in sorted(pick, key=lambda c: order[c["pos"]]))
+                names = ", ".join(f"{c['ff']} {'≈' if c.get('est') else ''}{c['ps']}" for c in sorted(pick, key=lambda c: order[c["pos"]]))
                 warn = f" | ⚠️ no trobats a FutbolFantasy: {', '.join(missing)}" if missing else ""
                 if olog:
                     warn += " | " + "; ".join(olog)

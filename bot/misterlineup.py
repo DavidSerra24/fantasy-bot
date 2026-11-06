@@ -193,7 +193,7 @@ def set_captain(pg, url, slot):
 
 def describe(tac, pick, cap):
     o = {"G": 0, "D": 1, "M": 2, "F": 3}
-    desc = f"{tac}: " + ", ".join(f"{q['short']}{' ©' if q is cap else ''} ({q['xpct'] if q['xpct'] is not None else '?'}%/{q['xps'] if q['xps'] is not None else '-'})"
+    desc = f"{tac}: " + ", ".join(f"{q['short']}{' ©' if q is cap else ''} ({q['xpct'] if q['xpct'] is not None else '?'}%/{'≈' if (q.get('si') or {}).get('est') else ''}{q['xps'] if q['xps'] is not None else '-'})"
                                   for q in sorted(pick, key=lambda q: o[q["P"]]))
     skips = [q["short"] for q in pick if q.get("rule_skip")]
     if skips:
@@ -267,7 +267,7 @@ def apply(pg, squad, dry=False):
     tac, pick, cap = res
     gaps = 11 - len(pick)
     o = {"G": 0, "D": 1, "M": 2, "F": 3}
-    desc = f"{tac}: " + ", ".join(f"{q['short']}{' ©' if q is cap else ''} ({q['xpct'] if q['xpct'] is not None else '?'}%/{q['xps'] if q['xps'] is not None else '-'})"
+    desc = f"{tac}: " + ", ".join(f"{q['short']}{' ©' if q is cap else ''} ({q['xpct'] if q['xpct'] is not None else '?'}%/{'≈' if (q.get('si') or {}).get('est') else ''}{q['xps'] if q['xps'] is not None else '-'})"
                                   for q in sorted(pick, key=lambda q: o[q["P"]]))
     skips = [q["short"] for q in pick if q.get("rule_skip")]
     if skips:

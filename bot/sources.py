@@ -70,7 +70,7 @@ def si_entries(sidata):
         for i, r in enumerate(rows):
             line = "G" if i == 0 else "X"  # la primera fila de SorareInside és la del porter
             for q in r:
-                out.append({"name": q.get("name") or "", "key": t, "pct": q.get("pct"), "ps": q.get("ps"), "line": line, "starter": True})
+                out.append({"name": q.get("name") or "", "key": t, "pct": q.get("pct"), "ps": q.get("ps"), "line": line, "starter": True, "est": bool(q.get("ps_est"))})
                 for sub in q.get("subs") or []:
                     out.append({"name": sub.get("name") or "", "key": t, "pct": sub.get("pct"), "ps": None, "line": line, "starter": False})
     return out

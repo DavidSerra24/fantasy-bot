@@ -21,6 +21,14 @@ from bot import sources
 
 
 def si_next(spg, country, league):
+    d = _si_next(spg, country, league)
+    if league == "Segunda División":  # PS estimat per als que no en tenen (decisió del David, 6/11)
+        from bot import psest
+        d = psest.fill(d)
+    return d
+
+
+def _si_next(spg, country, league):
     """SorareInside de la propera jornada que encara no ha començat. Primer el dia del primer partit d'aquella jornada
     (state/mister_kickoffs.json, el desa el planificador); abans es mirava sempre «d'aquí 4 dies», i el dia que
     començava la jornada (dissabte) agafava la de la setmana següent, encara sense onzes ni PS (error del 31/10)."""
