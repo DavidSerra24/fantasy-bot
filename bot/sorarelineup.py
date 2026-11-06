@@ -32,7 +32,7 @@ SHORT = {"Goalkeeper": "POR", "Defender": "DEF", "Midfielder": "MIG", "Forward":
 
 FIXTURE = """query { so5 { so5Fixture(sport: FOOTBALL, type: UPCOMING, eventType: CLASSIC) { slug gameWeek cutOffDate
   so5Leaderboards { id slug displayName mainRarityType isArena format { title entryItem { id myEntryItemId ... on So5CardShardsEntryItem { quantity rarity } } } }
-  mySo5Lineups { id so5Leaderboard { slug displayName isArena format { title } } so5Appearances { captain anyCard { slug } anyPlayer { displayName slug } } } } } }"""
+  mySo5Lineups { id so5Leaderboard { slug displayName isArena mainRarityType format { title } } so5Appearances { captain anyCard { slug } anyPlayer { displayName slug } } } } } }"""
 
 SAVE = """mutation($input: createOrUpdateSo5LineupInput!) { createOrUpdateSo5Lineup(input: $input) {
   so5Lineup { id } errors { message code } } }"""
@@ -687,7 +687,12 @@ def arena_props(fx, final=False):
     now = dt.datetime.now(dt.timezone.utc)
     lus = fx.get("mySo5Lineups") or []
     busy = {a["anyCard"]["slug"] for l in lus for a in l["so5Appearances"]}
-    busy_p = {a["anyPlayer"].get("slug") for l in lus for a in l["so5Appearances"]}
+    # jugadors ja alineats: només compten els de les alineacions Limited i les Arenes (un jugador pot anar a Rare i a
+    # Limited; 6/11: ter Stegen era a All Star Rare i el bot no el posava a cap Arena)
+    busy_p = {a["anyPlayer"].get("slug") for l in lus for a in l["so5Appearances"]
+              if l["so5Leaderboard"].get("isArena") or (l["so5Leaderboard"].get("mainRarityType") or "").lower() == "limited"}
+    print("::notice title=sorare arenes ocupats::" + ", ".join(sorted(a["anyPlayer"]["displayName"] for l in lus for a in l["so5Appearances"]
+                                                                       if a["anyPlayer"].get("slug") in busy_p))[:1500])
     cache, pool = {}, []
     for q in cards(arena, floor=2000, rarities=ARENA_RAR):
         base_p = q["player"].split("#")[0]
