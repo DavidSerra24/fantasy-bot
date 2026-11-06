@@ -140,6 +140,8 @@ def candidates(sidata, official=None, ffp=None):
         rows = sidata.get(t)
         if not isinstance(rows, list):
             continue
+        if team_postponed(t):  # (6/11) partit aplaçat que SorareInside encara té (Castellón–Eibar): fora
+            continue
         off = official.get(t)
         for r in rows:
             for p in r:
@@ -465,6 +467,23 @@ def remember_teams(sidata):
 
 
 _PP = []
+
+
+def team_postponed(team):
+    """Equip de SorareInside amb el partit aplaçat (FotMob o «/aplaçat» del David)."""
+    if not _PP:
+        postponed_team("")
+    pp = _PP[0] if _PP else {}
+    stop = {"fc", "cf", "ac", "sc", "afc", "cd", "ud", "rc", "ss", "us", "calcio", "club", "de", "sk", "fk", "kv", "sd", "rcd", "ca", "real"}
+
+    def same(a, b):  # «Manchester City» ≠ «Manchester United»: tots els mots d'un dins de l'altre (o prefix d'un sol mot)
+        ta, tb = set(norm(a)) - stop, set(norm(b)) - stop
+        if not ta or not tb:
+            return False
+        if ta <= tb or tb <= ta:
+            return True
+        return len(ta) == 1 == len(tb) and any(len(x) >= 5 and (x.startswith(y) or y.startswith(x)) for x in ta for y in tb)
+    return next((t for t in pp if same(team, t)), None)
 
 
 def postponed_team(name, img=""):
