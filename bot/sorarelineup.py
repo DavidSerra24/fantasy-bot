@@ -694,7 +694,10 @@ def arena_props(fx, final=False):
     print("::notice title=sorare arenes ocupats::" + ", ".join(sorted(a["anyPlayer"]["displayName"] for l in lus for a in l["so5Appearances"]
                                                                        if a["anyPlayer"].get("slug") in busy_p))[:1500])
     cache, pool = {}, []
-    for q in cards(arena, floor=2000, rarities=ARENA_RAR):
+    allq = cards(arena, floor=2000, rarities=ARENA_RAR)
+    print("::notice title=sorare arenes porters::" + ", ".join(f"{q['name']} (tier {q['tier']}, {q.get('date')}, carta {'ocupada' if q['card'] in busy else 'lliure'})"
+                                                                 for q in allq if q["pos"] == "Goalkeeper")[:1500])
+    for q in allq:
         base_p = q["player"].split("#")[0]
         if q["card"] in busy or (base_p in busy_p and not q["gazza"]) or not q.get("date") or (q["girona"] and not q["gazza"]):
             continue
