@@ -363,11 +363,31 @@ def use_items(page, comp_slug, pick, report):
                 cards = page.locator(".modal.show .item-card")
                 continue
             target = max(eligible, key=lambda c: (-given.get(c["ff"], 0), c["ps"], -c["idx"]))
-            el = page.locator(".modal.show").get_by_text(target["ff"], exact=True).first
+            el = page.locator(".modal.show").get_by_text(target["ff"], exact=True)
+            if not el.count():  # (6/11, «Pedri»): el nom surt amb més text al voltant; si no hi és ni així, l'ítem se salta
+                el = page.locator(".modal.show").get_by_text(target["ff"])
+            if not el.count():
+                report.append(f"   ⚠️ ítem {name}: no trobo {target['ff']} a la finestra, el salto")
+                tried.add(key)
+                close_modal(page)
+                btn.click()
+                page.wait_for_timeout(1500)
+                cards = page.locator(".modal.show .item-card")
+                continue
+            el = el.first
             try:
                 el.click(timeout=8000)
             except Exception:  # (3/11) el text no rep el clic (tapat o fora de pantalla): clic per JS al seu element clicable
-                el.evaluate("e => (e.closest('button, a, li, .sel-item, [onclick]') || e).click()")
+                try:
+                    el.evaluate("e => (e.closest('button, a, li, .sel-item, [onclick]') || e).click()", timeout=8000)
+                except Exception as e:
+                    report.append(f"   ⚠️ ítem {name} → {target['ff']}: {type(e).__name__}, el salto")
+                    tried.add(key)
+                    close_modal(page)
+                    btn.click()
+                    page.wait_for_timeout(1500)
+                    cards = page.locator(".modal.show .item-card")
+                    continue
             page.wait_for_timeout(2000)
             given[target["ff"]] = given.get(target["ff"], 0) + 1
             report.append(f"   🎁 {name} → {target['ff']}")
