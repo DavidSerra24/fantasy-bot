@@ -10,4 +10,8 @@ i = h.find('data-name="juan otero"')
 row = h[i:h.find("</tr>", i)]
 cells = re.findall(r'<td[^>]*data-value="([^"]+)"[^>]*data-total="([^"]*)"[^>]*data-casa="([^"]*)"[^>]*data-fuera="([^"]*)"', row)
 print("::notice title=cells::" + " | ".join(f"{a}={b}/{c}/{d}" for a, b, c, d in cells)[:6000])
+ths = re.findall(r'<th[^>]*>(.*?)</th>', h[:h.find('data-name=')], re.S)
+print("::notice title=ths::" + " | ".join(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", t)).strip() + "~" + (re.search(r'data-value="([^"]+)"', t) or [None, ""])[1] for t in ths)[:3000])
+for m in re.finditer(r'(<th[^>]*(?:23|24)-total[^>]*>.*?</th>)', h, re.S):
+    print("::notice title=th::" + re.sub(r"\s+", " ", m.group(1))[:600])
 print("::notice title=rest::" + re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", row[-3000:]))[:2000])
