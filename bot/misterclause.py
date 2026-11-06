@@ -34,7 +34,12 @@ def main(league="Quique", pos="POR", minimum=60, loan_only=None, maxpct=None, se
     me = mm.group(1) if mm else None
     cands, seen = [], set()
     loan_only = ("--cedibles" in sys.argv) if loan_only is None else loan_only
-    sources = [api.page("/" + path) for path, uid in users]
+    sources = []
+    for path, uid in users:  # un mànager que ha deixat la lliga encara surt a la classificació i la seva pàgina fa 404 (6/11)
+        try:
+            sources.append(api.page("/" + path))
+        except Exception as e:
+            print(f"::warning title=mister usuari::{path}: {str(e)[:120]} (el salto)")
     loanable = set()
     market = api.page("/market")
     for li in re.findall(r"<li[^>]*data-loanable=\"1\"[^>]*>.*?</li>", market, re.S):
