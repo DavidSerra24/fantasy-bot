@@ -254,14 +254,14 @@ def plan(now=None, done=None, fast_only=False):
     if due(k, T, T + dt.timedelta(minutes=55)):
         add(k, T, "sorarefset", T.isoformat(), T + dt.timedelta(minutes=55))
     # Reclamar com més aviat millor (decisió del David, 6/11): el nivell es pot superar abans que juguin els 5 jugadors,
-    # així que es mira cada 10 min (a :02, :12…) des de 20 min després del primer partit de cada alineació del tauler
+    # així que es mira cada 10 min (a :02, :12…) des de 1 h 45 després del primer partit de cada alineació del tauler
     # personal fins a 3 h 30 després de l'inici de l'últim. Fora d'aquí no (la passada de cada hora també ho fa).
     spans = [(dt.datetime.fromisoformat(f.replace("Z", "+00:00")), dt.datetime.fromisoformat(l.replace("Z", "+00:00")))
              for f, l in load_json("sorare_fset.json", {}).get("spans", [])]
     for i in range(10):
         T = now.replace(minute=(now.minute // 10) * 10, second=0, microsecond=0) + dt.timedelta(minutes=10 * i + 2)
         k = f"sorarefclaim:{T.isoformat()}"
-        if any(F + dt.timedelta(minutes=20) <= T <= L + dt.timedelta(minutes=210) for F, L in spans) and due(k, T, T + dt.timedelta(minutes=9)):
+        if any(F + dt.timedelta(minutes=105) <= T <= L + dt.timedelta(minutes=210) for F, L in spans) and due(k, T, T + dt.timedelta(minutes=9)):
             add(k, T, "sorarefclaim", T.isoformat(), T + dt.timedelta(minutes=9))
     for gd in load_json("sorare_fset.json", {}).get("games", []):
         G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
