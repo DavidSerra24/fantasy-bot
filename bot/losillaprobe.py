@@ -17,12 +17,13 @@ with sync_playwright() as p:
     pg.goto("https://www.eduardolosilla.es/quiniela/ayudas/analisis", wait_until="networkidle", timeout=60000)
     pg.wait_for_timeout(2000)
     n0 = len(calls)
-    h = pg.evaluate("""() => { const h=document.body.innerHTML; let out=[]; let i=0;
-        for (const k of ['PROBABLES','Probables','probables','TÉCNICOS','Técnicos','tecnicos']) { let j=h.indexOf(k); while(j>=0 && out.length<12){ out.push(k+'@'+j+': '+h.slice(Math.max(0,j-400), j+150).replace(/\\s+/g,' ')); j=h.indexOf(k,j+1);} }
-        return out.join(' ##### '); }""")
-    print("::notice title=html::" + h[:3900])
-    h2 = pg.evaluate("() => document.querySelector('.c-porcentajes-analisis') ? document.querySelector('.c-porcentajes-analisis').outerHTML.slice(0,3500) : 'cap'")
-    print("::notice title=taula::" + h2.replace("\n", " ")[:3900])
+    ROWS = """() => [...document.querySelectorAll('.c-porcentajes-analisis tr.c-porcentajes-analisis__partido')].map(tr =>
+        [...tr.querySelectorAll('td')].map(td => td.textContent.trim() || '-').join(' ')).join(' | ')"""
+    for v, tab in ((0, "QUINIELISTA"), (1, "PROBABLES"), (2, "LAE"), (3, "TÉCNICOS")):
+        n0 = len(calls)
+        pg.select_option("select[aria-label=SelectorQUINIELISTA], select.c-selector__select >> nth=0", str(v))
+        pg.wait_for_timeout(3000)
+        print(f"::notice title=filtre {tab}::" + pg.evaluate(ROWS) + " ¶ xhr: " + " ; ".join(u[:150] for u, _ in calls[n0:]))
     tbl = pg.evaluate("() => { const t=[...document.querySelectorAll('table')].map(x=>x.outerHTML.length+' '+x.className); return t.join(' / ') }")
     print("::notice title=taules::" + tbl[:1000])
     b.close()
