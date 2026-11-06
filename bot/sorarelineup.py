@@ -781,6 +781,7 @@ def late_arenas(kind="prop", at=None):
         st.update(sent_at=int(time.time()) - 5, sent_n=len(props) - max(left, 0), sig=sig)
     elif not props:
         st["sig"] = ""
+        st["sent_at"] = None  # una proposta antiga ja no val: s'esperarà la nova, amb el primer jugador confirmat
     save_json(ARSTATE, st)
     print(f"::notice title=sorare arenes::prop: {len(props)} a punt (primer jugador titular confirmat), {len(waiting)} esperant l'onze, aprovades pendents {left} · "
           + " | ".join(arena_text(p, c) for p, c in props + waiting)[:2000])
