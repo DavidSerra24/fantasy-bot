@@ -628,7 +628,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                     save_session(sctx, "sorareinside")
                 deadline = dt.datetime.now(MADRID) + dt.timedelta(hours=h)
                 sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
-                if slug in ("laliga2", "laliga"):  # PS estimat amb els punts de Fantasy✨ per als que no en tenen (el David, 6/11)
+                if slug == "laliga2":  # PS estimat amb els punts de Fantasy✨ (només Segona: és l'única amb jugadors sense carta; el David, 6/11)
                     from bot import psest
                     sidata = psest.fill(sidata, source="ff", comp=slug)
                 save_json(f"si_ff_{slug}.json", sidata)
@@ -639,7 +639,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                     official = official_lineups(slug, kickoff, sidata, wait_until=kickoff.astimezone(dt.timezone.utc) - dt.timedelta(minutes=20), log=olog)
                     if official:  # dades fresques: els onzes poden haver canviat mentre esperàvem
                         sidata = si.extract_league(spg, country, league, deadline.date(), use_cache=False)
-                        if slug in ("laliga2", "laliga"):
+                        if slug == "laliga2":
                             from bot import psest
                             sidata = psest.fill(sidata, source="ff", comp=slug)
                 ffp = None
