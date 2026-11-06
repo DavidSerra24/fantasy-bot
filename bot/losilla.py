@@ -4,12 +4,14 @@ Cada partit té 5 columnes (BASE, PROB., POS., DIFÍCIL, BOMBA) per a cada filtr
 - Columna 1: el filtre amb més X a la columna PROB. (un doble com «X2» compta com a X); aquells partits → X.
   La resta, la BASE de Técnicos. Empat de filtres: Probables → LAE → Quinielista → Técnicos.
 - Columna 2: Técnicos sencer: on hi ha signe a PROB., aquell signe (si és doble, la X primer); si no, la BASE.
-- Ple al 15: BASE de Técnicos (gols del local i del visitant), provisional fins que el David digui com el fa.
+- Ple al 15: BASE de Técnicos (gols del local i del visitant), com el David.
+- Elige 8 (sobre la columna 1): els 8 partits amb el signe més probable segons Probables (quotes); el David ho feia a l'atzar.
 El bot només ho envia per Telegram 2 h abans que tanqui (= 15 min abans del primer partit): no juga ni paga res.
 Dades: la taula de la web (Playwright). Hores dels partits: static.eduardolosilla.es/cache/analisis<temp>_<jornada>.json.
 Ús: python -m bot.losilla [--send]
 """
 import datetime as dt
+import re
 import sys
 from zoneinfo import ZoneInfo
 
@@ -72,8 +74,12 @@ def tables():
                 if rows != prev and len(rows) >= 15:
                     break
             out[f] = rows
+            txt = pg.inner_text("body")  # taula «% <FILTRE>»: %1 %X %2 dels 14 partits (després, el ple)
+            i, j = txt.find("%2"), txt.find("CSV")
+            nums = [int(x) for x in re.findall(r"\b\d{1,3}\b", txt[i + 2:j])] if 0 <= i < j else []
+            out.setdefault("_pct", {})[f] = [nums[k:k + 3] for k in range(0, 42, 3)] if len(nums) >= 42 else None
         b.close()
-    if any(len(r) < 14 for r in out.values()):
+    if any(len(r) < 14 for k, r in out.items() if k != "_pct"):
         raise RuntimeError("la taula d'Análisis no té els 14 partits")
     return out
 
@@ -91,7 +97,19 @@ def build(T):
     c1 = ["X" if i in xs[best] else pick(tec[i][0]) for i in range(14)]
     c2 = [pick(tec[i][1]) if tec[i][1] else pick(tec[i][0]) for i in range(14)]
     pleno = f"{tec[14][0] or '?'}-{tec[15][0] or '?'}" if len(tec) >= 16 else "?"
-    return {"best": best, "xcount": {f: len(v) for f, v in xs.items()}, "c1": c1, "c2": c2, "pleno": pleno}
+    # Elige 8 (sobre la columna 1): els 8 partits on el signe de la columna 1 és més probable segons Probables (les quotes
+    # de les cases d'apostes); si no hi ha els % de Probables, els de LAE
+    pct, src = None, None
+    for f in ("PROBABLES", "LAE", "QUINIELISTA"):
+        if (T.get("_pct") or {}).get(f):
+            pct, src = T["_pct"][f], f
+            break
+    e8 = []
+    if pct:
+        prob = [pct[i]["1X2".index(c1[i])] if c1[i] in "1X2" and c1[i] else 0 for i in range(14)]
+        e8 = sorted(sorted(range(14), key=lambda i: -prob[i])[:8])
+        e8 = [(i, prob[i]) for i in e8]
+    return {"best": best, "xcount": {f: len(v) for f, v in xs.items()}, "c1": c1, "c2": c2, "pleno": pleno, "e8": e8, "e8src": src}
 
 
 def message(sch, R, T):
@@ -106,7 +124,8 @@ def message(sch, R, T):
         lines.append(f"{i + 1}. {n.title()}: {R['c1'][i]} | {R['c2'][i]}")
     lines += [f"15. Ple (BASE de Técnicos): {R['pleno']}",
               "", "X a PROB. per filtre: " + ", ".join(f"{f.capitalize()} {n}" for f, n in R["xcount"].items()),
-              "Elige 8: encara no sé com el fas (digues-m'ho)."]
+              ("Elige 8 (columna 1, els 8 signes més probables segons " + R["e8src"].capitalize() + "): "
+               + ", ".join(f"{i + 1} ({R['c1'][i]} {p}%)" for i, p in R["e8"]) if R["e8"] else "Elige 8: no he pogut llegir els %, fes-lo a l'atzar")]
     return "\n".join(lines)
 
 
