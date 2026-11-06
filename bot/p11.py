@@ -178,9 +178,8 @@ def run(comps, force=False, max_hours=30.0):
     _pa = load_json("p11_alias.json", {})
     for k, v in _pa.items():
         CFG["alias"][k] = f"__no__ {k}" if str(v).lower() == "no" else v
-    for k, v in _pa.items():  # també escrit al revés (5/11)
-        if str(v).lower() != "no" and v not in _pa and v not in CFG["alias"]:
-            CFG["alias"][v] = k
+    # (6/11) ja NO s'afegeix l'equivalència al revés: convertia noms de Predicted11 correctes («Nico Paz») en els de
+    # SorareInside i el jugador quedava sense posar (Como amb 10, Acheampong al Chelsea)
     with sync_playwright() as p:
         b = p.chromium.launch()
         ctx_p11 = new_context(b, "predicted11")
@@ -248,16 +247,21 @@ def run(comps, force=False, max_hours=30.0):
                     if c["n"] == 11 and c["icons"] != 3 and c["tactic"] != "Manual" and nops:
                         pending.append(slug)  # onze posat; falten punts projectats per a les icones
                         ok += 1
-                    un = re.search(r"UN:([^()]*?)(?: AMB:| SUBSTITUT:| DUBTE:| \(|$)", res.get("msg", ""))
-                    sub = re.search(r"SUBSTITUT:([^()]*?)(?: AMB:| UN:| DUBTE:| \(|$)", res.get("msg", ""))
-                    dub = re.search(r"DUBTE:([^()]*?)(?: AMB:| UN:| SUBSTITUT:| \(|$)", res.get("msg", ""))
+                    un = re.search(r"UN:([^()]*?)(?: AMB:| SUBSTITUT:| DUBTE:| FORÇAT:| \(|$)", res.get("msg", ""))
+                    sub = re.search(r"SUBSTITUT:([^()]*?)(?: AMB:| UN:| DUBTE:| FORÇAT:| \(|$)", res.get("msg", ""))
+                    dub = re.search(r"DUBTE:([^()]*?)(?: AMB:| UN:| SUBSTITUT:| FORÇAT:| \(|$)", res.get("msg", ""))
+                    forced = re.search(r"FORÇAT:([^()]*?)(?: AMB:| UN:| SUBSTITUT:| DUBTE:| \(|$)", res.get("msg", ""))
+                    forced_si = {x.partition("→")[0] for x in (forced.group(1).strip().split("|") if forced else [])}
                     if dub:  # noms semblants no confirmats: no s'han posat (decisió del David, 4/11)
                         for pair in dub.group(1).strip().split("|"):
                             a, _, b_ = pair.partition("=")
                             if a and b_:
-                                bad.append(f"{slug}: ❓ «{a}» (SorareInside) és «{b_}» a Predicted11? No l'he posat. Respon «/p11 {a} = {b_}» si és el mateix (o «= no»)")
+                                done_ = "L'he posat igualment perquè no hi havia cap suplent segur (mai deixo l'onze amb menys d'11)" if a in forced_si else "No l'he posat"
+                                bad.append(f"{slug}: ❓ «{a}» (SorareInside) és «{b_}» a Predicted11? {done_}. Respon «/p11 {a} = {b_}» si és el mateix (o «= no»)")
                     if sub:  # s'ha posat el suplent, però cal corregir el nom
                         bad.append(f"{slug}: ❓ no trobo a Predicted11 i hi he posat el suplent ({sub.group(1).strip()}) — digues-me com es diu allà i ho corregeixo")
+                    if c["n"] != 11:  # (6/11, Como amb 10) que no passi desapercebut
+                        bad.append(f"{slug}: 🚨 l'onze ha quedat amb {c['n']} jugadors: revisa'l!")
                     if un:
                         bad.append(f"{slug}: ❓ no trobo a Predicted11: {un.group(1).strip()} — digues-me com es diu allà i ho corregeixo")
                     elif c["n"] != 11 or c["icons"] != 3 or c["tactic"] == "Manual":

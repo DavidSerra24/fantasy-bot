@@ -66,9 +66,12 @@ window.__p11 = (function () {
       btn.click(); await sleep(700);
       const list = items(); let m = match(p.name, list, used, posFor(k, sizes));
       // nom semblant però no idèntic (decisió del David, 4/11): no es posa fins que el David el confirmi (/p11 A = B)
-      if (m.x && m.s < 75) { log.doubt.push(p.name + '=' + m.x.nombre); m = { none: true }; }
+      let doubtful = null;
+      if (m.x && m.s < 75) { log.doubt.push(p.name + '=' + m.x.nombre); doubtful = m; m = { none: true }; }
       if (!m.x && (p.subs || []).length) { // no és a Predicted11: posar el suplent que indica SorareInside (i s'avisa el David)
          const m2 = match(p.subs[0].name, list, used, posFor(k, sizes)); if (m2.x && m2.s >= 75) { log.subbed = (log.subbed || []).concat(p.name + '→' + m2.x.nombre); m = m2; } }
+      // (6/11) mai una casella buida: si no hi ha cap suplent segur, es posa el nom dubtós (i s'avisa)
+      if (!m.x && doubtful) { m = doubtful; log.forced = (log.forced || []).concat(p.name + '→' + m.x.nombre); }
       if (m.x) { used.add(m.x.id); m.x.el.click(); placed.push({ si: p.name, p11: m.x.nombre, id: m.x.id, s: m.s }); await sleep(900); }
       else { if (m.amb) log.amb.push(p.name + ' → ' + m.amb.join(' / ')); else log.unmatched.push(p.name);
         document.getElementById('closePlayerSelector')?.click();
@@ -116,7 +119,7 @@ window.__p11 = (function () {
     const st = state(); let res = prev && prev.placed ? prev : null; let msg = '';
     if (!res || prev.sig !== sig || st.tactic === 'Manual' || st.n < 11) {
       const log = await fill(entry.rows, {});
-      res = { sig, formation: log.formation, placed: log.placed }; msg = 'FILLED ' + log.formation + ' ' + log.placed.length + (log.unmatched.length ? ' UN:' + log.unmatched.join(',') : '') + (log.amb.length ? ' AMB:' + log.amb.join(',') : '') + (log.subbed ? ' SUBSTITUT:' + log.subbed.join(',') : '') + (log.doubt.length ? ' DUBTE:' + log.doubt.join('|') : '');
+      res = { sig, formation: log.formation, placed: log.placed }; msg = 'FILLED ' + log.formation + ' ' + log.placed.length + (log.unmatched.length ? ' UN:' + log.unmatched.join(',') : '') + (log.amb.length ? ' AMB:' + log.amb.join(',') : '') + (log.subbed ? ' SUBSTITUT:' + log.subbed.join(',') : '') + (log.doubt.length ? ' DUBTE:' + log.doubt.join('|') : '') + (log.forced ? ' FORÇAT:' + log.forced.join('|') : '');
     }
     if (!res.placed || res.placed.length < 11) { res.msg = (msg || '') + ' (icones no tocades: onze incomplet)'; return res; }
     const flat = entry.rows.flat();
