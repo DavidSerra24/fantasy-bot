@@ -122,6 +122,8 @@ def fill(sidata, log=print):
     vx = sum((x - mx) ** 2 for x in xs)
     b = max(0.5, sum((x - mx) * (y - my) for x, y in pairs) / vx) if vx else 1.0
     a = my - b * mx
+    vy = sum((y - my) ** 2 for y in ys)
+    r = (sum((x - mx) * (y - my) for x, y in pairs) / (vx * vy) ** 0.5) if vx and vy else 0
     done = []
     for t, lst in rows_by_team.items():
         ratios = [p["ps"] / (a + b * x) for p, x in lst if p.get("ps") is not None and not p.get("ps_est") and a + b * x > 5]
@@ -131,7 +133,7 @@ def fill(sidata, log=print):
                 p["ps"] = int(round(max(5.0, (a + b * x) * f)))
                 p["ps_est"] = True
                 done.append(f"{p['name']} ({t}) ≈{p['ps']}")
-    msg = (f"PS estimat (Segona): recta PS = {a:.1f} + {b:.2f}·mitjana Mister (amb {len(pairs)} jugadors); "
+    msg = (f"PS estimat (Segona): recta PS = {a:.1f} + {b:.2f}·mitjana Mister (amb {len(pairs)} jugadors, correlació {r:.2f}); "
            f"{len(done)} estimats: " + ", ".join(done[:60]))
     print("::notice title=PS estimat::" + msg[:3500])
     return sidata
