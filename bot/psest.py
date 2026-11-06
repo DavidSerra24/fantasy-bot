@@ -36,10 +36,12 @@ def parse_roster(html):
             continue
         pos = re.search(r"data-position='(\d)'", li)
         avg = re.search(r'<div class="avg[^"]*">\s*([-\d.,]+)\s*</div>', li)
+        pts = re.search(r'<div class="points">\s*(-?\d+)\s*</div>', li)
         st = re.search(r'<div class="streak">(.*?)</div>', li, re.S)
         streak = [_num(x) for x in re.findall(r"<span[^>]*>\s*([^<]*?)\s*</span>", st.group(1))] if st else []
-        out.append({"id": m.group(1), "name": m.group(2).replace("-", " "), "pos": int(pos.group(1)) if pos else None,
-                    "avg": _num(avg.group(1)) if avg else None, "streak": [x for x in streak if x is not None]})
+        a_, p_ = (_num(avg.group(1)) if avg else None), (_num(pts.group(1)) if pts else None)
+        out.append({"pj": round(p_ / a_) if a_ and p_ is not None and a_ > 0 else (0 if not a_ else None), "id": m.group(1), "name": m.group(2).replace("-", " "), "pos": int(pos.group(1)) if pos else None,
+                    "avg": _num(avg.group(1)) if avg else None, "points": _num(pts.group(1)) if pts else None, "streak": [x for x in streak if x is not None]})
     return out
 
 

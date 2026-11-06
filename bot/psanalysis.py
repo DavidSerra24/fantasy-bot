@@ -1,117 +1,102 @@
-"""Diagnosi: com es relaciona el PS de SorareInside amb el % de titular, la posició i els punts (Mister / Fantasy✨)."""
-import re
+"""Diagnosi: quines dades milloren el PS estimat de Segona (validació deixant-ne un fora).
+Variables: mitjana de la temporada, casa/fora, partits jugats (encongiment cap a la mitjana de la posició) i força
+del rival (taula de FotMob: punts per partit i gols encaixats per partit)."""
 import statistics
 
 import requests
 
+from bot import psest
 from bot.ff import name_score, team_score
+from bot.fotmob import H
 from bot.web import load_json
 
-H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"}
+
+def table():
+    """{equip: {ppg, ga, gf}} de LaLiga 2 (FotMob)."""
+    for url in ("https://www.fotmob.com/api/data/tables?leagueId=140", "https://www.fotmob.com/api/data/leagues?id=140&ccode3=ESP"):
+        try:
+            d = requests.get(url, headers=H, timeout=30).json()
+        except Exception as e:
+            print(f"::notice title=taula err::{url} {e}")
+            continue
+        blobs = d if isinstance(d, list) else (d.get("table") or [])
+        rows = []
+        for b in blobs if isinstance(blobs, list) else [blobs]:
+            t = ((b.get("data") or {}).get("table") or {}).get("all") or []
+            rows += t
+        if rows:
+            out = {}
+            for r in rows:
+                pl = r.get("played") or 1
+                sc = str(r.get("scoresStr") or "0-0").split("-")
+                out[r["name"]] = {"ppg": (r.get("pts") or 0) / pl, "gf": int(sc[0]) / pl, "ga": int(sc[1]) / pl}
+            print(f"::notice title=taula::{url}: {len(out)} equips")
+            return out
+    return {}
 
 
-def ff_points(comp="laliga2"):
-    url = f"https://www.futbolfantasy.com/analytics/{comp + '/' if comp != 'laliga' else ''}estadisticas-puntos/2027?puntuacion=futbolfantasy-rpg"
-    h = requests.get(url, headers=H, timeout=60).text
-    print(f"::notice title=ff html::{len(h)} trs {h.count('<tr data-name')}")
-    out = []
-    for m in re.finditer(r'<tr data-name="([^"]+)"\s+data-posicion="([^"]*)"\s+data-equipo="(\d+)"[^>]*>(.*?)</tr>', h, re.S):
-        row = m.group(4)
-        team = re.search(r'<div class="player-equipo">.*?<span>([^<]+)</span>', row, re.S)
-        c = dict((a, (b, cc, d)) for a, b, cc, d in re.findall(r'data-value="([^"]+)"[^>]*data-total="([^"]*)"[^>]*data-casa="([^"]*)"[^>]*data-fuera="([^"]*)"', row))
-        f = lambda k, i: float(c[k][i]) if k in c and c[k][i] not in ("", None) else None
-        out.append({"name": m.group(1), "pos": m.group(2), "team": team.group(1) if team else "", "pj": f("partidos", 0),
-                    "avg": f("23-totalPorPartido", 0), "home": f("23-totalPorPartido", 1), "away": f("23-totalPorPartido", 2)})
-    return out
+def loo(X, y):
+    """Error mitjà absolut deixant cada jugador fora (es reajusta el model sense ell)."""
+    errs = []
+    for i in range(len(y)):
+        Xi, yi = X[:i] + X[i + 1:], y[:i] + y[i + 1:]
+        c = psest._lsq(Xi, yi)
+        if not c:
+            return None
+        errs.append(abs(sum(a * b for a, b in zip(c, X[i])) - y[i]))
+    return statistics.mean(errs)
 
 
-def corr(xs, ys):
-    mx, my = statistics.mean(xs), statistics.mean(ys)
-    vx = sum((x - mx) ** 2 for x in xs); vy = sum((y - my) ** 2 for y in ys)
-    return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / (vx * vy) ** 0.5 if vx and vy else 0
+T = table()
+sid = load_json("si_ff_laliga2.json", {})
+order = sid.get("_order", [])
+for source in ("mister", "ff"):
+    if source == "ff":
+        P = psest.ff_points("laliga2")
+        pool = lambda t: [q for q in P if team_score(q["team"], t) > 0]
+    else:
+        R = psest.rosters(force=True)
 
-
-def lsq(X, y):
-    """Mínims quadrats (sense numpy): X llista de files."""
-    n = len(X[0])
-    A = [[sum(r[i] * r[j] for r in X) for j in range(n)] for i in range(n)]
-    b = [sum(r[i] * t for r, t in zip(X, y)) for i in range(n)]
-    for i in range(n):  # Gauss
-        p = max(range(i, n), key=lambda k: abs(A[k][i]))
-        A[i], A[p], b[i], b[p] = A[p], A[i], b[p], b[i]
-        for k in range(i + 1, n):
-            f = A[k][i] / A[i][i]
-            for j in range(i, n):
-                A[k][j] -= f * A[i][j]
-            b[k] -= f * b[i]
-    x = [0] * n
-    for i in reversed(range(n)):
-        x[i] = (b[i] - sum(A[i][j] * x[j] for j in range(i + 1, n))) / A[i][i]
-    pred = [sum(a * c for a, c in zip(r, x)) for r in X]
-    my = statistics.mean(y)
-    r2 = 1 - sum((p - t) ** 2 for p, t in zip(pred, y)) / sum((t - my) ** 2 for t in y)
-    return x, r2
-
-
-for comp, key in (("laliga2", "si_ff_laliga2.json"),):
-    sid = load_json(key, {})
-    fp = ff_points(comp)
-    R = load_json("mister_rosters.json", {}).get("teams", {})
-    print(f"::notice title=dades {comp}::SI equips {len(sid.get('_order', []))}, Fantasy✨ jugadors {len(fp)}, plantilles Mister {len(R)}")
+        def pool(t):
+            slug = max(R, key=lambda s_: team_score(s_.replace("-", " "), t), default=None)
+            return R[slug] if slug and team_score(slug.replace("-", " "), t) > 0 else []
     rows = []
-    order = sid.get("_order", [])
     for idx, t in enumerate(order):
         lst = sid.get(t)
         if not isinstance(lst, list):
             continue
-        home = idx % 2 == 0
-        slug = max(R, key=lambda s: team_score(s, t), default=None) if R else None
-        for li, r in enumerate(lst):
+        opp = order[idx + 1] if idx % 2 == 0 else order[idx - 1]
+        to = max(T, key=lambda k: team_score(k, opp), default=None) if T else None
+        to = T[to] if to and team_score(to, opp) > 0 else None
+        cand = pool(t)
+        for r in lst:
             for p in r:
-                if p.get("ps") is None or p.get("ps_est") or p.get("pct") is None:
+                if p.get("ps") is None or p.get("ps_est"):
                     continue
-                f = max((q for q in fp if team_score(q["team"], t) > 0), key=lambda q: name_score(p["name"], q["name"]), default=None)
-                f = f if f and name_score(p["name"], f["name"]) >= 75 else None
-                m = None
-                if slug and team_score(slug, t) > 0:
-                    m = max(R[slug], key=lambda q: name_score(p["name"], q["name"]), default=None)
-                    m = m if m and name_score(p["name"], m["name"]) >= 75 else None
-                mb = (statistics.mean(m["streak"]) if m and m["streak"] else (m or {}).get("avg"))
-                rows.append({"name": p["name"], "t": t, "line": li, "pct": p["pct"], "ps": p["ps"], "home": home,
-                             "ff": f and (f["home"] if home else f["away"]) if f and f.get("pj") else None, "ffavg": f and f["avg"],
-                             "mi": mb, "miavg": m and m.get("avg")})
-    print(f"::notice title=files {comp}::{len(rows)} jugadors amb PS; amb Fantasy✨ {sum(1 for r in rows if r['ffavg'] is not None)}, amb Mister {sum(1 for r in rows if r['mi'] is not None)}")
-    ys = [r["ps"] for r in rows]
-    print(f"::notice title=PS vs %::corr {corr([r['pct'] for r in rows], ys):.2f}; per franja: " + ", ".join(
-        f"{lo}-{lo + 9}%: {statistics.mean([r['ps'] for r in rows if lo <= r['pct'] < lo + 10]):.1f} (n={sum(1 for r in rows if lo <= r['pct'] < lo + 10)})"
-        for lo in range(20, 100, 10) if any(lo <= r['pct'] < lo + 10 for r in rows)))
-    print("::notice title=PS per línia::" + ", ".join(f"línia {l}: {statistics.mean([r['ps'] for r in rows if r['line'] == l]):.1f} (n={sum(1 for r in rows if r['line'] == l)})" for l in sorted({r['line'] for r in rows})))
-    for src in ("ff", "ffavg", "mi", "miavg"):
-        sub = [r for r in rows if r[src] is not None]
-        if len(sub) < 10:
-            continue
-        y = [r["ps"] for r in sub]
-        x1, r2a = lsq([[1, r[src]] for r in sub], y)
-        x2, r2b = lsq([[1, r[src], r["pct"] / 100, 1 if r["home"] else 0] + [1 if r["line"] == l else 0 for l in (1, 2, 3)] for r in sub], y)
-        x3, r2c = lsq([[r["pct"] / 100, r["pct"] / 100 * r[src]] for r in sub], y)
-        print(f"::notice title=model {src}::n={len(sub)} corr {corr([r[src] for r in sub], y):.2f} | PS=a+b·x R²={r2a:.2f} ({x1[0]:.1f}+{x1[1]:.2f}x) | "
-              f"+%+casa+línia R²={r2b:.2f} coef {[round(v, 2) for v in x2]} | PS=%·(a+b·x) R²={r2c:.2f} {[round(v, 2) for v in x3]}")
-    for src in ("miavg", "ffavg", "ff"):
-        sub = [r for r in rows if r[src] is not None]
-        if len(sub) < 10:
-            continue
-        y = [r["ps"] for r in sub]
-        x, _ = lsq([[1, r[src], 1 if r["home"] else 0] for r in sub], y)
-        pred = [x[0] + x[1] * r[src] + x[2] * (1 if r["home"] else 0) for r in sub]
-        res = [t - p for t, p in zip(y, pred)]
-        loo = []
-        for i, r in enumerate(sub):
-            o = [res[j] for j, q in enumerate(sub) if q["t"] == r["t"] and j != i]
-            loo.append(pred[i] + (statistics.mean(o) if o else 0))
-        my = statistics.mean(y)
-        r2 = 1 - sum((p - t) ** 2 for p, t in zip(loo, y)) / sum((t - my) ** 2 for t in y)
-        mae = statistics.mean(abs(p - t) for p, t in zip(loo, y))
-        mae0 = statistics.mean(abs(p - t) for p, t in zip(pred, y))
-        print(f"::notice title=amb factor equip {src}::coef {[round(v, 2) for v in x]} R² (sense el propi jugador)={r2:.2f}, error mitjà {mae:.1f} (sense factor {mae0:.1f})")
-    sample = sorted(rows, key=lambda r: -r["ps"])[:12] + sorted(rows, key=lambda r: r["ps"])[:8]
-    print("::notice title=mostra::" + " · ".join(f"{r['name']} PS{r['ps']} {r['pct']}% L{r['line']} ff{r['ff']} mi{r['mi'] and round(r['mi'], 1)}" for r in sample))
+                q = max(cand, key=lambda q: name_score(p["name"], q["name"]), default=None)
+                if not q or name_score(p["name"], q["name"]) < 75 or q.get("avg") is None:
+                    continue
+                pj = q.get("pj")
+                rows.append({"ps": p["ps"], "avg": q["avg"], "home": 1 if idx % 2 == 0 else 0, "pos": q.get("pos"), "pj": pj,
+                             "oppg": to and to["ppg"], "oga": to and to["ga"], "ogf": to and to["gf"]})
+    rows = [r for r in rows if r["oppg"] is not None] if T else rows
+    y = [r["ps"] for r in rows]
+    print(f"::notice title={source}::{len(rows)} jugadors; amb partits jugats {sum(1 for r in rows if r['pj'] is not None)}")
+    base = [[1, r["avg"], r["home"]] for r in rows]
+    res = {"mitjana + casa (ara)": loo(base, y)}
+    pm = {}
+    for r in rows:
+        pm.setdefault(r["pos"], []).append(r["avg"])
+    pm = {k: statistics.mean(v) for k, v in pm.items()}
+    for k in (1, 2, 3, 5, 8):
+        if sum(r["pj"] is not None for r in rows) >= len(rows) * 0.9:
+            rows_k = rows
+            sh = [[1, ((r["pj"] or 0) * r["avg"] + k * pm[r["pos"]]) / ((r["pj"] or 0) + k), r["home"]] for r in rows]
+            res[f"+ encongiment k={k}"] = loo(sh, y)
+    if T:
+        res["+ rival punts/partit"] = loo([b + [r["oppg"]] for b, r in zip(base, rows)], y)
+        res["+ rival gols encaixats"] = loo([b + [r["oga"]] for b, r in zip(base, rows)], y)
+        res["+ rival gols fets"] = loo([b + [r["ogf"]] for b, r in zip(base, rows)], y)
+        res["+ rival tot"] = loo([b + [r["oppg"], r["oga"], r["ogf"]] for b, r in zip(base, rows)], y)
+    res["sense res (mitjana PS)"] = statistics.mean(abs(v - statistics.mean(y)) for v in y)
+    print(f"::notice title=error {source}::" + " | ".join(f"{k}: {v:.2f}" for k, v in res.items() if v is not None))
