@@ -24,7 +24,7 @@ def si_next(spg, country, league):
     d = _si_next(spg, country, league)
     if league == "Segunda División":  # PS estimat per als que no en tenen (decisió del David, 6/11)
         from bot import psest
-        d = psest.fill(d)
+        d = psest.fill(d, source="mister", comp="laliga2")
     return d
 
 
