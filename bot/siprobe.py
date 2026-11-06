@@ -22,9 +22,12 @@ with sync_playwright() as p:
     print("::notice title=obro::" + t + " · " + ", ".join(names))
     print("::notice title=st::" + str(pg.evaluate("(t) => __si.openTeam(t)", t)))
     txt = pg.evaluate("() => document.querySelector('[role=dialog]').innerText")
-    print("::notice title=text::" + txt.replace("\n", " | ")[:3500])
+    for kw in ("Bench", "DNP", "Not in squad", "Injur", "Lapeña"):
+        i = txt.find(kw)
+        print(f"::notice title=kw {kw}::{i} " + (txt[max(0, i - 300):i + 900].replace("\n", " | ") if i >= 0 else ""))
+    print("::notice title=final::" + txt[-2500:].replace("\n", " | "))
     html = pg.evaluate("""() => { const d = document.querySelector('[role=dialog]'); const out = [];
-        for (const e of d.querySelectorAll('*')) { if (e.childElementCount === 0 && /^(Bench|DNP|Doubtful|Injured|Suspended)/i.test(e.textContent.trim())) {
+        for (const e of d.querySelectorAll('*')) { if (e.childElementCount === 0 && /^(Bench|DNP)$/i.test(e.textContent.trim())) {
             let c = e; for (let i = 0; i < 3 && c.parentElement; i++) c = c.parentElement; out.push(c.outerHTML.slice(0, 2500)); } } return out; }""")
     for h in html[:4]:
         print("::notice title=html::" + h.replace("\n", " "))
