@@ -17,6 +17,10 @@ with sync_playwright() as p:
         except Exception as e:
             print(f"::notice title=pool {cid} {sw}::{type(e).__name__}: {str(e)[:300]}")
         try:
+            print(f"::notice title=pool html {cid} {sw}::" + pg.evaluate("() => document.querySelector('.sw-content ul.pool-games > li')?.outerHTML || ''")[:3000].replace("\n", " "))
+        except Exception as e:
+            print(f"::notice title=pool html::{e}")
+        try:
             print(f"::notice title=pool text {cid} {sw}::" + pg.locator(".sw-content").first.inner_text()[:1500].replace("\n", " · "))
         except Exception as e:
             print(f"::notice title=pool text::{e}")
