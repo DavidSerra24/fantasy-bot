@@ -168,6 +168,29 @@ def postponed(days=6, ccode="ESP", top=False, squads=False):
     return out
 
 
+def started(days_back=2, ccode="ESP"):
+    """Equips de LaLiga / LaLiga 2 amb un partit començat o acabat avui o els últims `days_back` dies (7/11: mentre el
+    Deportivo jugava, SorareInside només tenia l'onze del partit en joc i els suplents sortien com a 0%)."""
+    out = set()
+    now = dt.datetime.now(dt.timezone.utc)
+    for k in range(days_back + 1):
+        d = now - dt.timedelta(days=k)
+        try:
+            lgs = requests.get(f"https://www.fotmob.com/api/data/matches?date={d:%Y%m%d}", headers=H, timeout=20).json().get("leagues", [])
+        except Exception:
+            continue
+        for lg in lgs:
+            lname = (lg.get("name") or "").lower()
+            if lg.get("ccode") != ccode or not re.search(r"laliga|la liga|segunda|primera division", lname) \
+                    or re.search(r"women|femen|f$|rfef|federaci|copa|cup(?! )|u21|u19|youth", lname):
+                continue
+            for m in lg.get("matches", []):
+                st = m.get("status") or {}
+                if (st.get("started") or st.get("finished")) and not st.get("cancelled"):
+                    out.update(m[side].get("longName") or m[side]["name"] for side in ("home", "away"))
+    return out
+
+
 # Aplaçaments que el David diu per Telegram («/aplaçat Castellón», 5/11) abans que FotMob ho marqui:
 # state/postponed_manual.json {equip: {"added": ISO, "date": ISO del partit aplaçat o null}}. S'aplica només al primer
 # partit de l'equip després de l'avís (el de la data desada) i s'esborra quan aquell dia ja ha passat.

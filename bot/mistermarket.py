@@ -281,6 +281,30 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
     for q in squad + market:
         if q["pct"] is None and not q.get("doubt") and q.get("team") and any(sources.team_ok(q["team"], k) for k in keys):
             q["pct"], q["src"], q["absent"] = 0, (q.get("src") or "SI") + " (no hi surt)", True
+    # equips que ja han jugat (o juguen ara) aquesta jornada: si la font encara és la de la jornada en joc, els que no hi
+    # surten no són «0%» sinó suplents d'aquell partit (7/11: Quagliata, Amatucci i Soriano mentre jugava el Deportivo).
+    # Queden sense % (no es venen ni es compren per això) fins que la font tingui la jornada següent.
+    if league != "Primera División":
+        if cache.get("started") is None:
+            try:
+                from bot import fotmob
+                cache["started"] = fotmob.started()
+            except Exception as e:
+                cache["started"] = set(); print(f"::warning title=partits començats::{str(e)[:150]}")
+        gone = []
+        for q in squad + market:
+            if q.get("absent") and any(q.get("team") and sources.team_ok(q["team"], n) for n in cache["started"]):
+                q["pct"], q["src"], q["absent"] = None, "partit ja començat", False
+                if q.get("in_squad"):
+                    gone.append(q["short"])
+        if gone:
+            for i, l in enumerate(report):
+                if l.startswith("ℹ️ No surten a l'onze previst"):
+                    keep = [x for x in l.split(": ", 1)[1].split(". Si creus")[0].split(", ") if x.split(" (")[0] not in gone]
+                    report[i] = ("ℹ️ No surten a l'onze previst ni entre els suplents de la font (compten com a 0%): " + ", ".join(keep)
+                                 + ". Si creus que hi són amb un altre nom, digues-m'ho.") if keep else ""
+            report[:] = [l for l in report if l]
+            report.append("🕒 Partit ja començat o jugat (" + ", ".join(gone) + "): la font encara és la d'aquesta jornada; queden sense % fins a la següent (no es venen per això).")
     # partits aplaçats (4/11: Tenerife i Andorra): els jugadors d'aquells equips i dels seus rivals queden sense %
     # (no es venen ni es compren per això, i a l'alineació van al final perquè no jugaran)
     if cache.get("pp") is None:
