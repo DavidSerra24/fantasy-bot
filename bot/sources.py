@@ -133,6 +133,11 @@ def assign(players, entries, field="src"):
             cand = []
         # nom semblant però no idèntic (decisió del David, 4/11): no es fa servir fins que el buscador del Mister o el
         # David el confirmen; mentrestant el jugador queda sense % (no es ven ni es compra per aquest motiu)
+        # la font posa només el cognom («Bellerín», «Catena») i a l'equip no n'hi ha cap altre amb aquell cognom: és ell
+        # (8/11: Bellerín sense PS a Fentaniños i el bot preguntava per «Catena»)
+        if cand and len(norm(n)) == 1 and norm(n)[0] == (norm(p["name"]) or [""])[-1] \
+                and sum(1 for e in pool if norm(e["name"])[-1:] == norm(n)) == 1:
+            conf = conf or n
         if cand and not same_name(p["name"], n) and not (conf or byid):
             p["doubt"] = n
             cand = []
