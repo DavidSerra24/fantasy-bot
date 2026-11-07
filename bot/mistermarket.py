@@ -278,9 +278,28 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
     # (p. ex. Solozábal a l'Andorra). Si no hi ha dades de l'equip, es queden sense % (no es venen).
     keys = {e["key"] for e in (cache.get("ffp") or [])} if league == "Primera División" else \
            {t for t in sidata.get("_order", []) if isinstance(sidata.get(t), list) and sidata.get(t)}
+    def covered(team):
+        """La font té dades d'AQUEST equip. A futbolfantasy.com la clau és el partit («22548-osasuna-malaga») i pot tenir
+        només els jugadors del rival (7/11: Rosier sortia a 0% perquè del Osasuna–Málaga només hi havia el Málaga):
+        cal que hi surti algun jugador de l'equip segons la plantilla de SorareInside."""
+        ks = [k for k in keys if sources.team_ok(team, k)]
+        if not ks or league != "Primera División":
+            return bool(ks)
+        from bot.ff import name_score
+        mates = [p["name"] for t in sidata.get("_order", []) if sources.team_ok(team, t) and isinstance(sidata.get(t), list)
+                 for r in sidata[t] for p in r] + [n for t in sidata.get("_order", []) if sources.team_ok(team, t)
+                                                  for n in (sidata.get("_bench", {}).get(t, []) + sidata.get("_dnp", {}).get(t, []))]
+        if not mates:
+            return True  # sense plantilla per comprovar-ho: com abans
+        ents = [e for e in (cache.get("ffp") or []) if e["key"] in ks]
+        return any(name_score(m, e["name"]) >= 75 for m in mates for e in ents)
+    _cov = {}
     for q in squad + market:
-        if q["pct"] is None and not q.get("doubt") and q.get("team") and any(sources.team_ok(q["team"], k) for k in keys):
-            q["pct"], q["src"], q["absent"] = 0, (q.get("src") or "SI") + " (no hi surt)", True
+        if q["pct"] is None and not q.get("doubt") and q.get("team"):
+            if q["team"] not in _cov:
+                _cov[q["team"]] = covered(q["team"])
+            if _cov[q["team"]]:
+                q["pct"], q["src"], q["absent"] = 0, (q.get("src") or "SI") + " (no hi surt)", True
     # equips que ja han jugat (o juguen ara) aquesta jornada: si la font encara és la de la jornada en joc, els que no hi
     # surten no són «0%» sinó suplents d'aquell partit (7/11: Quagliata, Amatucci i Soriano a Fentaniños mentre jugava el Deportivo: futbolfantasy.com encara no tenia l'alineació següent).
     # Queden sense % (no es venen ni es compren per això) fins que la font tingui la jornada següent.
@@ -298,13 +317,16 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
                 if q.get("in_squad"):
                     gone.append(q["short"])
         if gone:
-            for i, l in enumerate(report):
-                if l.startswith("ℹ️ No surten a l'onze previst"):
-                    keep = [x for x in l.split(": ", 1)[1].split(". Si creus")[0].split(", ") if x.split(" (")[0] not in gone]
-                    report[i] = ("ℹ️ No surten a l'onze previst ni entre els suplents de la font (compten com a 0%): " + ", ".join(keep)
-                                 + ". Si creus que hi són amb un altre nom, digues-m'ho.") if keep else ""
-            report[:] = [l for l in report if l]
             report.append("🕒 Partit ja començat o jugat (" + ", ".join(gone) + "): la font encara és la d'aquesta jornada; queden sense % fins a la següent (no es venen per això).")
+    # l'avís «no surten a la font» només amb els que de debò compten com a 0% (no els de partits començats ni els
+    # d'equips dels quals la font no té jugadors)
+    really = {q["short"] for q in squad if q.get("absent")}
+    for i, l in enumerate(report):
+        if l.startswith("ℹ️ No surten a l'onze previst"):
+            keep = [x for x in l.split(": ", 1)[1].split(". Si creus")[0].split(", ") if x.split(" (")[0] in really]
+            report[i] = ("ℹ️ No surten a l'onze previst ni entre els suplents de la font (compten com a 0%): " + ", ".join(keep)
+                         + ". Si creus que hi són amb un altre nom, digues-m'ho.") if keep else ""
+    report[:] = [l for l in report if l]
     # partits aplaçats (4/11: Tenerife i Andorra): els jugadors d'aquells equips i dels seus rivals queden sense %
     # (no es venen ni es compren per això, i a l'alineació van al final perquè no jugaran)
     if cache.get("pp") is None:
