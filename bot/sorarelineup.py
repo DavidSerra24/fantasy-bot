@@ -535,8 +535,12 @@ def gk_arena(gk, final=False):
     if not arena:
         return None
     now = dt.datetime.now(dt.timezone.utc)
-    busy = {a["anyCard"]["slug"] for l in fx.get("mySo5Lineups") or [] for a in l["so5Appearances"]}
-    busy_p = {a["anyPlayer"].get("slug") for l in fx.get("mySo5Lineups") or [] for a in l["so5Appearances"]}  # sense repetir jugadors
+    lus = fx.get("mySo5Lineups") or []
+    busy = {a["anyCard"]["slug"] for l in lus for a in l["so5Appearances"]}
+    # sense repetir jugadors: només els de les alineacions Limited i les Arenes (un jugador pot anar a Rare i a Limited;
+    # 7/11: Murić, «no surt cap Arena» perquè també es descartaven els de les alineacions Rare)
+    busy_p = {a["anyPlayer"].get("slug") for l in lus for a in l["so5Appearances"]
+              if l["so5Leaderboard"].get("isArena") or (l["so5Leaderboard"].get("mainRarityType") or "").lower() == "limited"}
     hi = {n["anyCard"]["slug"] for n in bench(arena["slug"], {"min": 8000})}
     cache, pool, gkq = {}, [], None
     for i, n in enumerate(bench(arena["slug"]) + bench(arena["slug"], None, ["Goalkeeper"])):
@@ -581,6 +585,10 @@ def gk_arena(gk, final=False):
             best[q["player"]] = q
     pool = list(best.values())
     pick = build([gkq] + pool, ARENA, ARENA_CAP, "avg", hard=True)
+    from collections import Counter
+    print(f"::notice title=sorare arena porter::{gkq['name']} (mitj. {gkq['avg']:.0f}) · candidats: "
+          + ", ".join(f"{k} {v}" for k, v in Counter(q["pos"] for q in pool).items())
+          + " · " + ("arena: " + ", ".join(q["name"] for q in pick) if pick else "cap alineació"))
     if not pick or pick[0] is not gkq:
         return None
     return arena, pick, captain(pick), (arena["format"].get("entryItem") or {}).get("myEntryItemId")
@@ -610,6 +618,36 @@ def yes_after(ts):
         if str((m.get("chat") or {}).get("id")) == str(chat) and m.get("date", 0) >= ts and re.fullmatch(YES, (m.get("text") or "").strip().lower()):
             return True
     return False
+
+
+def gk_retry(wait=True):
+    """Manual (sorare.yml cmd=gkretry): torna a mirar els porters vigilats dels partits que encara no han començat (com si
+    l'onze acabés de sortir) i, si en surt una Arena, la proposa; amb wait, espera fins a l'hora d'enviar-la i l'envia si
+    el David ha dit «sí» (7/11: Murić, quan la proposta havia fallat)."""
+    import datetime as dt
+    import time as _t
+    from bot.web import load_json, save_json
+    now = dt.datetime.now(dt.timezone.utc)
+    games = sorted({(g["game"], g["date"]) for g in load_json("sorare_gkwatch.json", {}).get("gks", [])
+                    if dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00")) > now}, key=lambda x: x[1])
+    done = load_json("sorare_gkdone.json", {})
+    for gid, d in games:
+        done.pop(gid, None)
+    save_json("sorare_gkdone.json", done)
+    for gid, d in games:
+        gk_check(gid, int((dt.datetime.fromisoformat(d.replace("Z", "+00:00")) - now).total_seconds() // 60))
+    if not wait:
+        return
+    st = load_json("sorare_gkarena.json", {})
+    for key, v in sorted(st.items(), key=lambda kv: kv[1].get("submit_at", "")):
+        if v.get("status") != "proposed":
+            continue
+        S = dt.datetime.fromisoformat(v["submit_at"])
+        w = (S - dt.datetime.now(dt.timezone.utc)).total_seconds()
+        if 0 < w < 100 * 60:
+            _t.sleep(w)
+        if w > -300:
+            gk_arena_final(key)
 
 
 def gk_arena_final(key):

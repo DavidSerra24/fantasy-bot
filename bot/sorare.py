@@ -234,6 +234,7 @@ if __name__ == "__main__":
          "setrev": lambda: __import__("bot.sorareset", fromlist=["review"]).review(dry=True),
          "setrevgo": lambda: __import__("bot.sorareset", fromlist=["review"]).review(dry=False),
          "setgo": lambda: __import__("bot.sorareset", fromlist=["run"]).run(dry=False),
+         "gkretry": lambda: __import__("bot.sorarelineup", fromlist=["gk_retry"]).gk_retry(),
          "fsetorder": lambda: __import__("bot.sorarefset", fromlist=["show_order"]).show_order(),
          "arenasgo": lambda: __import__("bot.sorarelineup", fromlist=["arenas_go_wait"]).arenas_go_wait(),
          "arenas": lambda: __import__("bot.sorarelineup", fromlist=["late_arenas"]).late_arenas("prop"),
