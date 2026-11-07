@@ -9,7 +9,7 @@ concurrency: sorare
 jobs:
   sorare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 120  # arenasgo i gkretry esperen fins a l'hora d'enviar l'Arena (7/11: es va tallar als 20 min)
     env:
       SORARE_EMAIL: ${{ secrets.SORARE_EMAIL }}
       SORARE_PASSWORD: ${{ secrets.SORARE_PASSWORD }}
