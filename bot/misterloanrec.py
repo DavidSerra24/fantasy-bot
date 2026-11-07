@@ -58,7 +58,7 @@ def run(name="Quique", maxn=None, send=False):
     cands = []
     for c in loans:
         P = PN.get(c.get("P"))
-        if P not in maxn or not maxn[P] or c["pid"] in have or not c.get("si_e") or c.get("pct") is None:
+        if P not in maxn or P == "N" or not maxn[P] or c["pid"] in have or not c.get("si_e") or c.get("pct") is None:
             continue
         cands.append({"pid": c["pid"], "name": c["name"], "short": f"{c['name']} (cessió de {c['owner']})", "P": P, "pct": c["pct"],
                       "si": c["si_e"], "onsale": False, "loaned": False, "team": c.get("team"), "owner": c["owner"], "loan": c.get("loan"), "new": True})
@@ -72,12 +72,12 @@ def run(name="Quique", maxn=None, send=False):
     base = evaluate(squad)
     print("::notice title=onze d'ara::" + base[1] + ": " + ", ".join(q["name"] for q in base[2]) + f" · {base[0]}")
     # els millors de cada posició (per punts esperats) per no provar milers de combinacions
-    pools = {P: sorted([c for c in cands if c["P"] == P], key=lambda c: -((c["si"].get("ps") or 0) * c["pct"]))[:8] for P in maxn}
+    pools = {P: sorted([c for c in cands if c["P"] == P], key=lambda c: -((c["si"].get("ps") or 0) * c["pct"]))[:8] for P in maxn if P in "GDMF"}
     best = (base[0], 0), base, ()
-    combos = [[()] + [x for k in range(1, maxn[P] + 1) for x in itertools.combinations(pools[P], k)] for P in maxn if maxn[P]]
+    combos = [[()] + [x for k in range(1, maxn[P] + 1) for x in itertools.combinations(pools[P], k)] for P in pools if maxn[P]]
     for parts in itertools.product(*combos):
         add = tuple(q for part in parts for q in part)
-        if not add:
+        if not add or len(add) > maxn.get("N", 99):  # N = màxim de cessions en total (el David, 7/11: «només puc fitxar 3»)
             continue
         r = evaluate(squad + list(add))
         if not r:
@@ -91,7 +91,7 @@ def run(name="Quique", maxn=None, send=False):
     (_, (bkey, tac, pick, capn), add) = best[0], best[1], best[2]
     o = {"G": 0, "D": 1, "M": 2, "F": 3}
     fmt = lambda q: f"{q['short'] if not q.get('new') else q['name']}{' ©' if q is capn else ''} ({q.get('xpct') if q.get('xpct') is not None else '?'}%/{q.get('xps') if q.get('xps') is not None else '-'})"
-    lines = [f"🔁 {name} · cessions recomanades per a l'alineació (fins a {', '.join(f'{v} {LBL[k]}' for k, v in maxn.items() if v)}):"]
+    lines = [f"🔁 {name} · cessions recomanades per a l'alineació (fins a {', '.join(f'{v} {LBL[k]}' for k, v in maxn.items() if v and k in LBL)}{f", {maxn['N']} en total" if maxn.get('N') else ''}):"]
     if not add:
         lines.append("Cap cessió millora l'onze d'ara." + (f" ({len(cands)} cedibles mirats)" if cands else " No hi ha cedibles amb dades de SorareInside."))
     else:
