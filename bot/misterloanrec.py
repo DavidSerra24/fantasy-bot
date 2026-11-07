@@ -70,6 +70,8 @@ def run(name="Quique", maxn=None, send=False):
         if k in order:
             q["side"] = k
     base = evaluate(squad)
+    print("::notice title=partits::" + " | ".join(f"{q['name']}: {q.get('match')} / {q.get('side')}" for q in allq))
+    print("::notice title=onze d'ara::" + base[1] + ": " + ", ".join(q["name"] for q in base[2]) + f" · {base[0]}")
     # els millors de cada posició (per punts esperats) per no provar milers de combinacions
     pools = {P: sorted([c for c in cands if c["P"] == P], key=lambda c: -((c["si"].get("ps") or 0) * c["pct"]))[:8] for P in maxn}
     best = (base[0], 0), base, ()
