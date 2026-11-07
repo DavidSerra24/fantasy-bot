@@ -469,8 +469,9 @@ def gk_check(gid, mins):
                 key = g["slug"] + "|" + gid
                 st[key] = {"game": gid, "gk": g, "at": int(_t.time()), "status": "proposed", "submit_at": sub.isoformat()}
                 M = ZoneInfo("Europe/Madrid")
-                lines.append(f"🏟️ Proposta d'Arena (100 d'essència): {arena_text(pick, cap)}\n"
-                             f"La faig? Respon «sí». L'envio a les {sub.astimezone(M):%H:%M} (5 min abans del primer partit, {first.astimezone(M):%H:%M}), "
+                lines.append(f"🏟️ {'Arena' if arenas_auto() else 'Proposta d’Arena'} (100 d'essència): {arena_text(pick, cap)}\n"
+                             + ("La faré (sense confirmació)." if arenas_auto() else "La faig? Respon «sí».")
+                             + f" L'envio a les {sub.astimezone(M):%H:%M} (5 min abans del primer partit, {first.astimezone(M):%H:%M}), "
                              f"amb els titulars confirmats en aquell moment.")
                 from bot.web import add_dyn  # acció dinàmica dins de la mateixa execució
                 add_dyn([{"key": f"sorarearena:{key}", "at": sub.isoformat(), "do": "sorarearena", "comp": key, "deadline": first.isoformat()}])
@@ -657,7 +658,7 @@ def gk_arena_final(key):
     st = load_json("sorare_gkarena.json", {})
     pend = [(k, v) for k, v in st.items() if k == key and v.get("status") == "proposed"]
     for k, v in pend:
-        if not yes_after(v["at"]):
+        if not arenas_auto() and not yes_after(v["at"]):
             v["status"] = "no"
             telegram(f"🏟️ Arena amb {v['gk']['name']}: no l'he feta (no he rebut el «sí»).")
             continue
@@ -895,6 +896,16 @@ def arenas_go_wait(max_wait_min=50):
     late_arenas("go", F.isoformat())
 
 
+def arenas_auto():
+    """Arenes sense confirmació (decisió del David, 7/11: «que faci les arenes sense confirmació meva»).
+    config/arenas.json {"auto": true}; amb false es torna a demanar el «sí»."""
+    import json
+    try:
+        return bool(json.load(open("config/arenas.json")).get("auto"))
+    except Exception:
+        return False
+
+
 def late_arenas(kind="prop", at=None):
     """Arenes fins a l'últim moment, una a una (decisió del David, 6/11: «només la que em pregunti»).
     kind="prop": per a cada Arena possible amb el jugador del primer partit titular confirmat, un missatge propi; el
@@ -964,11 +975,13 @@ def late_arenas(kind="prop", at=None):
         if a and (a["status"] in ("approved", "done") or (a["status"] == "asked" and a.get("sig") == sig)):
             continue
         first = min(_when(q) for q in pick)
+        auto = arenas_auto()
         mid = _tg_send(f"🏟️ Arena Beginner ({ess.get('quantity') or 100} d'essència) amb {pick[0]['name']}:\n{arena_text(pick, cap)}\n"
-                       f"El jugador del primer partit ({first.astimezone(M):%a %H:%M}) ja és titular confirmat. La faig? Respon «sí» a aquest missatge."
-                       f" L'envio a les {(first - dt.timedelta(minutes=6)).astimezone(M):%H:%M}, refeta amb els titulars del moment.")
+                       f"El jugador del primer partit ({first.astimezone(M):%a %H:%M}) ja és titular confirmat. "
+                       + ("La faré (sense confirmació)." if auto else "La faig? Respon «sí» a aquest missatge.")
+                       + f" L'envio a les {(first - dt.timedelta(minutes=6)).astimezone(M):%H:%M}, refeta amb els titulars del moment.")
         asks[gk] = {"id": mid, "at": int(time.time()) - 2, "gk": gk, "gk_name": pick[0]["name"], "players": [q["player"] for q in pick],
-                    "first": first.isoformat(), "sig": sig, "status": "asked"}
+                    "first": first.isoformat(), "sig": sig, "status": "approved" if auto else "asked"}
         sent += 1
     save_json(ARSTATE, st)
     print(f"::notice title=sorare arenes::prop: {sent} propostes noves; {len(props)} possibles; aprovades {len(approved)} · "
