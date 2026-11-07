@@ -52,8 +52,8 @@ def run(name="Quique", maxn=None, send=False):
             if n != name:
                 continue
             bal, squad, market, have, cap = league_data(b, pg, spg, cid, country, league, report, cache)
+            sid = cache.get("sid:" + league)
         b.close()
-    sid = cache.get("sid:" + league)
     have = {q["pid"] for q in squad}
     cands = []
     for c in loans:
