@@ -788,7 +788,8 @@ def arenas_go_wait(max_wait_min=50):
     aprovades i les envia (late_arenas "go"). Per quan l'execució automàtica no hi arriba."""
     import datetime as dt
     import time as _t
-    st = _lj(ARSTATE, {})
+    from bot.web import load_json
+    st = load_json(ARSTATE, {})
     firsts = sorted({a["first"] for a in (st.get("asks") or {}).values() if a.get("status") in ("asked", "approved") and a.get("first")})
     now = dt.datetime.now(dt.timezone.utc)
     firsts = [f for f in firsts if dt.datetime.fromisoformat(f) > now]
