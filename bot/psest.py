@@ -123,6 +123,21 @@ def _lsq(X, y):
     return x
 
 
+def _norm(s):
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", s.lower()) if unicodedata.category(c) != "Mn")
+
+
+def _same_surname(name, cand):
+    """Si el nom no encaixa (sobrenoms: Quique/Kike, Pepe/José…), el jugador del mateix equip amb el mateix cognom,
+    només si n'hi ha un de sol (dins de l'equip, el cognom és prou segur)."""
+    w = _norm(name).replace("-", " ").split()
+    if len(w) < 2 or len(w[-1]) < 4:
+        return None
+    hits = [q for q in cand if _norm(q["name"]).replace("-", " ").split()[-1:] == w[-1:]]
+    return hits[0] if len(hits) == 1 else None
+
+
 def fill(sidata, source="mister", comp="laliga2", log=print):
     """Posa un PS estimat (p["ps"], p["ps_est"] = True) als jugadors de SorareInside sense PS. Retorna sidata.
     source = "mister" (mitjana de punts del Mister, per al Mister) o "ff" (mitjana de Fantasy✨, per a futbolfantasy.com):
@@ -157,7 +172,9 @@ def fill(sidata, source="mister", comp="laliga2", log=print):
         for r in rows:
             for p in r:
                 best = max(cand, key=lambda q: name_score(p.get("name") or "", q["name"]), default=None)
-                if best and name_score(p.get("name") or "", best["name"]) >= 75 and best.get("avg") is not None:
+                if best and name_score(p.get("name") or "", best["name"]) < 75:
+                    best = _same_surname(p.get("name") or "", cand)  # «Quique Ribes» (SorareInside) = «Kike Ribes» (Mister), 7/11
+                if best and best.get("avg") is not None:
                     items.append((p, best["avg"], home, t))
     known = [(x, h, p["ps"]) for p, x, h, _ in items if p.get("ps") is not None and not p.get("ps_est")]
     if len(known) < 20:
