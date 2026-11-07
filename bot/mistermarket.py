@@ -282,9 +282,9 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
         if q["pct"] is None and not q.get("doubt") and q.get("team") and any(sources.team_ok(q["team"], k) for k in keys):
             q["pct"], q["src"], q["absent"] = 0, (q.get("src") or "SI") + " (no hi surt)", True
     # equips que ja han jugat (o juguen ara) aquesta jornada: si la font encara és la de la jornada en joc, els que no hi
-    # surten no són «0%» sinó suplents d'aquell partit (7/11: Quagliata, Amatucci i Soriano mentre jugava el Deportivo).
+    # surten no són «0%» sinó suplents d'aquell partit (7/11: Quagliata, Amatucci i Soriano a Fentaniños mentre jugava el Deportivo: futbolfantasy.com encara no tenia l'alineació següent).
     # Queden sense % (no es venen ni es compren per això) fins que la font tingui la jornada següent.
-    if league != "Primera División":
+    if True:  # Quique (SorareInside) i Fentaniños (FutbolFantasy): totes dues fonts mostren el partit en joc
         if cache.get("started") is None:
             try:
                 from bot import fotmob
