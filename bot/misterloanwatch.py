@@ -26,6 +26,22 @@ def run():
                 f"• {P[c['P'] or 0]} {c['name']} ({c['team']}) · {c['pct']}% · PS {c['ps'] if c['ps'] is not None else '-'} · de {c['owner']}" for c in new))
         seen[lg] = sorted(old | {c["pid"] for c in ok})
     save_json("mister_loanwatch.json", seen)
+    # i la recomanació: quines cessions millorarien l'onze (decisió del David, 7/11); només si ha canviat
+    rec = cfg.get("rec")
+    if rec:
+        from bot.misterloanrec import run as recommend
+        for lg in cfg.get("leagues", ["Quique"]):
+            try:
+                msg = recommend(lg, rec, send=False)
+            except Exception as e:
+                print(f"::warning title=cessions recomanades::{type(e).__name__}: {str(e)[:200]}")
+                continue
+            sig = msg.split("Punts esperats")[0]
+            st = load_json("mister_loanrec.json", {})
+            if st.get(lg) != sig:
+                telegram(msg)
+                st[lg] = sig
+                save_json("mister_loanrec.json", st)
 
 
 if __name__ == "__main__":
