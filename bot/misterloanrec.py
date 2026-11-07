@@ -53,7 +53,9 @@ def run(name="Quique", maxn=None, send=False):
                 continue
             bal, squad, market, have, cap = league_data(b, pg, spg, cid, country, league, report, cache)
             sid = cache.get("sid:" + league)
+            slots_ = (cap or 20) - (have or len(squad))  # places lliures a la plantilla (màx. 20; el David, 7/11: amb 17 només 3)
         b.close()
+    maxn = dict(maxn, N=max(0, min(maxn.get("N", 99), slots_)))
     have = {q["pid"] for q in squad}
     cands = []
     for c in loans:
