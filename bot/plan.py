@@ -55,6 +55,30 @@ def is_fast(a):
 KICK = {}  # competició → primer partit de la propera jornada (es desa a state/mister_kickoffs.json)
 
 
+def missed_arenas(now):
+    """Avís si una Arena proposada (porter vigilat o «fins a l'últim moment») s'havia d'enviar i ja ha passat l'hora sense
+    que cap execució l'hagi feta (7/11: Murić, la feina manual es va tallar). Així el David ho sap de seguida."""
+    from bot.notify import telegram
+    from bot.web import STATE_LOCK, save_json
+    with STATE_LOCK:
+        st = load_json("sorare_gkarena.json", {})
+        ch = False
+        for key_, v in st.items():
+            if v.get("status") == "proposed" and v.get("submit_at") and dt.datetime.fromisoformat(v["submit_at"]) + dt.timedelta(minutes=6) < now:
+                v["status"] = "missed"; ch = True
+                telegram(f"⚠️ L'Arena amb {v['gk']['name']} no s'ha enviat a l'hora (cap execució hi ha arribat). Si hi havies dit «sí», ja no es pot fer.")
+        if ch:
+            save_json("sorare_gkarena.json", st)
+        ar = load_json("sorare_arenas.json", {})
+        ch = False
+        for a in (ar.get("asks") or {}).values():
+            if a.get("status") == "approved" and a.get("first") and dt.datetime.fromisoformat(a["first"]) < now:
+                a["status"] = "missed"; ch = True
+                telegram(f"⚠️ L'Arena amb {a.get('gk_name') or a.get('gk')} que havies aprovat no s'ha enviat a l'hora (cap execució hi ha arribat).")
+        if ch:
+            save_json("sorare_arenas.json", ar)
+
+
 def plan(now=None, done=None, fast_only=False):
     """Retorna les accions pendents. Una acció és pendent si la seva hora ja ha arribat (o arriba
     en els propers 30 min), el joc encara no ha tancat i no s'ha fet abans (done).
@@ -194,6 +218,7 @@ def plan(now=None, done=None, fast_only=False):
             k = f"sorarearena:{key_}"
             if due(k, S, S + dt.timedelta(minutes=5)):
                 add(k, S, "sorarearena", key_, S + dt.timedelta(minutes=5))
+    missed_arenas(now)
     # Sorare: Arenes fins a l'últim moment (6/11): proposta 50 min abans de cada hora de partits i enviament 6 min abans
     ar = load_json("sorare_arenas.json", {})
     for K_ in sorted(set(ar.get("kicks") or []))[:40]:
