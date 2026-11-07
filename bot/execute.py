@@ -3,8 +3,9 @@
 Dos carrils en paral·lel (decisió del David, 6/11: el 6/11 la revisió del Set de 2 min abans del partit de les 20:45
 va arribar tard perquè el bot encara feia les revisions finals del Fantasy):
 - lent: Fantasy, Predicted11, Mister, quinieles (navegador);
-- ràpid: Sorare i Collectibol (només API). Mentre el carril lent treballa, el ràpid torna a planificar cada 3 min les
-  seves accions (plan.plan(fast_only=True)), perquè la següent execució de GitHub no arrenca fins que acaba aquesta."""
+- ràpid: Sorare i Collectibol (només API).
+Tots dos tornen a planificar (ràpid cada 3 min, lent cada 10 min) durant MAX_AGE (110 min): la següent execució de
+GitHub no arrenca fins que acaba aquesta, i abans es perdien accions noves (7/11: les Arenes de les 14:00)."""
 import datetime as dt
 import json
 import sys
@@ -16,7 +17,7 @@ from bot import ff, p11
 from bot.notify import telegram
 from bot.plan import is_fast
 from bot.web import STATE, STATE_LOCK as LOCK, load_json, save_json  # done.json, tries.json i dyn_actions.json: tots dos carrils
-REPLAN_S = 180
+REPLAN_FAST, REPLAN_SLOW = 180, 600  # cada quant es torna a planificar
 
 
 def _done_list():
@@ -146,37 +147,50 @@ def run_action(a):
     return True
 
 
-def lane(queue, fast, slow_alive=lambda: False):
+T0 = time.time()
+MAX_AGE = 110 * 60  # després d'això no s'agafen accions noves: l'execució acaba i en comença una altra (la que espera)
+
+
+def _replan(fast, queue, done):
+    """Torna a planificar les accions d'aquest carril (decisió del David, 7/11: l'execució no ha de deixar de mirar
+    les Arenes ni les revisions finals mentre dura; abans, quan acabava el carril lent, ja no es planificava res)."""
+    try:
+        from bot import plan as P
+        have = {q["key"] for q in queue}
+        new, _ = P.plan(done=_done_list(), fast_only=fast)
+        if not fast and P.KICK:
+            with LOCK:
+                (STATE / "mister_kickoffs.json").write_text(json.dumps(P.KICK), encoding="utf-8")
+        new = [n for n in new if is_fast(n) == fast and n["key"] not in have and (n["do"], n["comp"]) not in done]
+        if new:
+            print(f"::notice title=carril {'ràpid' if fast else 'lent'}::noves accions: " + " | ".join(f"{n['do']} {n['comp'] or ''} {n['at'][11:16]}Z" for n in new))
+        return new
+    except Exception as e:
+        print(f"::warning title=carril {'ràpid' if fast else 'lent'}::no he pogut planificar: {str(e)[:300]}")
+        return []
+
+
+def lane(queue, fast):
+    """Un carril: executa les seves accions a l'hora i torna a planificar cada 3 min (ràpid) o 10 min (lent) mentre
+    l'execució no arriba a MAX_AGE. Mai s'adorm més d'un minut seguit, per veure les accions noves."""
     done = set()
     queue = list(queue)
     last_plan = time.time()
-    while True:
+    every = REPLAN_FAST if fast else REPLAN_SLOW
+    while time.time() - T0 < MAX_AGE:
         queue += _take_dyn(fast)
-        if fast and slow_alive() and time.time() - last_plan >= REPLAN_S:
+        if time.time() - last_plan >= every:
             last_plan = time.time()
-            try:
-                from bot.plan import plan
-                have = {q["key"] for q in queue}
-                new, _ = plan(done=_done_list(), fast_only=True)
-                new = [n for n in new if n["key"] not in have and (n["do"], n["comp"]) not in done]
-                if new:
-                    print("::notice title=carril ràpid::noves accions: " + " | ".join(f"{n['do']} {n['comp'] or ''} {n['at'][11:16]}Z" for n in new))
-                    queue += new
-            except Exception as e:
-                print(f"::warning title=carril ràpid::no he pogut planificar: {str(e)[:300]}")
+            queue += _replan(fast, queue, done)
         queue.sort(key=lambda a: (a["at"], a.get("deadline", "")))  # a la mateixa hora, primer el que tanca abans
         if not queue:
-            if fast and slow_alive():
-                time.sleep(20)
-                continue
-            break
+            time.sleep(20)
+            continue
         a = queue[0]
         wait = (dt.datetime.fromisoformat(a["at"]) - dt.datetime.now(dt.timezone.utc)).total_seconds()
         if wait > 0:
-            # el carril ràpid no s'adorm més de 20 s seguits: així veu les accions noves (dinàmiques o replanificades)
-            time.sleep(min(wait, 20 if fast else 5400))
-            if fast:
-                continue
+            time.sleep(min(wait, 20 if fast else 60))
+            continue
         queue.pop(0)
         key = (a["do"], a["comp"])
         if key in done:
@@ -185,6 +199,10 @@ def lane(queue, fast, slow_alive=lambda: False):
         done.add(key)
         if ok:
             _mark_done(a["key"])
+    left = [q for q in queue if (q["do"], q["comp"]) not in done]
+    if left:
+        print(f"::notice title=carril {'ràpid' if fast else 'lent'}::fi de l'execució; queden per a la següent: "
+              + " | ".join(f"{q['do']} {q['at'][11:16]}Z" for q in left[:30]))
 
 
 def main():
@@ -198,9 +216,8 @@ def main():
     fast = [a for a in acts if is_fast(a)]
     t = threading.Thread(target=lane, args=(slow, False), name="lent")
     t.start()
-    lane(fast, True, slow_alive=t.is_alive)
+    lane(fast, True)
     t.join()
-    lane([], True)  # accions dinàmiques ràpides que hagi deixat el carril lent al final
 
 
 if __name__ == "__main__":
