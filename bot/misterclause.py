@@ -94,6 +94,7 @@ def main(league="Quique", pos="POR", minimum=60, loan_only=None, maxpct=None, se
                 best = (sc, e)
         e = best[1] if best else {}
         c["pct"], c["ps"], c["si"] = e.get("pct"), e.get("ps"), e.get("name")
+        c["si_e"] = e or None
     ok = sorted([c for c in cands if (c["pct"] or 0) >= minimum and (maxpct is None or (c["pct"] or 0) <= maxpct)], key=lambda c: (-(c["ps"] or 0), -(c["pct"] or 0)))
     rest = [c for c in cands if (c["pct"] or 0) < minimum]
     lines = [f"🔎 {league} · {pos} {'CEDIBLES ' if loan_only else ''}dels altres mànagers amb ≥{minimum}% (SorareInside), per punts projectats",
