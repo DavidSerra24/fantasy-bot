@@ -282,3 +282,17 @@ def run(dry=False, focus=None):
         telegram("Sorare · Set futbol (prova)\n" + "\n".join(rep))
     elif any(("✅ alineació nova" in r or "🔁" in r or "🎁" in r or "🔄" in r or "❌" in r) for r in rep):
         telegram("Sorare · Set futbol\n" + "\n".join(r for r in rep if r in important or "✅ alineació nova" in r))
+
+
+def show_order(n=45):
+    """Diagnosi (sorare.yml cmd=fsetorder): l'ordre dels candidats del tauler personal, com el recorre el bot."""
+    now = dt.datetime.now(dt.timezone.utc)
+    st = gql(STEP, {"m": "CAREER"}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
+    lineups = [l for l in st.get("myLineups") or [] if l and l.get("taskAppearances")]
+    used = {a["anyCard"]["slug"] for l in lineups for a in l["taskAppearances"] if a}
+    out = candidates(st["id"], now, used, set())
+    P = {"Goalkeeper": "POR", "Defender": "DEF", "Midfielder": "MIG", "Forward": "DAV"}
+    lines = [f"{i + 1}. {q['date'].astimezone(MAD):%a %H:%M} · {'/'.join(P.get(x, x) for x in q['pos'])} · {q['name']} ({q['team']}) · "
+             f"{q['grade']} {q['proj']:.0f} · mitj. {q['avg']:.0f} · {'titular' if q['confirmed'] and q['ok'] else ('NO titular' if q['confirmed'] else ('≥80%' if q['hi'] else '<80%'))}"
+             for i, q in enumerate(out[:n])]
+    print("::notice title=ordre Set::" + " ¶ ".join(lines))
