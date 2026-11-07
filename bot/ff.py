@@ -198,10 +198,26 @@ def official_lineups(slug, kickoff, sidata, wait_until=None, log=None):
         if not st:
             log.append(f"onzes oficials de {ev['home']}-{ev['away']} encara no publicats")
             continue
-        for espn_team, names in st.items():
-            best = max(teams, key=lambda t: team_score(t, espn_team), default=None)
-            if best and team_score(best, espn_team) > 0:
-                out[best] = names
+        # el partit sencer: la parella de SorareInside (local, visitant) que millor encaixa amb els dos equips. Abans es
+        # buscava cada equip sol i «Deportivo Alavés» podia caure al «Real Club Deportivo de La Coruña» (6/11:
+        # Quagliata, Amatucci i Soriano van sortir com a «NO titulars» del Sevilla–Alavés i van quedar fora a Fentaniños)
+        pairs = [(teams[i], teams[i + 1]) for i in range(0, len(teams) - 1, 2)]
+        names_ = list(st.keys())
+
+        def pscore(pr):  # tots dos equips han d'encaixar (si no, 0): si SorareInside no té aquest partit, no s'aplica
+            if len(names_) != 2:
+                return 0
+            return max((sum(team_score(t, e) for t, e in zip(pr, perm)) if all(team_score(t, e) > 0 for t, e in zip(pr, perm)) else 0)
+                       for perm in (names_, names_[::-1]))
+        pr = max(pairs, key=pscore, default=None)
+        if pr and len(names_) == 2 and pscore(pr) > 0:
+            for espn_team, names in st.items():
+                t = max(pr, key=lambda t_: team_score(t_, espn_team))
+                if team_score(t, espn_team) > 0:
+                    out[t] = names
+        else:
+            log.append(f"onzes oficials de {ev['home']}-{ev['away']}: SorareInside no té aquest partit, no els aplico")
+            continue
         log.append(f"onzes oficials de {ev['home']}-{ev['away']} aplicats")
     return out
 
