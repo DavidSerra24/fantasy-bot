@@ -219,6 +219,11 @@ def plan(now=None, done=None, fast_only=False):
             if due(k, S, S + dt.timedelta(minutes=5)):
                 add(k, S, "sorarearena", key_, S + dt.timedelta(minutes=5))
     missed_arenas(now)
+    try:  # confirmació per Telegram de cada «sí» (el David, 7/11: «no sé si m'ho farà o no»)
+        from bot.sorarelineup import ack_yes
+        ack_yes()
+    except Exception as e:
+        print(f"::warning title=sí::{str(e)[:200]}")
     # Sorare: Arenes fins a l'últim moment (6/11): proposta 50 min abans de cada hora de partits i enviament 6 min abans
     ar = load_json("sorare_arenas.json", {})
     for K_ in sorted(set(ar.get("kicks") or []))[:40]:
@@ -369,7 +374,7 @@ def telegram_commands(now):
         if re.fullmatch(r"s[ií]\W*|yes\W*|ok\W*|endavant\W*|fes-la\W*|fes-les\W*", t.lower()):  # «sí» per a una Arena de Sorare
             from bot.web import save_json as _sj
             _sj("sorare_yes.json", (load_json("sorare_yes.json", []) + [m.get("date", 0)])[-20:])
-            _sj("sorare_yes2.json", (load_json("sorare_yes2.json", []) + [{"d": m.get("date", 0), "r": (m.get("reply_to_message") or {}).get("message_id")}])[-30:])
+            _sj("sorare_yes2.json", (load_json("sorare_yes2.json", []) + [{"d": m.get("date", 0), "r": (m.get("reply_to_message") or {}).get("message_id"), "m": m.get("message_id")}])[-30:])
             continue
         ma = re.match(r"(?i)/apla[çc]a[tr]?\S*\s+(.+)$", t)
         if ma:  # «/aplaçat Castellón»: partit aplaçat que FotMob encara no marca (5/11)

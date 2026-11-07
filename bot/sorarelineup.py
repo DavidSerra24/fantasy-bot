@@ -821,6 +821,57 @@ def _yes_events():
     return ev
 
 
+def ack_yes():
+    """Respon cada «sí» nou amb quina Arena s'enviarà i a quina hora (decisió del David, 7/11). No consumeix els
+    missatges (el planificador continua llegint-los); els ja confirmats es desen a state/sorare_yes_ack.json."""
+    import datetime as dt
+    import os
+    import re
+    import requests
+    from zoneinfo import ZoneInfo
+    from bot.web import STATE_LOCK, load_json, save_json
+    M = ZoneInfo("Europe/Madrid")
+    tok, chat = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
+    ev = {e["m"]: (e["d"], e.get("r")) for e in load_json("sorare_yes2.json", []) if e.get("m")}
+    try:
+        for u in requests.get(f"https://api.telegram.org/bot{tok}/getUpdates", params={"timeout": 0}, timeout=20).json().get("result", []):
+            m = u.get("message") or {}
+            if str((m.get("chat") or {}).get("id")) == str(chat) and re.fullmatch(YES, (m.get("text") or "").strip().lower()):
+                ev[m["message_id"]] = (m.get("date", 0), (m.get("reply_to_message") or {}).get("message_id"))
+    except Exception:
+        pass
+    with STATE_LOCK:
+        acked = set(load_json("sorare_yes_ack.json", []))
+        new = {k: v for k, v in ev.items() if k not in acked and v[0] > dt.datetime.now().timestamp() - 20 * 60}  # només els recents (no els d'abans d'això)
+        if not new:
+            return
+        asks = list((load_json(ARSTATE, {}).get("asks") or {}).values())
+        gks = list(load_json("sorare_gkarena.json", {}).values())
+        for mid, (d, r) in sorted(new.items(), key=lambda kv: kv[1][0]):
+            txt = None
+            hit = next((a for a in asks if r and a.get("id") == r), None)
+            if not hit:  # «sí» sense respondre: la darrera proposta d'abans
+                prev = [a for a in asks if a.get("at", 0) <= d and a.get("status") in ("asked", "approved")]
+                hit = max(prev, key=lambda a: a["at"], default=None)
+                gprev = [g for g in gks if g.get("at", 0) <= d and g.get("status") == "proposed"]
+                g = max(gprev, key=lambda g: g["at"], default=None)
+                if g and (not hit or g["at"] > hit["at"]):
+                    S = dt.datetime.fromisoformat(g["submit_at"]).astimezone(M)
+                    txt = f"👍 Rebut el «sí»: l'Arena amb {g['gk']['name']} s'enviarà a les {S:%H:%M} (amb els titulars d'aquell moment)."
+                    hit = None
+            if hit:
+                F = dt.datetime.fromisoformat(hit["first"]).astimezone(M) - dt.timedelta(minutes=6)
+                txt = f"👍 Rebut el «sí»: l'Arena amb {hit.get('gk_name') or hit['gk']} s'enviarà a les {F:%H:%M} (amb els titulars d'aquell moment)."
+            if not txt:
+                txt = "👍 He rebut el «sí», però no trobo cap Arena pendent a la qual correspongui."
+            try:
+                requests.post(f"https://api.telegram.org/bot{tok}/sendMessage", json={"chat_id": chat, "text": txt, "reply_to_message_id": mid}, timeout=20)
+            except Exception:
+                pass
+            acked.add(mid)
+        save_json("sorare_yes_ack.json", sorted(acked)[-100:])
+
+
 def arenas_go_wait(max_wait_min=50):
     """Manual (sorare.yml cmd=arenasgo): espera fins a 6 min abans del primer partit de les Arenes proposades o
     aprovades i les envia (late_arenas "go"). Per quan l'execució automàtica no hi arriba."""
