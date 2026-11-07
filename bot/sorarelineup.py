@@ -783,6 +783,28 @@ def _yes_events():
     return ev
 
 
+def arenas_go_wait(max_wait_min=50):
+    """Manual (sorare.yml cmd=arenasgo): espera fins a 6 min abans del primer partit de les Arenes proposades o
+    aprovades i les envia (late_arenas "go"). Per quan l'execució automàtica no hi arriba."""
+    import datetime as dt
+    import time as _t
+    st = _lj(ARSTATE, {})
+    firsts = sorted({a["first"] for a in (st.get("asks") or {}).values() if a.get("status") in ("asked", "approved") and a.get("first")})
+    now = dt.datetime.now(dt.timezone.utc)
+    firsts = [f for f in firsts if dt.datetime.fromisoformat(f) > now]
+    if not firsts:
+        print("::notice title=sorare arenes::cap Arena pendent")
+        return
+    F = dt.datetime.fromisoformat(firsts[0])
+    wait = (F - dt.timedelta(minutes=6) - now).total_seconds()
+    if wait > max_wait_min * 60:
+        print(f"::notice title=sorare arenes::massa aviat ({F})")
+        return
+    if wait > 0:
+        _t.sleep(wait)
+    late_arenas("go", F.isoformat())
+
+
 def late_arenas(kind="prop", at=None):
     """Arenes fins a l'últim moment, una a una (decisió del David, 6/11: «només la que em pregunti»).
     kind="prop": per a cada Arena possible amb el jugador del primer partit titular confirmat, un missatge propi; el
