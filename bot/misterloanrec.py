@@ -33,7 +33,9 @@ def evaluate(squad):
     if not res:
         return None
     tac, pick, cap = res
-    return (len(pick), -sum(1 for q in pick if q.get("rule_skip")), round(expected(pick), 1)), tac, pick, cap
+    # rivals amb la norma estricta (cap jugador amb un de l'equip rival): un onze que només surt relaxant-la va després
+    riv = sum(1 for a, b in itertools.combinations(pick, 2) if a.get("match") and a["match"] == b.get("match") and a.get("side") != b.get("side"))
+    return (len(pick), -riv, -sum(1 for q in pick if q.get("rule_skip")), round(expected(pick), 1)), tac, pick, cap
 
 
 def run(name="Quique", maxn=None, send=False):
@@ -95,7 +97,7 @@ def run(name="Quique", maxn=None, send=False):
         for q in sorted(add, key=lambda q: o[q["P"]]):
             ps = q["si"].get("ps")
             lines.append(f"• {LBL[q['P']]} {q['name']} ({q['team']}) · {q['pct']}% · PS {('≈' if q['si'].get('ps_est') else '') + str(ps) if ps is not None else '-'} · de {q['owner']}")
-        lines.append(f"Punts esperats de l'onze: {base[0][2]} → {bkey[2]} (+{bkey[2] - base[0][2]:.1f})")
+        lines.append(f"Punts esperats de l'onze: {base[0][3]} → {bkey[3]} (+{bkey[3] - base[0][3]:.1f})")
     lines.append(f"Onze ({tac}): " + ", ".join(fmt(q) for q in sorted(pick, key=lambda q: o[q["P"]])))
     lines.append("Aquests no els demano: les cessions les fas tu. Quan els tinguis, l'alineació els tindrà en compte.")
     msg = "\n".join(lines)
