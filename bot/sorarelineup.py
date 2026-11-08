@@ -207,8 +207,11 @@ def fit_bonus(pick, pool, slots, cap, avg, hard):
             yield c
 
     def loss(old, new):
-        # impacte perdut, després els Gazzaniga repetits al final, després l'ordre de la llista
-        return (sum(o["imp"] - n["imp"] for o, n in zip(old, new)),
+        # primer, no canviar titulars confirmats per jugadors del 80–90% (Arenes, decisió del David, 8/11: «que es
+        # prioritzi posar jugadors titulars»; tier 0/-1 = confirmat o aprovat, 1 = 80–90%); després l'impacte perdut,
+        # els Gazzaniga repetits al final i l'ordre de la llista
+        return (sum(max(n.get("tier", 0), 0) - max(o.get("tier", 0), 0) for o, n in zip(old, new)),
+                sum(o["imp"] - n["imp"] for o, n in zip(old, new)),
                 sum(n["gazza"] is not True and n["gazza"] >= 2 for n in new), sum(n["idx"] for n in new))
 
     best = None
@@ -223,7 +226,7 @@ def fit_bonus(pick, pool, slots, cap, avg, hard):
     cands = {}
     for k, cur in enumerate(pick):
         cs = [c for c in options(pick, k) if c[avg] < cur[avg]]
-        cs.sort(key=lambda c: (-c["imp"], c["idx"]))
+        cs.sort(key=lambda c: (max(c.get("tier", 0), 0), -c["imp"], c["idx"]))
         cands[k] = cs[:12]
     for k1 in range(len(pick)):
         for k2 in range(k1 + 1, len(pick)):
@@ -254,7 +257,7 @@ def fit_bonus(pick, pool, slots, cap, avg, hard):
                 nb = bonus_bad(new, cap, avg, hard)
                 if nb >= bad:
                     continue
-                key = (cur["imp"] - c["imp"], nb, c["idx"])
+                key = (max(c.get("tier", 0), 0) - max(cur.get("tier", 0), 0), cur["imp"] - c["imp"], nb, c["idx"])
                 if step is None or key < step[0]:
                     step = (key, new)
         if not step:
