@@ -49,6 +49,8 @@ with sync_playwright() as p:
                                        f"status {v.get('status')}, ratxa {v.get('streak')})" for v in lst.values())
                            + " · claus extra: " + ",".join(sorted(set(k for v in lst.values() for k in v) - {"id", "name", "id_team", "points", "avg", "status", "streak", "ts_pic", "photoUrl", "teamLogoUrl", "value", "prev_value", "captain", "captainMultiplier", "id_competition", "position", "streak_sum"}))
                            + " · info: " + ",".join(k for k in info if k != "list"))
+                if x["slot"] == "2":
+                    out.append("games: " + json.dumps({k: info.get(k) for k in ("games", "home", "away")}, ensure_ascii=False)[:2800])
             except Exception as e:
                 out.append(f"casella {x['slot']}: {e}")
     names = [re.sub(r"^\S*\s*", "", r)[:40] for r in rows]
