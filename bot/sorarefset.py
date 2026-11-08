@@ -113,7 +113,9 @@ def _fill(cands, slots, taken, lvl):
         for q in cands:
             if len(pick) == len(slots):
                 break
-            if q["slug"] in taken or (only_ok and not q["ok"]) or (lvl != "none" and any(rivals(q, x, lvl) for x in pick.values())):
+            # mai un jugador que ja se sap que no és titular (onze oficial publicat i no hi és; 8/11: Bernardo, Daghim i
+            # Lenz, suplents de l'Hoffenheim, van entrar com a 🔸)
+            if q["slug"] in taken or (only_ok and not q["ok"]) or (q["confirmed"] and not q["ok"]) or (lvl != "none" and any(rivals(q, x, lvl) for x in pick.values())):
                 continue
             free = [i for i, s_ in enumerate(slots) if i not in pick and set(q["pos"]) & set(s_["positions"])]
             if not free:
