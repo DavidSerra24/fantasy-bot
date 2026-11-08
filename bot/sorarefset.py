@@ -128,9 +128,12 @@ def claim_check():
     """Comprovació curta (cada 10 min; decisió del David, 6/11: reclamar com més aviat millor i fer les alineacions del
     nivell següent, per si s'acaba just quan comencen més partits). Una sola consulta: només si el tauler personal està
     per reclamar (CLAIMABLE) o perdut (FAILED) es fa la passada sencera (reclama/reinicia i omple les 4 alineacions)."""
+    from bot.sorareset import claim_missions
+    claim_missions()
     b = gql(STEP, {"m": "CAREER"}, token=token())["currentUser"]["setBoard"]
     st = (b or {}).get("myCurrentStep") or {}
-    if st.get("state") in ("CLAIMABLE", "FAILED"):
+    sq = ((gql(STEP, {"m": "SQUAD"}, token=token())["currentUser"]["setBoard"] or {}).get("myCurrentStep") or {})
+    if st.get("state") in ("CLAIMABLE", "FAILED") or sq.get("state") == "FAILED":
         print(f"::notice title=set futbol::tauler personal {st['state']}: passada sencera")
         run()
 
@@ -158,6 +161,13 @@ def run(dry=False, focus=None):
             except Exception as e:
                 rep.append(f"⚠️ {label}: no he pogut reclamar ({str(e)[:150]})")
             b = gql(STEP, {"m": mode}, token=token())["currentUser"]["setBoard"]; st = b["myCurrentStep"]
+        if st["state"] == "FAILED" and mode == "SQUAD" and not dry:  # tauler d'equip perdut: es torna a començar (8/11)
+            from bot.sorareset import restart_squad
+            err = restart_squad(b, st)
+            rep.append(f"🔄 {label}: nivell {st['level'] + 1} perdut; he tornat a començar el tauler d'equip" if not err
+                       else f"⚠️ {label}: nivell {st['level'] + 1} perdut i no l'he pogut reiniciar ({err[:150]}). Reinicia'l tu des del joc.")
+            if not err:
+                b = gql(STEP, {"m": mode}, token=token())["currentUser"]["setBoard"]; st = b["myCurrentStep"]
         if st["state"] == "FAILED" and mode == "CAREER" and not dry:
             try:
                 d = gql(RESTART, {"input": {"taskId": b["id"]}}, token=token())["restartTasksTrack"]

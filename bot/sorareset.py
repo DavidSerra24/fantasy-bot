@@ -36,6 +36,23 @@ RESTART = """mutation($input: restartTasksTrackInput!) { restartTasksTrack(input
 CLAIMTASK = """mutation($t: ID!) { claimTask(input: {taskId: $t}) { errors { message } } }"""
 
 
+def restart_squad(b, st):
+    """Tauler d'equip perdut (FAILED): es torna a començar (decisió del David, 8/11: «si es perd sí»; el sobre d'un
+    nivell guanyat l'obre ell). Primer acknowledgeStep (passar el pas perdut), si no restartTasksTrack. Retorna None si
+    ha anat bé, o el missatge d'error."""
+    err = ""
+    for q, var, key in ((CLAIM, {"input": {"stepId": st["id"]}}, "acknowledgeStep"),
+                        (RESTART, {"input": {"taskId": b["id"]}}, "restartTasksTrack")):
+        try:
+            d = gql(q, var, token=token())[key]
+            if not d.get("errors"):
+                return None
+            err = "; ".join(e["message"] for e in d["errors"])
+        except Exception as e:
+            err = str(e)[:200]
+    return err
+
+
 def claim_step(st, mode):
     """Reclama la recompensa d'un nivell superat. Tauler d'equip: acknowledgeStep. Tauler personal: el pas és una «Task»
     i Sorare diu «Acknowledging a career step is not supported» (3/11) → claimTask amb el seu id."""
@@ -138,6 +155,13 @@ def run(dry=False, sports=("NBA",), scan=False):
                     st = (b or {}).get("myCurrentStep") or st
                 except Exception as e:
                     rep.append(f"⚠️ {label}: no he pogut reclamar la recompensa ({str(e)[:150]})")
+            if st["state"] == "FAILED" and mode == "SQUAD" and not dry:
+                err = restart_squad(b, st)
+                rep.append(f"🔄 {label}: nivell {st['level'] + 1} perdut; he tornat a començar el tauler d'equip" if not err
+                           else f"⚠️ {label}: nivell {st['level'] + 1} perdut i no l'he pogut reiniciar ({err[:150]}). Reinicia'l tu des del joc.")
+                if not err:
+                    b = gql(STEP, {"sp": sp, "m": mode}, token=token())["currentUser"]["setBoard"]
+                    st = (b or {}).get("myCurrentStep") or st
             if st["state"] == "FAILED" and mode == "CAREER" and sp == "NBA" and not dry:
                 # nivell perdut (cap alineació arriba a l'objectiu): es reinicia el tauler (gratuït, com el botó de la web;
                 # decisió del David, 2/11) i es fan les alineacions del nivell 1 amb els partits que toquin
@@ -321,12 +345,28 @@ def claim_check():
     """Comprovació curta (decisió del David, 8/11: «que el bot també reiniciï, per si pot fer alineacions a
     continuació»): si el tauler personal de l'NBA està superat (CLAIMABLE) o perdut (FAILED), escaneig (reclama o
     reinicia) i de seguida les alineacions del nivell nou amb els partits que quedin."""
+    claim_missions()
     b = gql(STEP, {"sp": "NBA", "m": "CAREER"}, token=token())["currentUser"]["setBoard"]
     st = (b or {}).get("myCurrentStep") or {}
-    if st.get("state") in ("CLAIMABLE", "FAILED"):
+    bq = gql(STEP, {"sp": "NBA", "m": "SQUAD"}, token=token())["currentUser"]["setBoard"]
+    sq = (bq or {}).get("myCurrentStep") or {}
+    if st.get("state") in ("CLAIMABLE", "FAILED") or sq.get("state") in ("FAILED",) or \
+            (sq.get("state") == "CLAIMABLE" and sq.get("id") not in load_json("sorare_squad_notified.json", [])):
         print(f"::notice title=set NBA::tauler personal {st['state']}: reclamo/reinicio i faig les alineacions")
         run(dry=False, scan=True)
         run(dry=False, scan=False)
+
+
+def claim_missions():
+    """Missions acabades (NBA i futbol): es reclamen de seguida, no només a les 9:05 (el David, 8/11)."""
+    from bot.soraremissions import claim_done
+    rep = []
+    try:
+        claim_done(rep)
+    except Exception as e:
+        rep.append(f"⚠️ reclamar missions: {str(e)[:150]}")
+    if any(r.startswith("🎁") for r in rep):
+        telegram("Sorare · missions reclamades\n" + "\n".join(rep))
 
 
 def review(sports=("NBA",), dry=False):
