@@ -109,7 +109,7 @@ def fill(cands, slots, taken):
 
 def _fill(cands, slots, taken, lvl):
     pick = {}
-    for only_ok in (True, False):
+    for only_ok in (True,):  # només ≥80% o titulars confirmats; sense 🔸 (decisió del David, 8/11)
         for q in cands:
             if len(pick) == len(slots):
                 break
@@ -201,6 +201,11 @@ def run(dry=False, focus=None):
             rep.append(f"{label} ({b.get('title')}, nivell {st['level'] + 1}, objectiu {st['target']}, {len(locked)} en joc): totes en joc, res a revisar")
             continue
         cands = candidates(st["id"], now, used_cards, locked_players, squad=mode == "SQUAD")
+        # partits del mateix dia (decisió del David, 8/11): només els del primer dia amb partits (hora de Madrid); les
+        # alineacions que no es puguin completar aquell dia es fan l'endemà
+        if cands:
+            day0 = min(q["date"] for q in cands).astimezone(MAD).date()
+            cands = [q for q in cands if q["date"].astimezone(MAD).date() == day0]
         first = lambda l: min((D(a["game"]["date"]) for a in l["taskAppearances"] if a and a.get("game")), default=None)
         if focus:  # només les alineacions que comencen a aquesta hora; els jugadors de les altres es queden on són
             F = D(focus)
