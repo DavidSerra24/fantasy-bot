@@ -153,6 +153,11 @@ def postponed(days=6, ccode="ESP", top=False, squads=False):
             st = m.get("status") or {}
             txt = _json.dumps(st).lower()
             mt = _man_hit(man, m, lname)
+            # un aplaçament d'una hora ja passada no compta (8/11: la setmana vinent aquests equips tornen a jugar normal)
+            ut = st.get("utcTime")
+            past = bool(ut) and dt.datetime.fromisoformat(ut.replace("Z", "+00:00")) < now
+            if not mt and past:
+                continue
             if st.get("cancelled") or "postpon" in txt or '"pp"' in txt or "aplaz" in txt or mt:
                 names = [m[side].get("longName") or m[side]["name"] for side in ("home", "away")]
                 if any(YOUTH.search(x) for x in names):
