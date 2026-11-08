@@ -45,7 +45,10 @@ with sync_playwright() as p:
                 info = api.slot_info(st, x["slot"])
                 lst = info.get("list") or {}
                 out.append(f"casella {x['slot']} ({x['txt'][:40]}): isStarted={info.get('isStarted')} candidats: "
-                           + json.dumps(lst, ensure_ascii=False)[:700])
+                           + "; ".join(f"{v.get('name')} (equip {v.get('id_team')}, {v.get('points')} pts, mitj {v.get('avg')}, "
+                                       f"status {v.get('status')}, ratxa {v.get('streak')})" for v in lst.values())
+                           + " · claus extra: " + ",".join(sorted(set(k for v in lst.values() for k in v) - {"id", "name", "id_team", "points", "avg", "status", "streak", "ts_pic", "photoUrl", "teamLogoUrl", "value", "prev_value", "captain", "captainMultiplier", "id_competition", "position", "streak_sum"}))
+                           + " · info: " + ",".join(k for k in info if k != "list"))
             except Exception as e:
                 out.append(f"casella {x['slot']}: {e}")
     names = [re.sub(r"^\S*\s*", "", r)[:40] for r in rows]
