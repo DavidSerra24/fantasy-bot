@@ -45,7 +45,7 @@ def ff_deadline(comp, ffd):
 # Carril ràpid (decisió del David, 6/11): accions curtes i amb hora justa (Sorare, Collectibol) que no han d'esperar
 # les llargues (Fantasy, Predicted11, Mister amb el navegador). bot/execute.py les fa en paral·lel.
 FAST = {"sorare", "sorarefset", "sorarearenas", "sorarearena", "sorarexi", "soraremission", "soraresetscan",
-        "soraresetgo", "soraresetrev", "collectibol", "sorarefclaim"}
+        "soraresetgo", "soraresetrev", "collectibol", "sorarefclaim", "soraresetclaim"}
 
 
 def is_fast(a):
@@ -330,6 +330,15 @@ def plan(now=None, done=None, fast_only=False):
         # l'NBA es juga un cop al dia: s'apura fins a l'últim moment (previsions de RotoWire més fresques; decisió del David, 30/10)
         if due(k, F - dt.timedelta(minutes=12), F - dt.timedelta(minutes=2)):
             add(k, F - dt.timedelta(minutes=12), "soraresetgo", fs, F - dt.timedelta(minutes=2))
+    # Set NBA: reclamar o reiniciar el tauler personal com més aviat millor (decisió del David, 8/11): cada 10 min des de
+    # 2 h fins a 4 h després de l'inici de cada partit de les alineacions (un partit d'NBA dura ~2 h 15)
+    for gd in load_json("sorare_set.json", {}).get("recent", []):
+        G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))
+        for mins in range(120, 241, 10):
+            T = G + dt.timedelta(minutes=mins)
+            k = f"soraresetclaim:{T.isoformat()[:16]}"
+            if due(k, T, T + dt.timedelta(minutes=9)):
+                add(k, T, "soraresetclaim", T.isoformat()[:16], T + dt.timedelta(minutes=9))
     # Set NBA: revisió de les alineacions ja fetes abans de cada partit (si un jugador deixa de jugar, es canvia; decisió del David, 31/10)
     for gd in load_json("sorare_set.json", {}).get("games", []):
         G = dt.datetime.fromisoformat(gd.replace("Z", "+00:00"))

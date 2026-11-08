@@ -227,6 +227,9 @@ def run(dry=False, sports=("NBA",), scan=False):
                 pool = [c for c in pool if c["player"] not in chosen]
             rep.append("\n".join(lines))
     stt = load_json("sorare_set.json", {})
+    # hores dels partits de les alineacions (també els ja començats, 8 h): per mirar si el nivell s'ha superat o perdut
+    _cut = (now - dt.timedelta(hours=8)).isoformat()[:19]
+    stt["recent"] = sorted({g for g in stt.get("recent", []) + stt.get("games", []) + games_used if g > _cut})
     if games_used:
         stt["games"] = sorted(set(games_used) | {g for g in stt.get("games", []) if g > now.isoformat()[:19]})
     if firsts:
@@ -312,6 +315,18 @@ def _best_fill(pool, slots, cap, fixed, strict):
                 bestv = (v, dict(zip(free_idx, perm)))
                 break
     return bestv
+
+
+def claim_check():
+    """Comprovació curta (decisió del David, 8/11: «que el bot també reiniciï, per si pot fer alineacions a
+    continuació»): si el tauler personal de l'NBA està superat (CLAIMABLE) o perdut (FAILED), escaneig (reclama o
+    reinicia) i de seguida les alineacions del nivell nou amb els partits que quedin."""
+    b = gql(STEP, {"sp": "NBA", "m": "CAREER"}, token=token())["currentUser"]["setBoard"]
+    st = (b or {}).get("myCurrentStep") or {}
+    if st.get("state") in ("CLAIMABLE", "FAILED"):
+        print(f"::notice title=set NBA::tauler personal {st['state']}: reclamo/reinicio i faig les alineacions")
+        run(dry=False, scan=True)
+        run(dry=False, scan=False)
 
 
 def review(sports=("NBA",), dry=False):
