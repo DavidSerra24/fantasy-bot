@@ -37,6 +37,8 @@ def next_match(team):
 
 
 def main(specs):
+    repl = next((a.split("=", 1)[1] for a in specs if a.startswith("--en-lloc=")), "Maffeo")
+    specs = [a for a in specs if not a.startswith("--")]
     items = []
     for sp in specs:
         nm, team = sp.split("|")
@@ -58,9 +60,9 @@ def main(specs):
             telegram(f"⏱️ {nm}: el partit {h}–{a} ha començat i no he vist l'onze oficial.")
             continue
         side = max(st, key=lambda t: team_score(t, team))
-        ok = any(name_score(nm, s) >= 75 for s in st[side])
+        ok = any(name_score(alt.strip(), s) >= 75 for alt in nm.split("/") for s in st[side])  # «Nom/Àlies»
         if ok:
-            telegram(f"✅ {nm} és TITULAR ({h}–{a}, {w.astimezone(M):%H:%M}). Posa'l al Mister en lloc de Maffeo.")
+            telegram(f"✅ {nm} és TITULAR ({h}–{a}, {w.astimezone(M):%H:%M}). Posa'l al Mister en lloc de {repl}.")
             return
         telegram(f"❌ {nm} NO és titular ({h}–{a}). " + ("Miro el següent." if (when, nm) != items[-1][:2] else "Cap dels dos surt titular."))
 
