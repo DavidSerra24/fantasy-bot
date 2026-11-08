@@ -64,7 +64,7 @@ def main(specs):
         if ok:
             telegram(f"✅ {nm} és TITULAR ({h}–{a}, {w.astimezone(M):%H:%M}). Posa'l al Mister en lloc de {repl}.")
             return
-        telegram(f"❌ {nm} NO és titular ({h}–{a}). " + ("Miro el següent." if (when, nm) != items[-1][:2] else "Cap dels dos surt titular."))
+        telegram(f"❌ {nm} NO és titular ({h}–{a}). " + ("Miro el següent." if (when, nm) != items[-1][:2] else ("Cap dels dos surt titular." if len(items) > 1 else f"No canviïs {repl}.")))
 
 
 if __name__ == "__main__":
