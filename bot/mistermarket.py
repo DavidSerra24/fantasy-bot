@@ -347,7 +347,7 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
     return bal, squad, market, have, cap
 
 
-def run(dry=False, retira=()):
+def run(dry=False, retira=(), force=()):
     report = []
     done = load_json("mister_bids.json", {})
     sold = load_json("mister_sales.json", {})
@@ -393,7 +393,9 @@ def run(dry=False, retira=()):
                     report.append(f"⚠️ {name}: {len(below)} jugadors surten per sota del {minimum}% ({', '.join(q['short'] + ' ' + str(q['pct']) + '%' for q in below[:8])}); "
                                   "sembla un error de la font i NO en venc cap. Si de debò cal vendre'n, digues-m'ho.")
                     below = []
-                for q in sorted(below, key=lambda q: (q["pct"], q["ps"] or 0)):
+                # vendes que el David demana a mà (--ven=Nom,Nom; 9/11): sí o sí, encara que salti la salvaguarda
+                below += [q for q in keep if q["short"].replace(" ", "") in force and q not in below and not q["loaned"] and not q.get("loanin")]
+                for q in sorted(below, key=lambda q: (q["pct"] if q["pct"] is not None else 0, q["ps"] or 0)):
                     rest = [x for x in keep if x is not q]
                     if not can_sell(keep, rest):
                         nosale.append(f"{q['short']} (cal per fer l'onze)")
@@ -543,5 +545,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--retira", default="", help="pujes meves a retirar sí o sí (noms curts separats per comes)")
+    ap.add_argument("--ven", default="", help="jugadors a posar en venda sí o sí (noms curts separats per comes)")
     a = ap.parse_args()
-    run(a.dry, tuple(x.replace(" ", "") for x in a.retira.split(",") if x.strip()))
+    run(a.dry, tuple(x.replace(" ", "") for x in a.retira.split(",") if x.strip()),
+        tuple(x.replace(" ", "") for x in a.ven.split(",") if x.strip()))
