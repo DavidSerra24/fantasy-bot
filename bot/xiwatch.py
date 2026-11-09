@@ -57,13 +57,16 @@ def main(specs):
                 break
             time.sleep(180)
         if not st:
+            print(f"::notice title=xiwatch resultat::{nm} sense onze")
             telegram(f"⏱️ {nm}: el partit {h}–{a} ha començat i no he vist l'onze oficial.")
             continue
         side = max(st, key=lambda t: team_score(t, team))
         ok = any(name_score(alt.strip(), s) >= 75 for alt in nm.split("/") for s in st[side])  # «Nom/Àlies»
         if ok:
+            print(f"::notice title=xiwatch resultat::{nm} TITULAR")
             telegram(f"✅ {nm} és TITULAR ({h}–{a}, {w.astimezone(M):%H:%M}). Posa'l al Mister en lloc de {repl}.")
             return
+        print(f"::notice title=xiwatch resultat::{nm} NO titular")
         telegram(f"❌ {nm} NO és titular ({h}–{a}). " + ("Miro el següent." if (when, nm) != items[-1][:2] else ("Cap dels dos surt titular." if len(items) > 1 else f"No canviïs {repl}.")))
 
 
