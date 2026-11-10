@@ -154,7 +154,9 @@ def main():
                     except RuntimeError:
                         continue
                 if not sidata:
-                    raise RuntimeError("SorareInside encara no té la propera jornada")
+                    if league != "Primera División":
+                        raise RuntimeError("SorareInside encara no té la propera jornada")
+                    sidata = {"_order": []}  # aturada de seleccions (10/11): Fentaniños sense PS
                 squad = enrich(read_squad(pg), sidata)
                 market = enrich([m for m in read_market(pg) if m["href"]], sidata)
                 lines = [f"🧢 Mister · {name} — saldo {bal/1e6:.1f}M" if bal is not None else f"🧢 Mister · {name}"]

@@ -236,7 +236,18 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
     """Saldo, plantilla i mercat lliure d'una lliga, amb el % de titularitat de la font que toca."""
     pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
     bal = balance(pg) or 0
-    sidata = si_next(spg, country, league)
+    try:
+        sidata = si_next(spg, country, league)
+    except RuntimeError:
+        # aturada de seleccions (decisió del David, 10/11): a Fentaniños el % és de FutbolFantasy i el PS de SorareInside;
+        # si SorareInside encara no té la propera jornada, es continua sense PS (compres del més barat al més car dins
+        # de la franja, vendes i ofertes pel %; l'alineació es refà quan surti el PS). Quique (Segona) segueix igual.
+        if league != "Primera División":
+            raise
+        sidata = {"_order": []}
+        if not cache.get("nops:" + league):
+            report.append("ℹ️ Fentaniños: SorareInside encara no té la propera jornada → mercat i ofertes només amb el % de FutbolFantasy (sense PS)")
+            cache["nops:" + league] = True
     cache["sid:" + league] = sidata
     squad = read_squad(pg)
     have, cap = squad_slots(pg)
