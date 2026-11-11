@@ -151,8 +151,8 @@ def plan(now=None, done=None, fast_only=False):
                     add(k, CQ - dt.timedelta(hours=2), "losilla", f"{lst['temporada']}_{lst['jornada']}", CQ)
         except Exception as e:
             info.append(f"Quiniela (Eduardo Losilla): error ({type(e).__name__}: {str(e)[:150]})")
-    # Resum del matí del Set i de les missions d'ahir, amb imatge (decisió del David, 12/11): 9:10, després de reclamar
-    dg_t = local.replace(hour=9, minute=10, second=0, microsecond=0).astimezone(UTC)
+    # Resum del matí del Set i de les missions de les últimes 24 h, amb imatge (decisió del David, 12/11): a les 8:00
+    dg_t = local.replace(hour=8, minute=0, second=0, microsecond=0).astimezone(UTC)
     k = f"digest:{local.date()}"
     if due(k, dg_t, dg_t + dt.timedelta(hours=3)):
         add(k, dg_t, "digest", None, dg_t + dt.timedelta(hours=3))

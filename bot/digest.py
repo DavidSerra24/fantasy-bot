@@ -73,16 +73,49 @@ def _ok(status):
     return None
 
 
+def refresh():
+    """Abans del resum, una última lectura dels taulers del Set i de les missions (puntuacions finals de la matinada)."""
+    try:
+        from bot import sorarefset, sorareset
+        for m in ("CAREER", "SQUAD"):
+            sorarefset.gql_step({"m": m})
+            sorareset.gql_step({"sp": "NBA", "m": m})
+    except Exception as e:
+        print(f"::warning title=resum taulers::{str(e)[:150]}")
+    try:
+        from bot import soraremissions as sm
+        from bot.sorare import gql, token
+        for pri, rarity, t in sm.list_tasks([]):
+            task = gql(sm.TASK, {"id": t["id"].split(":")[-1]}, token=token())["currentUser"]["task"]
+            if task:
+                mission(task, t["sport"], rarity, task.get("taskAppearances") or [])
+    except Exception as e:
+        print(f"::warning title=resum missions::{str(e)[:150]}")
+
+
 def run(day=None):
     """Envia la imatge del resum del dia `day` (per defecte, ahir)."""
     from bot.notify import telegram
     from bot.tgimg import send_digest
-    day = day or (dt.datetime.now(MAD).date() - dt.timedelta(days=1)).isoformat()
+    # finestra: les últimes 24 h fins ara (a les 8:00; així entra l'NBA de la matinada; decisió del David, 12/11)
+    refresh()
+    now = dt.datetime.now(dt.timezone.utc)
+    if day:
+        lo = dt.datetime.fromisoformat(day).replace(hour=8, tzinfo=MAD).astimezone(dt.timezone.utc)
+        now = lo + dt.timedelta(hours=24)
+    lo = now - dt.timedelta(hours=24)
+
+    def inwin(v):
+        try:
+            d = dt.datetime.fromisoformat(str(v.get("date")).replace("Z", "+00:00"))
+            return lo <= d < now
+        except Exception:
+            return False
     j = load_json(FILE, {})
-    sets = sorted([v for v in j.get("setlineup", {}).values() if v.get("day") == day], key=lambda v: (v["sport"], v.get("mode", ""), v["date"]))
-    mis = [v for v in j.get("mission", {}).values() if v.get("day") == day]
-    today = dt.datetime.now(MAD).date().isoformat()
-    evs = [v["text"] for v in j.get("event", {}).values() if v.get("day") == day or (v.get("day") == today and today > day)]
+    sets = sorted([v for v in j.get("setlineup", {}).values() if inwin(v)], key=lambda v: (v["sport"], v.get("mode", ""), v["date"]))
+    mis = [v for v in j.get("mission", {}).values() if inwin(v)]
+    evs = [v["text"] for v in j.get("event", {}).values() if inwin(v)]
+    day = now.astimezone(MAD).date().isoformat()
     if not (sets or mis or evs):
         print(f"::notice title=resum::res del {day}")
         return
@@ -101,7 +134,7 @@ def run(day=None):
                        "desc": v.get("desc") or "", "won": (True if oks and all(o is True for o in oks) else (False if oks and all(o is False for o in oks) else None)),
                        "players": [{"name": p["name"], "pic": p.get("pic"), "ok": o, "status": p.get("status")} for p, o in zip(v["picks"], oks)]})
     d = dt.date.fromisoformat(day)
-    title = f"Resum de {['dilluns', 'dimarts', 'dimecres', 'dijous', 'divendres', 'dissabte', 'diumenge'][d.weekday()]} {d.day}/{d.month}"
+    title = f"Resum del {['dilluns', 'dimarts', 'dimecres', 'dijous', 'divendres', 'dissabte', 'diumenge'][d.weekday()]} {d.day}/{d.month} (últimes 24 h)"
     won = sum(1 for b in blocks if b["won"] is True)
     lost = sum(1 for b in blocks if b["won"] is False)
     sw = sum(1 for b in blocks if b["kind"] == "set" and b["won"] is True)
