@@ -243,6 +243,7 @@ if __name__ == "__main__":
          "livak": lambda: __import__("bot.sorarelivak"),
          "live": lambda: __import__("bot.sorarelive"),
          "livelineups": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("dry", live=True),
+         "probe2": lambda: __import__("bot.sorareprobe2"),
          "livefill": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("fill", live=True)}[cmd]()
     except Exception as e:
         import traceback
