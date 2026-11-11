@@ -352,7 +352,8 @@ def img_card(title, pick, cap, slots=CLASSIC, subtitle="", footer="", tag="", ta
     for sl, q in zip(slots, pick):
         sub = " · ".join(x for x in ((q.get("club") or "")[:14], _when_txt(q)) if x)
         conf = q.get("tier") == 0 and slots == ARENA
-        ps.append(player(sl, q["name"] + (" ✓" if conf else ""), sub, q.get("grade") or "?", cap=q is cap, warn=bool(q.get("rivals")),
+        # l'Extra es dibuixa a la línia de la seva posició (decisió del David, 11/11: «porter, dos defenses, 3 mitjos i un davanter»)
+        ps.append(player(q.get("pos") or sl if sl == "Extra" else sl, q["name"] + (" ✓" if conf else ""), sub, q.get("grade") or "?", cap=q is cap, warn=bool(q.get("rivals")),
                          pic=q.get("pic")))
     return card(title, ps, subtitle=subtitle, footer=footer, tag=tag, tag_col=tag_col)
 

@@ -286,7 +286,7 @@ def run(dry=False, focus=None):
                 ps = []
                 for i, q in sorted(pick.items()):
                     pp = slots[i]["positions"]
-                    pos = pp[0] if len(pp) == 1 else "Extra"
+                    pos = pp[0] if len(pp) == 1 else ((q.get("pos") or ["Extra"])[0])  # l'Extra, a la línia de la seva posició (11/11)
                     when = q["date"].astimezone(MAD)
                     sub = f"{(q.get('team') or '').replace('-', ' ')[:13]} · {['dl','dt','dc','dj','dv','ds','dg'][when.weekday()]} {when:%H:%M}"
                     ps.append(player(pos, q["name"] + (" ✓" if q["confirmed"] and q["ok"] else ""), sub, f"{q['grade']} {q['proj']:.0f}",
