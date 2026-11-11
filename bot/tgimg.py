@@ -17,15 +17,34 @@ POS = {"Goalkeeper": "G", "Defender": "D", "Midfielder": "M", "Forward": "F", "E
 GRADE_COL = {"A": "#16a34a", "B": "#65a30d", "C": "#ca8a04", "D": "#ea580c", "E": "#dc2626", "F": "#991b1b"}
 
 
-def player(pos, name, sub="", badge="", badge_col=None, cap=False, warn=False, dim=False):
+def player(pos, name, sub="", badge="", badge_col=None, cap=False, warn=False, dim=False, pic=None):
     """pos: Goalkeeper/Defender/…/Extra o G/D/M/F/X. badge: lletra d'impacte, % o punts (es pinta en una píndola)."""
     b = str(badge or "")
     col = badge_col or GRADE_COL.get(b[:1].upper(), "#334155") if b else None
-    return {"pos": POS.get(pos, "X"), "name": name, "sub": sub, "badge": b, "col": col, "cap": cap, "warn": warn, "dim": dim}
+    return {"pos": POS.get(pos, "X"), "name": name, "sub": sub, "badge": b, "col": col, "cap": cap, "warn": warn, "dim": dim, "pic": pic}
 
 
 def card(title, players, subtitle="", footer="", tag="", tag_col="#2563eb"):
     return {"title": title, "subtitle": subtitle, "footer": footer, "players": players, "tag": tag, "tag_col": tag_col}
+
+
+_IMG = {}
+
+
+def _img(url):
+    """La imatge com a data: URI (es baixa aquí perquè la captura no depengui de la xarxa del navegador)."""
+    if not url:
+        return None
+    if url not in _IMG:
+        try:
+            import base64
+            r = requests.get(url, timeout=20)
+            r.raise_for_status()
+            _IMG[url] = "data:" + (r.headers.get("content-type") or "image/png") + ";base64," + base64.b64encode(r.content).decode()
+        except Exception as ex:
+            print(f"::warning title=imatge carta::{str(ex)[:120]}")
+            _IMG[url] = None
+    return _IMG[url]
 
 
 def _chip(p):
@@ -33,6 +52,13 @@ def _chip(p):
     badge = f'<span class="b" style="background:{p["col"]}">{e(p["badge"])}</span>' if p["badge"] else ""
     cap = '<span class="c">C</span>' if p["cap"] else ""
     cls = "p" + (" warn" if p["warn"] else "") + (" dim" if p["dim"] else "")
+    src = _img(p.get("pic"))
+    if src:  # la carta de Sorare (decisió del David, 11/11: «vull veure les cartes»); si no es pot baixar, el nom
+        return (f'<div class="{cls} pc"><div class="img"><img src="{src}">'
+                + (f'<span class="b ob" style="background:{p["col"]}">{e(p["badge"])}</span>' if p["badge"] else "")
+                + ('<span class="c oc">C</span>' if p["cap"] else "")
+                + f'</div><div class="s"><span>{e(p["sub"])}</span></div>'
+                + (f'<div class="tk">{e(p["name"][-1])}</div>' if p["name"].endswith("✓") else "") + "</div>")
     return (f'<div class="{cls}"><div class="n">{cap}{e(p["name"])}</div>'
             f'<div class="s">{badge}<span>{e(p["sub"])}</span></div></div>')
 
@@ -67,7 +93,7 @@ h1{font-size:22px;font-weight:700;margin-bottom:12px;color:#f8fafc}
 .pitch{flex:1;background:linear-gradient(#166534,#15803d);border-radius:10px;padding:8px 4px;display:flex;flex-direction:column;gap:8px;
   border:2px solid #22c55e33;position:relative}
 .row{display:flex;justify-content:space-evenly;gap:4px}
-.side{width:118px;background:#0f172a;border-radius:10px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.side{width:124px;background:#0f172a;border-radius:10px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;gap:6px}
 .lbl{font-size:10px;color:#94a3b8;letter-spacing:1px}
 .p{background:#0f172aee;border-radius:9px;padding:5px 7px;min-width:96px;max-width:132px;text-align:center;border:1px solid #ffffff22}
 .p.warn{border:2px solid #f59e0b}
@@ -77,6 +103,15 @@ h1{font-size:22px;font-weight:700;margin-bottom:12px;color:#f8fafc}
 .b{color:#fff;font-weight:800;border-radius:5px;padding:0 5px;font-size:11px}
 .c{background:#e11d48;color:#fff;border-radius:50%%;font-size:9px;font-weight:800;padding:1px 4px;margin-right:4px}
 .f{font-size:11.5px;color:#94a3b8;padding:0 12px 10px}
+.pc{background:transparent;border:none;padding:0;min-width:0;max-width:none;position:relative}
+.pc .img{position:relative;width:104px}
+.pc img{width:104px;display:block;border-radius:7px}
+.pc.warn .img img{outline:3px solid #f59e0b}
+.ob{position:absolute;left:4px;bottom:6px;font-size:13px;padding:1px 6px;box-shadow:0 1px 3px #0008}
+.oc{position:absolute;right:4px;top:4px;font-size:11px;padding:2px 6px;margin:0}
+.pc .s{background:#0f172add;border-radius:6px;padding:2px 4px;margin-top:3px}
+.tk{position:absolute;right:4px;bottom:28px;background:#16a34a;color:#fff;font-weight:800;border-radius:50%%;width:20px;height:20px;
+  display:flex;align-items:center;justify-content:center;font-size:12px}
 """
 
 

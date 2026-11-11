@@ -45,7 +45,7 @@ GKS = """query($slug: String!, $r: RangeInput, $after: String) { so5 { so5Leader
 BENCH = """query($slug: String!, $r: RangeInput, $after: String, $pos: [Position!]) { so5 { so5Leaderboard(slug: $slug) {
   myBench(first: 50, after: $after, includeUsed: true, starterOddsBasisPointsRange: $r, positions: $pos) { pageInfo { hasNextPage endCursor } nodes {
     ... on ComposeTeamBenchCard { position positions avg10: averageScore(type: LAST_TEN_PLAYED_SO5_AVERAGE_SCORE) avg15: averageScore(type: LAST_FIFTEEN_SO5_AVERAGE_SCORE)
-      anyCard { slug rarityTyped xp }
+      anyCard { slug rarityTyped xp pictureUrl }
       anyPlayer { displayName slug age activeClub { name slug } ... on Player { position } }
       eligiblePlayerGameScores(so5LeaderboardSlug: $slug) { projection { grade score } anyGame { id date homeTeam { name } awayTeam { name } } } } } } } } }"""
 
@@ -89,7 +89,7 @@ def cards(lb, floor=8000, rarities=None, skip=()):
         game = g.get("anyGame") or {}
         club = (p.get("activeClub") or {}).get("name") or ""
         teams = [(game.get("homeTeam") or {}).get("name"), (game.get("awayTeam") or {}).get("name")]
-        q = {"card": c["slug"], "xp": c["xp"] or 0, "name": p["displayName"], "player": p["slug"], "club": club,
+        q = {"card": c["slug"], "xp": c["xp"] or 0, "pic": c.get("pictureUrl"), "name": p["displayName"], "player": p["slug"], "club": club,
              "pos": n.get("position") or p.get("position"), "poss": [n.get("position") or p.get("position")],  # la posició de la carta "age": p.get("age"),
              "avg": n.get("avg10") or 0, "avg15": n.get("avg15") or 0, "idx": i,
              "grade": ((g.get("projection") or {}).get("grade")), "proj": (g.get("projection") or {}).get("score"),
@@ -349,7 +349,8 @@ def img_card(title, pick, cap, slots=CLASSIC, subtitle="", footer="", tag="", ta
     for sl, q in zip(slots, pick):
         sub = " · ".join(x for x in ((q.get("club") or "")[:14], _when_txt(q)) if x)
         conf = q.get("tier") == 0 and slots == ARENA
-        ps.append(player(sl, q["name"] + (" ✓" if conf else ""), sub, q.get("grade") or "?", cap=q is cap, warn=bool(q.get("rivals"))))
+        ps.append(player(sl, q["name"] + (" ✓" if conf else ""), sub, q.get("grade") or "?", cap=q is cap, warn=bool(q.get("rivals")),
+                         pic=q.get("pic")))
     return card(title, ps, subtitle=subtitle, footer=footer, tag=tag, tag_col=tag_col)
 
 
@@ -580,7 +581,7 @@ def gk_arena(gk, final=False):
         D = dt.datetime.fromisoformat(game["date"].replace("Z", "+00:00"))
         club = (p.get("activeClub") or {}).get("name") or ""
         pos = n.get("position") or p.get("position")
-        q = {"card": c["slug"], "xp": c["xp"] or 0, "name": p["displayName"], "player": p["slug"], "club": club, "pos": pos, "poss": [pos],
+        q = {"card": c["slug"], "xp": c["xp"] or 0, "pic": c.get("pictureUrl"), "name": p["displayName"], "player": p["slug"], "club": club, "pos": pos, "poss": [pos],
              "avg": n.get("avg10") or 0, "idx": i, "grade": (g.get("projection") or {}).get("grade"), "proj": (g.get("projection") or {}).get("score"), "game": game["id"], "date": D,
              "girona": "girona" in club.lower(), "gazza": False}
         q["imp"] = GRADE.get(q["grade"], -1)

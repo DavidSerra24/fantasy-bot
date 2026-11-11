@@ -28,7 +28,7 @@ STEP = """query($m: BoardMode!) { currentUser { setBoard(mode: $m, sport: FOOTBA
     displayedTypedRules { key ... on So5AppearancesRule { appearances { name positions sub } } } } } } }"""
 BENCH = """query($st: String!, $after: String, $f: BenchFilterInput!) { currentUser { step(id: $st) { myFilteredBench(filters: $f, first: 100, after: $after) {
   pageInfo { hasNextPage endCursor }
-  nodes { ... on ComposeTeamBenchCard { position positions anyCard { slug xp }
+  nodes { ... on ComposeTeamBenchCard { position positions anyCard { slug xp pictureUrl }
     anyPlayer { displayName slug ... on Player { activeClub { slug } avg: averageScore(type: LAST_FIFTEEN_SO5_AVERAGE_SCORE) } }
     eligiblePlayerGameScores(stepId: $st) { anyGame { id date ... on Game { homeTeam { slug name } awayTeam { slug name } } }
       projectedScore ... on PlayerGameScore { projection { grade } } } } } } } } }"""
@@ -65,7 +65,7 @@ def candidates(step_id, now, used_cards, locked_players, squad=False):
         if not games:
             continue
         g = min(games, key=lambda g: g["anyGame"]["date"])
-        q = {"slug": p["slug"], "name": p["displayName"], "card": c["slug"], "xp": c.get("xp") or 0, "pos": n.get("positions") or [n.get("position")],
+        q = {"slug": p["slug"], "name": p["displayName"], "card": c["slug"], "xp": c.get("xp") or 0, "pic": c.get("pictureUrl"), "pos": n.get("positions") or [n.get("position")],
              "team": ((p.get("activeClub") or {}).get("slug")), "game": g["anyGame"], "date": D(g["anyGame"]["date"]),
              "grade": ((g.get("projection") or {}).get("grade") or "?"), "proj": g.get("projectedScore") or 0, "avg": p.get("avg") or 0, "hi": p["slug"] in hi}
         cur = best.get(p["slug"])
@@ -290,7 +290,7 @@ def run(dry=False, focus=None):
                     when = q["date"].astimezone(MAD)
                     sub = f"{(q.get('team') or '').replace('-', ' ')[:13]} · {['dl','dt','dc','dj','dv','ds','dg'][when.weekday()]} {when:%H:%M}"
                     ps.append(player(pos, q["name"] + (" ✓" if q["confirmed"] and q["ok"] else ""), sub, f"{q['grade']} {q['proj']:.0f}",
-                                     cap=i == order_[0][0], warn=bool(q.get("rival"))))
+                                     cap=i == order_[0][0], warn=bool(q.get("rival")), pic=q.get("pic")))
                 cards_img.append(card(nm, ps, subtitle=f"{b.get('title')} · nivell {st['level'] + 1} · objectiu {st['target']}",
                                       tag="Personal" if mode == "CAREER" else "Equip", tag_col="#0891b2" if mode == "CAREER" else "#7c3aed"))
             except Exception as e:
