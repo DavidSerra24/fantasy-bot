@@ -1,6 +1,6 @@
-"""Diagnosi: HTML d'una pàgina de partit de futbolfantasy.com al voltant d'un nom.
-Ús: python -m bot.ffpage 22551-racing-real-sociedad "Gómez" """
-import re
+"""Diagnosi: estructura d'un jugador en una pàgina de partit de futbolfantasy.com.
+Ús: python -m bot.ffpage 22551-racing-real-sociedad Sergio Gómez"""
+import json
 import sys
 
 from playwright.sync_api import sync_playwright
@@ -13,14 +13,16 @@ with sync_playwright() as p:
     pg = new_context(b, "futbolfantasy").new_page(); login_futbolfantasy(pg)
     pg.goto(f"https://www.futbolfantasy.com/partidos/{slug}", wait_until="domcontentloaded", timeout=60000)
     pg.wait_for_timeout(3000)
-    html = pg.content()
+    r = pg.evaluate("""(q) => [...document.querySelectorAll('img[alt]')].filter(i => i.alt === q).map(img => {
+        const chain = []; let e = img;
+        while (e && chain.length < 12) { chain.push(e.tagName + '.' + (e.className || '').toString().slice(0, 80)
+            + (e.getAttribute && e.getAttribute('data-onceff') ? ' onceff=' + e.getAttribute('data-onceff') : '')); e = e.parentElement; }
+        const box = img.closest('[class*="jugador_"]');
+        const a = box && box.querySelector('a[data-probabilidad]');
+        const near = img.closest('div')?.parentElement?.querySelector('[data-probabilidad]');
+        return {chain, box: box ? box.className.slice(0, 120) : null, a: a ? [...a.attributes].map(x => x.name + '=' + x.value).join(' ').slice(0, 400) : null,
+                near: near ? near.outerHTML.slice(0, 300) : null, text: (img.closest('[class*="jugador"]') || img.parentElement.parentElement).innerText.replace(/\\s+/g, ' ').slice(0, 200)};
+    })""", q)
     b.close()
-hits = [m.start() for m in re.finditer(re.escape(f'alt="{q}'), html)]
-import collections
-for m in re.finditer(r'class="([^"]*jugador_[^"]*)"', html):
-    pass
-print("::notice title=ffpage classes::" + str(collections.Counter(re.findall(r'class="[^"]*?\b(jugador_\w*)', html)).most_common(15)))
-print("::notice title=ffpage probs::" + str(len(re.findall(r'data-probabilidad', html))))
-print(f"::notice title=ffpage::{len(hits)} coincidències de «{q}»")
-for k, i in enumerate(hits[:6]):
-    print(f"::notice title=ffpage {k}::" + re.sub(r"\s+", " ", re.sub(r'on(?:error|load)="[^"]*"', "", html[max(0, i - 9000):i + 300]))[-3700:].replace("\n", " ")[:3800])
+for k, x in enumerate(r):
+    print(f"::notice title=ffpage {k}::" + json.dumps(x, ensure_ascii=False)[:3800])
