@@ -28,6 +28,8 @@ by = defaultdict(list)
 for x in ps:
     by[x["url"].split("/")[-1]].append(f"{x['name']} {x['pct']}")
 print("::notice title=ff mostra::" + " ¶ ".join(f"{k}: {len(v)} · {', '.join(v[:4])}" for k, v in by.items())[:3900])
-for x in ps:
-    if any(q in norm(x["name"]) for q in qs) or any(r in x["url"] for r in raw):
+hits = [x for x in ps if any(q in norm(x["name"]) for q in qs) or any(r in x["url"] for r in raw)]
+print("::notice title=ff jugadors::" + " ¶ ".join(f"{x['name']} · J{x.get('j')} {x['url'].split('/')[-1]} · {x['pct']}% · suplent {x['suplente']} · lesió {x['lesion']}" for x in hits)[:3900])
+for x in []:
+    if 0:
         print(f"::notice title=ff jugador::{x['name']} · J{x.get('j')} {x['url'].split('/')[-1]} · {x['pct']}% · suplent {x['suplente']} · lesió {x['lesion']}")
