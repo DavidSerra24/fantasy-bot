@@ -7,7 +7,7 @@ from playwright.sync_api import sync_playwright
 
 from bot.web import login_futbolfantasy, new_context
 
-slug, q = sys.argv[1], sys.argv[2]
+slug, q = sys.argv[1], " ".join(sys.argv[2:])
 with sync_playwright() as p:
     b = p.chromium.launch()
     pg = new_context(b, "futbolfantasy").new_page(); login_futbolfantasy(pg)
@@ -23,4 +23,4 @@ print("::notice title=ffpage classes::" + str(collections.Counter(re.findall(r'c
 print("::notice title=ffpage probs::" + str(len(re.findall(r'data-probabilidad', html))))
 print(f"::notice title=ffpage::{len(hits)} coincidències de «{q}»")
 for k, i in enumerate(hits[:6]):
-    print(f"::notice title=ffpage {k}::" + re.sub(r"\s+", " ", " ".join(re.findall(r"<(?:div|a|span)[^>]*(?:jugador|probabilidad|onceff)[^>]*>", html[max(0, i - 15000):i])[-6:])).replace("\n", " ")[:3800])
+    print(f"::notice title=ffpage {k}::" + re.sub(r"\s+", " ", re.sub(r'on(?:error|load)="[^"]*"', "", html[max(0, i - 9000):i + 300]))[-3700:].replace("\n", " ")[:3800])
