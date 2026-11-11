@@ -238,7 +238,8 @@ if __name__ == "__main__":
          "fsetorder": lambda: __import__("bot.sorarefset", fromlist=["show_order"]).show_order(),
          "arenasgo": lambda: __import__("bot.sorarelineup", fromlist=["arenas_go_wait"]).arenas_go_wait(),
          "arenas": lambda: __import__("bot.sorarelineup", fromlist=["late_arenas"]).late_arenas("prop"),
-         "plandry": lambda: __import__("bot.plandry")}[cmd]()
+         "plandry": lambda: __import__("bot.plandry"),
+         "pic": lambda: __import__("bot.sorarepic")}[cmd]()
     except Exception as e:
         import traceback
         print("::error title=sorare::" + traceback.format_exc().replace("\n", " | ")[-1500:])
