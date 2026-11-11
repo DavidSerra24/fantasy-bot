@@ -350,10 +350,12 @@ def img_card(title, pick, cap, slots=CLASSIC, subtitle="", footer="", tag="", ta
     from bot.tgimg import card, player
     ps = []
     for sl, q in zip(slots, pick):
-        sub = " · ".join(x for x in ((q.get("club") or "")[:14], _when_txt(q)) if x)
+        sub = " · ".join(x for x in ((q.get("club") or "")[:17], _when_txt(q)) if x)
+        # marc taronja només als que s'enfronten de debò amb un altre de l'alineació (mateix partit, club diferent)
+        riv = any(o is not q and q.get("game") and o.get("game") == q.get("game") and o.get("club") != q.get("club") for o in pick)
         conf = q.get("tier") == 0 and slots == ARENA
         # l'Extra es dibuixa a la línia de la seva posició (decisió del David, 11/11: «porter, dos defenses, 3 mitjos i un davanter»)
-        ps.append(player(q.get("pos") or sl if sl == "Extra" else sl, q["name"] + (" ✓" if conf else ""), sub, q.get("grade") or "?", cap=q is cap, warn=bool(q.get("rivals")),
+        ps.append(player(q.get("pos") or sl if sl == "Extra" else sl, q["name"] + (" ✓" if conf else ""), sub, q.get("grade") or "?", cap=q is cap, warn=riv,
                          pic=q.get("pic")))
     return card(title, ps, subtitle=subtitle, footer=footer, tag=tag, tag_col=tag_col)
 

@@ -106,8 +106,9 @@ h1{font-size:22px;font-weight:700;margin-bottom:12px;color:#f8fafc}
 .pc{background:transparent;border:none;padding:0;min-width:0;max-width:none;position:relative}
 .pc .img{position:relative;width:104px}
 .pc img{width:104px;display:block;border-radius:7px}
+.pc.warn{border:none}
 .pc.warn .img img{outline:3px solid #f59e0b}
-.ob{position:absolute;left:4px;bottom:6px;font-size:13px;padding:1px 6px;box-shadow:0 1px 3px #0008}
+.ob{position:absolute;left:4px;top:4px;font-size:13px;padding:1px 6px;box-shadow:0 1px 3px #0008}
 .oc{position:absolute;right:4px;top:4px;font-size:11px;padding:2px 6px;margin:0}
 .pc .s{background:#0f172add;border-radius:6px;padding:2px 4px;margin-top:3px}
 .tk{position:absolute;right:4px;bottom:28px;background:#16a34a;color:#fff;font-weight:800;border-radius:50%%;width:20px;height:20px;
