@@ -23,9 +23,22 @@ STEP = """query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, 
   myCurrentStep { __typename id level state target
     ... on CareerStep { title maxLineupsCount remainingLineupsCount pendingLineupsCount }
     ... on SquadStep { totalLineups totalScore minimumLineupsToStartStep }
-    myLineups { ... on TaskLineup { id aasmState taskAppearances { ... on TaskAppearanceInterface { anyPlayer { slug displayName } anyCard { slug } } } } }
+    myLineups { ... on TaskLineup { id aasmState score taskAppearances { ... on TaskAppearanceInterface { score anyPlayer { slug displayName } anyCard { slug pictureUrl } game { id date } } } } }
     displayedTypedRules { key ... on So5AverageScoresRule { averageType max }
       ... on So5AppearancesRule { appearances { name positions sub } } } } } } }"""
+
+def gql_step(v):
+    """STEP i, de passada, anota les alineacions (punts) per al resum del matí (bot/digest.py, 12/11)."""
+    d = gql(STEP, v, token=token())
+    try:
+        from bot import digest
+        b = d["currentUser"]["setBoard"] or {}
+        st = b.get("myCurrentStep") or {}
+        digest.set_lineups(v.get("sp", "NBA"), b, st, st.get("myLineups"))
+    except Exception as e:
+        print(f"::warning title=resum::{str(e)[:120]}")
+    return d
+
 BENCH = """query($st: String!, $after: String, $f: BenchFilterInput!) { currentUser { step(id: $st) { myFilteredBench(filters: $f, first: 100, after: $after) {
   pageInfo { hasNextPage endCursor }
   nodes { ... on ComposeTeamBenchCard { position positions bonus anyCard { slug xp }
@@ -133,7 +146,7 @@ def run(dry=False, sports=("NBA",), scan=False):
         for mode in ("CAREER", "SQUAD"):
             label = f"{'🏀' if sp == 'NBA' else '⚽'} Set {sp} · {'personal' if mode == 'CAREER' else 'equip'}"
             try:
-                b = gql(STEP, {"sp": sp, "m": mode}, token=token())["currentUser"]["setBoard"]
+                b = gql_step({"sp": sp, "m": mode})["currentUser"]["setBoard"]
             except Exception as e:
                 rep.append(f"⚠️ {label}: {str(e)[:200]}")
                 continue
@@ -151,7 +164,7 @@ def run(dry=False, sports=("NBA",), scan=False):
                 try:
                     claim_step(st, mode)
                     rep.append(f"🎁 {label}: nivell {st['level'] + 1} superat, recompensa reclamada")
-                    b = gql(STEP, {"sp": sp, "m": mode}, token=token())["currentUser"]["setBoard"]
+                    b = gql_step({"sp": sp, "m": mode})["currentUser"]["setBoard"]
                     st = (b or {}).get("myCurrentStep") or st
                 except Exception as e:
                     rep.append(f"⚠️ {label}: no he pogut reclamar la recompensa ({str(e)[:150]})")
@@ -160,7 +173,7 @@ def run(dry=False, sports=("NBA",), scan=False):
                 rep.append(f"🔄 {label}: nivell {st['level'] + 1} perdut; he tornat a començar el tauler d'equip" if not err
                            else f"⚠️ {label}: nivell {st['level'] + 1} perdut i no l'he pogut reiniciar ({err[:150]}). Reinicia'l tu des del joc.")
                 if not err:
-                    b = gql(STEP, {"sp": sp, "m": mode}, token=token())["currentUser"]["setBoard"]
+                    b = gql_step({"sp": sp, "m": mode})["currentUser"]["setBoard"]
                     st = (b or {}).get("myCurrentStep") or st
             if st["state"] == "FAILED" and mode == "CAREER" and sp == "NBA" and not dry:
                 # nivell perdut (cap alineació arriba a l'objectiu): es reinicia el tauler (gratuït, com el botó de la web;
@@ -170,7 +183,7 @@ def run(dry=False, sports=("NBA",), scan=False):
                     if d.get("errors"):
                         raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
                     rep.append(f"🔄 {label}: nivell {st['level'] + 1} perdut; he reiniciat el tauler ({b.get('title')})")
-                    b = gql(STEP, {"sp": sp, "m": mode}, token=token())["currentUser"]["setBoard"]
+                    b = gql_step({"sp": sp, "m": mode})["currentUser"]["setBoard"]
                     st = (b or {}).get("myCurrentStep") or st
                 except Exception as e:
                     rep.append(f"⚠️ {label}: nivell perdut i no he pogut reiniciar el tauler ({str(e)[:150]})")
@@ -293,10 +306,20 @@ def run(dry=False, sports=("NBA",), scan=False):
         add_dyn(dyn)
         print(f"::notice title=set::primer partit amb jugadors del Set: {stt.get('first')} · partits de les alineacions: {', '.join(stt['games'])}")
         if any("🎁" in r or "🔄" in r for r in rep):
+            from bot import digest
+            for r in rep:
+                if "🎁" in r or "🔄" in r:
+                    digest.event(r.strip())
             telegram("Sorare · Set\n" + "\n".join(r for r in rep if "🎁" in r or "🔄" in r or "⚠️" in r)
                      + (f"\nFaré les alineacions del nivell següent 12 min abans del primer partit ({fs[11:16]} UTC)." if fs and firsts else ""))
         return
     msg = "Sorare · Set" + (" (prova)" if dry else "") + "\n" + "\n".join(rep)
+    if not dry:  # nivells superats/perduts per al resum del matí (12/11)
+        from bot import digest
+        for r in rep:
+            for ln in r.split("\n"):
+                if "🎁" in ln or "🔄" in ln:
+                    digest.event(ln.strip())
     for k, r in enumerate(rep):
         print(f"::notice title=set {k + 1}::" + r.replace("\n", " ¶ ")[:3900])
     if dry or any("✅ alineació" in r or "❌" in r for r in rep):
@@ -346,9 +369,9 @@ def claim_check():
     continuació»): si el tauler personal de l'NBA està superat (CLAIMABLE) o perdut (FAILED), escaneig (reclama o
     reinicia) i de seguida les alineacions del nivell nou amb els partits que quedin."""
     claim_missions()
-    b = gql(STEP, {"sp": "NBA", "m": "CAREER"}, token=token())["currentUser"]["setBoard"]
+    b = gql_step({"sp": "NBA", "m": "CAREER"})["currentUser"]["setBoard"]
     st = (b or {}).get("myCurrentStep") or {}
-    bq = gql(STEP, {"sp": "NBA", "m": "SQUAD"}, token=token())["currentUser"]["setBoard"]
+    bq = gql_step({"sp": "NBA", "m": "SQUAD"})["currentUser"]["setBoard"]
     sq = (bq or {}).get("myCurrentStep") or {}
     if st.get("state") in ("CLAIMABLE", "FAILED") or sq.get("state") in ("FAILED",) or \
             (sq.get("state") == "CLAIMABLE" and sq.get("id") not in load_json("sorare_squad_notified.json", [])):

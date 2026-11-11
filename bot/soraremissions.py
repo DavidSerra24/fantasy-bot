@@ -293,6 +293,13 @@ def claim_done(rep):
         for t in (d["taskGroup"]["myTasks"] or []) + (d["setPlayTasks"] or []):
             if t.get("aasmState") != "COMPLETED" or not t.get("id"):
                 continue
+            try:  # abans de reclamar, l'estat final dels picks per al resum del matí (12/11)
+                from bot import digest
+                tk = gql(TASK, {"id": t["id"].split(":")[-1]}, token=token())["currentUser"]["task"]
+                if tk:
+                    digest.mission(tk, sport, (t.get("rarity") or "set").lower(), tk.get("taskAppearances") or [])
+            except Exception as e:
+                print(f"::warning title=resum::{str(e)[:120]}")
             ok, err, got = False, "", ""
             for tid in (t["id"].split(":")[-1], t["id"]):
                 try:
@@ -306,6 +313,11 @@ def claim_done(rep):
             if ok:
                 n += 1
                 rep.append(f"🎁 {t.get('title')} ({(t.get('rarity') or 'Set').replace('_', ' ')}{', NBA' if sport == 'NBA' else ''}): {got}")
+                try:
+                    from bot import digest
+                    digest.event(rep[-1])
+                except Exception:
+                    pass
             else:
                 rep.append(f"⚠️ no he pogut reclamar {t.get('title')}: {err[:150]}")
     return n
@@ -358,6 +370,12 @@ def run(dry=False):
         tid = t["id"].split(":")[-1]
         task = gql(TASK, {"id": tid}, token=token())["currentUser"]["task"]
         nba = t["sport"] == "NBA"
+        if task and not dry:  # estat dels picks per al resum del matí (12/11)
+            try:
+                from bot import digest
+                digest.mission(task, t["sport"], rarity, task.get("taskAppearances") or [])
+            except Exception as e:
+                print(f"::warning title=resum::{str(e)[:120]}")
         if task.get("expired"):
             continue  # caducada (la d'ahir)
         if task.get("mode") != "DECISIVE" and not nba:

@@ -24,8 +24,21 @@ from bot.web import load_json, save_json
 STEP = """query($m: BoardMode!) { currentUser { setBoard(mode: $m, sport: FOOTBALL) { id title
   myCurrentStep { __typename id level state target
     ... on CareerStep { maxLineupsCount remainingLineupsCount }
-    myLineups { ... on TaskLineup { id aasmState taskAppearances { ... on TaskAppearanceInterface { index anyPlayer { slug displayName } anyCard { slug } game { id date } } } } }
+    myLineups { ... on TaskLineup { id aasmState score taskAppearances { ... on TaskAppearanceInterface { index score anyPlayer { slug displayName } anyCard { slug pictureUrl } game { id date } } } } }
     displayedTypedRules { key ... on So5AppearancesRule { appearances { name positions sub } } } } } } }"""
+
+def gql_step(v):
+    """STEP i, de passada, anota les alineacions (punts) per al resum del matí (bot/digest.py, 12/11)."""
+    d = gql(STEP, v, token=token())
+    try:
+        from bot import digest
+        b = d["currentUser"]["setBoard"] or {}
+        st = b.get("myCurrentStep") or {}
+        digest.set_lineups("FOOTBALL", b, st, st.get("myLineups"))
+    except Exception as e:
+        print(f"::warning title=resum::{str(e)[:120]}")
+    return d
+
 BENCH = """query($st: String!, $after: String, $f: BenchFilterInput!) { currentUser { step(id: $st) { myFilteredBench(filters: $f, first: 100, after: $after) {
   pageInfo { hasNextPage endCursor }
   nodes { ... on ComposeTeamBenchCard { position positions anyCard { slug xp pictureUrl }
@@ -132,9 +145,9 @@ def claim_check():
     per reclamar (CLAIMABLE) o perdut (FAILED) es fa la passada sencera (reclama/reinicia i omple les 4 alineacions)."""
     from bot.sorareset import claim_missions
     claim_missions()
-    b = gql(STEP, {"m": "CAREER"}, token=token())["currentUser"]["setBoard"]
+    b = gql_step({"m": "CAREER"})["currentUser"]["setBoard"]
     st = (b or {}).get("myCurrentStep") or {}
-    sq = ((gql(STEP, {"m": "SQUAD"}, token=token())["currentUser"]["setBoard"] or {}).get("myCurrentStep") or {})
+    sq = ((gql_step({"m": "SQUAD"})["currentUser"]["setBoard"] or {}).get("myCurrentStep") or {})
     if st.get("state") in ("CLAIMABLE", "FAILED") or sq.get("state") == "FAILED":
         print(f"::notice title=set futbol::tauler personal {st['state']}: passada sencera")
         run()
@@ -148,7 +161,7 @@ def run(dry=False, focus=None):
     cards_img = []
     for mode in ("CAREER", "SQUAD"):
         label = f"⚽ Set · {'personal' if mode == 'CAREER' else 'equip'}"
-        b = gql(STEP, {"m": mode}, token=token())["currentUser"]["setBoard"]
+        b = gql_step({"m": mode})["currentUser"]["setBoard"]
         st = (b or {}).get("myCurrentStep")
         if not st:
             continue
@@ -163,14 +176,14 @@ def run(dry=False, focus=None):
                 rep.append(f"🎁 {label}: nivell {st['level'] + 1} superat, recompensa reclamada")
             except Exception as e:
                 rep.append(f"⚠️ {label}: no he pogut reclamar ({str(e)[:150]})")
-            b = gql(STEP, {"m": mode}, token=token())["currentUser"]["setBoard"]; st = b["myCurrentStep"]
+            b = gql_step({"m": mode})["currentUser"]["setBoard"]; st = b["myCurrentStep"]
         if st["state"] == "FAILED" and mode == "SQUAD" and not dry:  # tauler d'equip perdut: es torna a començar (8/11)
             from bot.sorareset import restart_squad
             err = restart_squad(b, st)
             rep.append(f"🔄 {label}: nivell {st['level'] + 1} perdut; he tornat a començar el tauler d'equip" if not err
                        else f"⚠️ {label}: nivell {st['level'] + 1} perdut i no l'he pogut reiniciar ({err[:150]}). Reinicia'l tu des del joc.")
             if not err:
-                b = gql(STEP, {"m": mode}, token=token())["currentUser"]["setBoard"]; st = b["myCurrentStep"]
+                b = gql_step({"m": mode})["currentUser"]["setBoard"]; st = b["myCurrentStep"]
         if st["state"] == "FAILED" and mode == "CAREER" and not dry:
             try:
                 d = gql(RESTART, {"input": {"taskId": b["id"]}}, token=token())["restartTasksTrack"]
@@ -179,7 +192,7 @@ def run(dry=False, focus=None):
                 rep.append(f"🔄 {label}: nivell {st['level'] + 1} perdut; he reiniciat el tauler ({b.get('title')})")
             except Exception as e:
                 rep.append(f"⚠️ {label}: nivell perdut i no he pogut reiniciar ({str(e)[:150]})")
-            b = gql(STEP, {"m": mode}, token=token())["currentUser"]["setBoard"]; st = b["myCurrentStep"]
+            b = gql_step({"m": mode})["currentUser"]["setBoard"]; st = b["myCurrentStep"]
         if st["state"] in ("CLAIMABLE", "FAILED", "CLAIMED", "LOCKED"):
             continue
         rules = {r["key"]: r for r in st.get("displayedTypedRules") or []}
@@ -314,6 +327,12 @@ def run(dry=False, focus=None):
     st_.pop("ends", None)
     if not dry:
         save_json("sorare_fset.json", st_)
+    if not dry:  # nivells superats/perduts per al resum del matí (12/11)
+        from bot import digest
+        for r in rep:
+            for ln in r.split("\n"):
+                if "🎁" in ln or "🔄" in ln:
+                    digest.event(ln.strip())
     for k, r in enumerate(rep):
         print(f"::notice title=set futbol {k + 1}::" + r.replace("\n", " ¶ ")[:3900])
     important = [r for r in rep if any(x in r for x in ("🎁", "🔄", "⚠️", "❌", "🔁", "✅ alineació nova"))]
@@ -331,7 +350,7 @@ def run(dry=False, focus=None):
 def show_order(n=45):
     """Diagnosi (sorare.yml cmd=fsetorder): l'ordre dels candidats del tauler personal, com el recorre el bot."""
     now = dt.datetime.now(dt.timezone.utc)
-    st = gql(STEP, {"m": "CAREER"}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
+    st = gql_step({"m": "CAREER"})["currentUser"]["setBoard"]["myCurrentStep"]
     lineups = [l for l in st.get("myLineups") or [] if l and l.get("taskAppearances")]
     used = {a["anyCard"]["slug"] for l in lineups for a in l["taskAppearances"] if a}
     out = candidates(st["id"], now, used, set())

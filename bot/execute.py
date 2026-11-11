@@ -56,8 +56,8 @@ def run_action(a):
             "misterxi": "Mister: alineació i capità" + (f" ({names.get(a['comp'], a['comp'])}, revisió final)" if a["comp"] else ""),
             "fffinal": f"revisió final del Fantasy {names.get(a['comp'], a['comp'])} (onzes oficials)",
             "sorare": "Sorare: " + ("revisió final de les alineacions + Arenes" if a["comp"] == "final" else "omplir/revisar les alineacions"),
-            "sorarexi": "Sorare: porters", "sorarearena": "Sorare: Arena amb porter", "sorarearenas": "Sorare: Arenes", "soraremission": "Sorare: Decisive Picker", "misterloan": "Mister: cessions", "soraresetscan": "Sorare Set: partits", "soraresetgo": "Sorare Set: alineacions", "soraresetrev": "Sorare Set: revisió", "misterloanoff": "Mister: peticions de cessió", "misterloanend": "Mister: fi de les cessions", "collectibol": "Collectibol: resultat", "sorarefset": "Sorare Set futbol", "sorarefclaim": "Sorare Set futbol: reclamar", "losilla": "Quiniela: proposta", "soraresetclaim": "Sorare Set NBA: reclamar/reiniciar"}[a["do"]]
-    if a["do"] not in ("quinrem", "sorarexi", "sorarearena", "sorarearenas", "soraremission", "misterloan", "soraresetscan", "soraresetgo", "soraresetrev", "misterloanoff", "misterloanend", "collectibol", "sorarefset", "sorarefclaim", "losilla", "soraresetclaim"):  # el recordatori ja envia el seu missatge (només si cal)
+            "sorarexi": "Sorare: porters", "sorarearena": "Sorare: Arena amb porter", "sorarearenas": "Sorare: Arenes", "soraremission": "Sorare: Decisive Picker", "misterloan": "Mister: cessions", "soraresetscan": "Sorare Set: partits", "soraresetgo": "Sorare Set: alineacions", "soraresetrev": "Sorare Set: revisió", "misterloanoff": "Mister: peticions de cessió", "misterloanend": "Mister: fi de les cessions", "collectibol": "Collectibol: resultat", "sorarefset": "Sorare Set futbol", "sorarefclaim": "Sorare Set futbol: reclamar", "losilla": "Quiniela: proposta", "soraresetclaim": "Sorare Set NBA: reclamar/reiniciar", "digest": "Resum del matí"}[a["do"]]
+    if a["do"] not in ("quinrem", "sorarexi", "sorarearena", "sorarearenas", "soraremission", "misterloan", "soraresetscan", "soraresetgo", "soraresetrev", "misterloanoff", "misterloanend", "collectibol", "sorarefset", "sorarefclaim", "losilla", "soraresetclaim", "digest"):  # el recordatori ja envia el seu missatge (només si cal)
         telegram(f"▶️ Començo: {what}")
     try:
         if a["do"] == "p11":
@@ -89,6 +89,9 @@ def run_action(a):
         elif a["do"] == "mister":
             from bot import mistermarket
             mistermarket.run()
+        elif a["do"] == "digest":
+            from bot import digest
+            digest.run()
         elif a["do"] == "sorare":
             from bot import sorarelineup
             if str(a["comp"]).startswith("live"):  # competicions de la jornada en joc que tanquen més tard (11/11)

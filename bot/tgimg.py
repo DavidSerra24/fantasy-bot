@@ -379,3 +379,56 @@ def send_missions(title, blocks, caption=""):
     except Exception as ex:
         print(f"::warning title=telegram imatge::{type(ex).__name__}: {str(ex)[:200]}")
         return False
+
+
+# --- Resum del matí (decisió del David, 12/11)
+DCSS = MCSS + """
+.res{font-weight:800;font-size:13px;border-radius:8px;padding:3px 9px}
+.won{background:#16a34a}.lost{background:#dc2626}.unk{background:#52525b}
+.t.ok img{outline:3px solid #22c55e}.t.ko img{outline:3px solid #ef4444;opacity:.75}
+.sc{position:absolute;left:4px;top:4px;background:#0b0b0fdd;color:#fff;font-weight:800;border-radius:6px;padding:1px 6px;font-size:12px}
+.mk{position:absolute;right:4px;top:4px;font-size:15px}
+"""
+
+
+def render_digest(title, blocks):
+    from playwright.sync_api import sync_playwright
+    e = _h.escape
+    out = []
+    for m in blocks:
+        tiles = []
+        for p in m["players"]:
+            src = _img(p.get("pic"))
+            body = f'<img src="{src}">' if src else f'<div class="nm">{e(p["name"])}</div>'
+            ok = p.get("ok")
+            tiles.append(f'<div class="t{" ok" if ok is True else " ko" if ok is False else ""}">{body}'
+                         + (f'<span class="sc">{e(p["badge"])}</span>' if p.get("badge") else "")
+                         + (f'<span class="mk">{"✅" if ok else "❌"}</span>' if ok is not None else "")
+                         + (f'<div class="sub">{e(str(p.get("status") or "").lower())}</div>' if ok is None and p.get("status") else "")
+                         + "</div>")
+        w = m.get("won")
+        res = ("GUANYADA" if m["kind"] == "set" else "ACONSEGUIDA") if w else ("PERDUDA" if m["kind"] == "set" else "FALLADA") if w is False else "EN JOC / ?"
+        score = f"{m['score']:.0f} / {m['target']}" if m.get("score") is not None and m.get("target") is not None else ""
+        col = RAR_COL.get((m.get("tag") or "").lower(), "#a1a1aa")
+        tag = (f"<div class='tag' style='color:{col};border-color:{col}'>{e(m['tag'].replace('_', ' '))}</div>" if m.get("tag") else "")
+        out.append(f"<div class='m'><div class='mh'><div class='mt'>{e(m['title'])}</div>{tag}"
+                   f"<div class='res {'won' if w else 'lost' if w is False else 'unk'}'>{res}</div></div>"
+                   f"<div class='ms'>{e(score + (' punts' if score else '') + (m.get('desc') or ''))}</div><div class='r'>{''.join(tiles)}</div></div>")
+    html = (f"<html><head><meta charset='utf-8'><style>{DCSS}</style></head><body><div class='w'><h1>☀️ {e(title)}</h1>{''.join(out)}"
+            "<div class='lg'>Set: punts de cada carta i total / objectiu · Missions: ✅ pick encertat, ❌ fallat</div></div></body></html>")
+    with sync_playwright() as pw:
+        b = pw.chromium.launch()
+        pg = b.new_page(viewport={"width": 600, "height": 400}, device_scale_factor=2)
+        pg.set_content(html)
+        png = pg.locator("body").screenshot(type="png")
+        b.close()
+    _keep(png)
+    return png
+
+
+def send_digest(title, blocks, caption=""):
+    try:
+        return send_photo(render_digest(title, blocks), caption)
+    except Exception as ex:
+        print(f"::warning title=telegram imatge::{type(ex).__name__}: {str(ex)[:200]}")
+        return False

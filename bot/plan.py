@@ -44,7 +44,7 @@ def ff_deadline(comp, ffd):
 
 # Carril ràpid (decisió del David, 6/11): accions curtes i amb hora justa (Sorare, Collectibol) que no han d'esperar
 # les llargues (Fantasy, Predicted11, Mister amb el navegador). bot/execute.py les fa en paral·lel.
-FAST = {"sorare", "sorarefset", "sorarearenas", "sorarearena", "sorarexi", "soraremission", "soraresetscan",
+FAST = {"digest", "sorare", "sorarefset", "sorarearenas", "sorarearena", "sorarexi", "soraremission", "soraresetscan",
         "soraresetgo", "soraresetrev", "collectibol", "sorarefclaim", "soraresetclaim"}
 
 
@@ -151,6 +151,11 @@ def plan(now=None, done=None, fast_only=False):
                     add(k, CQ - dt.timedelta(hours=2), "losilla", f"{lst['temporada']}_{lst['jornada']}", CQ)
         except Exception as e:
             info.append(f"Quiniela (Eduardo Losilla): error ({type(e).__name__}: {str(e)[:150]})")
+    # Resum del matí del Set i de les missions d'ahir, amb imatge (decisió del David, 12/11): 9:10, després de reclamar
+    dg_t = local.replace(hour=9, minute=10, second=0, microsecond=0).astimezone(UTC)
+    k = f"digest:{local.date()}"
+    if due(k, dg_t, dg_t + dt.timedelta(hours=3)):
+        add(k, dg_t, "digest", None, dg_t + dt.timedelta(hours=3))
     # Mister: revisió abans de la resolució del mercat (5:00): retira pujes i ven els que han baixat de %
     pre_t = local.replace(hour=4, minute=15, second=0, microsecond=0).astimezone(UTC)
     k = f"mister-pre:{local.date()}"
