@@ -191,6 +191,9 @@ body{background:#0b0b0f;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif
 .t{width:104px;text-align:center;position:relative}
 .t img{width:104px;display:block;border-radius:8px;box-shadow:0 4px 14px #000a}
 .t.warn img{outline:3px solid #f59e0b}
+.t.new img{outline:4px solid #22d3ee;box-shadow:0 0 18px #22d3eeaa}
+.nw{position:absolute;left:50%;transform:translateX(-50%);top:-9px;background:#22d3ee;color:#0b0b0f;font-weight:800;font-size:10px;
+  border-radius:6px;padding:1px 6px;letter-spacing:1px}
 .t .nm{background:#18181bee;border:1px solid #ffffff30;border-radius:8px;padding:30px 4px;font-weight:700;font-size:13px}
 .t .sub{font-size:10.5px;color:#d4d4d8;margin-top:4px;width:150px;margin-left:-23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .g{position:absolute;left:4px;top:4px;color:#fff;font-weight:800;border-radius:6px;padding:1px 6px;font-size:13px;box-shadow:0 1px 3px #000a}
@@ -220,10 +223,11 @@ def render_lineup(gw, comp, num, players, cap_name="", cap_club="", score=None, 
         for p in lines[k]:
             src = _img(p.get("pic"))
             body = f'<img src="{src}">' if src else f'<div class="nm">{e(p["name"])}</div>'
-            tiles.append(f'<div class="t{" warn" if p["warn"] else ""}">{body}'
+            tiles.append(f'<div class="t{" warn" if p["warn"] else ""}{" new" if p.get("new") else ""}">{body}'
                          + (f'<span class="g" style="background:{p["col"]}">{e(p["badge"])}</span>' if p["badge"] else "")
                          + ('<span class="cp">C</span>' if p["cap"] else "")
                          + ('<span class="ok">✓</span>' if p["name"].endswith("✓") else "")
+                         + ('<span class="nw">NOU</span>' if p.get("new") else "")
                          + f'<div class="sub">{e(p["sub"])}</div></div>')
         rows.append('<div class="row">' + "".join(tiles) + "</div>")
     html = (f"<html><head><meta charset='utf-8'><style>{LCSS}</style></head><body><div class='w'>"
@@ -280,6 +284,7 @@ def send_lineups(cards, caption=""):
     """Una imatge per alineació (format «alineació de Sorare») en un àlbum. Retorna l'id del missatge o True si ha anat bé."""
     if not cards:
         return False
+    _mark_changes(cards)
     try:
         pngs = [render_lineup(c.get("gw") or "", c["title"], c.get("num") or "", c["players"], c.get("cap_name") or "",
                               c.get("cap_club") or "", c.get("score"), c.get("tag") or "", c.get("tag_col") or "#a855f7",
@@ -288,3 +293,23 @@ def send_lineups(cards, caption=""):
     except Exception as ex:
         print(f"::warning title=telegram imatge::{type(ex).__name__}: {str(ex)[:200]}")
         return False
+
+
+def _mark_changes(cards):
+    """Jugadors nous respecte de l'última imatge de la mateixa alineació → marc blau i «NOU» (decisió del David, 11/11).
+    La primera vegada que s'envia una alineació no es marca res. state/tg_lineups.json: clau → noms."""
+    from bot.web import load_json, save_json
+    st = load_json("tg_lineups.json", {})
+    for c in cards:
+        key = f"{c.get('gw')}|{c.get('title')}|{c.get('num')}"
+        names = [p["name"].rstrip(" ✓") for p in c["players"]]
+        prev = st.get(key)
+        if prev is not None:
+            for p in c["players"]:
+                p["new"] = p["name"].rstrip(" ✓") not in prev
+            if any(p.get("new") for p in c["players"]):
+                c["footer"] = ((c.get("footer") or "") + " · " if c.get("footer") else "") + "marc blau = canvi respecte de l'última"
+        st[key] = names
+    if len(st) > 300:
+        st = dict(list(st.items())[-300:])
+    save_json("tg_lineups.json", st)
