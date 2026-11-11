@@ -52,10 +52,16 @@ def ff_probs(page):
     ps = [p for p in ps if p["url"] in live]
     # Un jugador pot sortir a dues jornades (p. ex. dilluns: el partit d'avui de la J11 i el de la J12): es queda el de
     # la jornada més alta, que és la que compta per a la propera alineació.
+    # La jornada es llegeix del text de la pàgina i de vegades no hi surt (j = None): llavors la J12 ja jugada guanyava
+    # la J13 (11/11: Sergio Gómez a 0%, de suplent a la J12, quan a la J13 tenia un 70% i es va vendre). Ara s'ordena
+    # pel número del partit de l'URL (els de la jornada següent sempre són més alts) i, si es pot, per la jornada.
+    import re as _re
+    mid = lambda p: int((_re.search(r"/partidos/(\d+)", p.get("url") or "") or [0, 0])[1])
+    rank = lambda p: (mid(p), p.get("j") or 0)
     best = {}
     for p in ps:
         k = p["name"]
-        if k not in best or (p.get("j") or 0) > (best[k].get("j") or 0):
+        if k not in best or rank(p) > rank(best[k]):
             best[k] = p
     return [{"name": p["name"], "key": p["url"], "pct": p.get("pct") or 0, "ps": None} for p in best.values()]
 

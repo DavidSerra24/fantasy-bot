@@ -232,6 +232,22 @@ def resolve_by_search(pg, players, entries, field, report, ask=True):
                       + ". Si creus que hi són amb un altre nom, digues-m'ho.")
 
 
+def ff_profile_pct(fpage, href):
+    """% de «Titular J<n>» de la fitxa del jugador a futbolfantasy.com (slug del Mister: players/<id>/<slug>), o None."""
+    import re
+    slug = (href or "").rstrip("/").split("/")[-1]
+    if not fpage or not slug:
+        return None
+    try:
+        fpage.goto(f"https://www.futbolfantasy.com/jugadores/{slug}/laliga-26-27", wait_until="domcontentloaded", timeout=45000)
+        fpage.wait_for_timeout(2000)
+        m = re.search(r"Titular J\d+\s*(\d{1,3})\s?%", re.sub(r"\s+", " ", fpage.inner_text("body")))
+        return int(m.group(1)) if m else None
+    except Exception as e:
+        print(f"::warning title=fitxa FF::{slug}: {str(e)[:150]}")
+        return None
+
+
 def league_data(b, pg, spg, cid, country, league, report, cache):
     """Saldo, plantilla i mercat lliure d'una lliga, amb el % de titularitat de la font que toca."""
     pg.goto(f"{U}/action/change?id_community={cid}", wait_until="domcontentloaded"); pg.wait_for_timeout(3000)
@@ -260,6 +276,7 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
         if cache.get('ffp') is None:
             fpage = new_context(b, "futbolfantasy").new_page(); login_futbolfantasy(fpage)
             cache['ffp'] = sources.ff_probs(fpage)
+            cache['fpage'] = fpage
         sources.assign(squad + market, cache['ffp'], "ff")
         resolve_by_search(pg, squad + [m for m in market if not m.get("ff")][:5], cache['ffp'], "ff", report)
         for q in squad + market:
@@ -407,6 +424,13 @@ def run(dry=False, retira=(), force=()):
                 # vendes que el David demana a mà (--ven=Nom,Nom; 9/11): sí o sí, encara que salti la salvaguarda
                 below += [q for q in keep if q["short"].replace(" ", "") in force and q not in below and not q["loaned"] and not q.get("loanin")]
                 for q in sorted(below, key=lambda q: (q["pct"] if q["pct"] is not None else 0, q["ps"] or 0)):
+                    # Fentaniños: abans de vendre, segona comprovació a la fitxa del jugador de futbolfantasy.com
+                    # («Titular J13 70%»; 11/11: Sergio Gómez es va vendre amb un 0% mal llegit)
+                    if league == "Primera División" and q["short"].replace(" ", "") not in force:
+                        fp = ff_profile_pct(cache.get("fpage"), q.get("href"))
+                        if fp is not None and fp >= minimum:
+                            nosale.append(f"{q['short']} (la fitxa de futbolfantasy.com diu {fp}%; no el venc)")
+                            continue
                     rest = [x for x in keep if x is not q]
                     if not can_sell(keep, rest):
                         nosale.append(f"{q['short']} (cal per fer l'onze)")
