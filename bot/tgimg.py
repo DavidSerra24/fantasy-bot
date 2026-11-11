@@ -151,7 +151,12 @@ def send_cards(title, cards, caption="", cols=None):
     if not cards:
         return False
     try:
-        return send_photo(render(title, cards, cols), caption)
+        png = render(title, cards, cols)
+        if os.getenv("TG_IMG_DIR"):  # còpia per revisar-la (artefacte del workflow)
+            os.makedirs(os.environ["TG_IMG_DIR"], exist_ok=True)
+            n = len(os.listdir(os.environ["TG_IMG_DIR"]))
+            open(os.path.join(os.environ["TG_IMG_DIR"], f"tg{n}.png"), "wb").write(png)
+        return send_photo(png, caption)
     except Exception as e:
         print(f"::warning title=telegram imatge::{type(e).__name__}: {str(e)[:200]}")
         return False

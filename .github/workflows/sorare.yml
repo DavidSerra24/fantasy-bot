@@ -15,6 +15,7 @@ jobs:
       SORARE_PASSWORD: ${{ secrets.SORARE_PASSWORD }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TG_IMG_DIR: tgimg
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -33,6 +34,12 @@ jobs:
           key: state-${{ github.run_id }}
           restore-keys: state-
       - run: python -m bot.sorare ${{ github.event.inputs.cmd }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tgimg
+          path: tgimg
+          if-no-files-found: ignore
       - uses: actions/cache/save@v4
         if: always()
         with:
