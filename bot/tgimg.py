@@ -156,6 +156,10 @@ def send_cards(title, cards, caption="", cols=None):
             os.makedirs(os.environ["TG_IMG_DIR"], exist_ok=True)
             n = len(os.listdir(os.environ["TG_IMG_DIR"]))
             open(os.path.join(os.environ["TG_IMG_DIR"], f"tg{n}.png"), "wb").write(png)
+            import base64
+            b64 = base64.b64encode(png).decode()
+            for i in range(0, len(b64), 4000):
+                print(f"IMG64 {n} " + b64[i:i + 4000])
         return send_photo(png, caption)
     except Exception as e:
         print(f"::warning title=telegram imatge::{type(e).__name__}: {str(e)[:200]}")
