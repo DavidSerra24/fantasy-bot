@@ -42,7 +42,7 @@ jobs:
         if: steps.plan.outputs.has == 'true'
         run: |
           pip install -r requirements.txt
-          python -m playwright install --with-deps chromium
+          (python -m playwright install --with-deps chromium || python -m playwright install --with-deps chromium || python -m playwright install chromium)
       - name: Executar
         if: steps.plan.outputs.has == 'true'
         run: python -m bot.execute

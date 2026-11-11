@@ -25,7 +25,7 @@ jobs:
       - run: pip install requests python-dotenv bcrypt cryptography
       - run: |  # imatges per a Telegram (bot/tgimg.py, 11/11)
           pip install playwright
-          python -m playwright install --with-deps chromium
+          (python -m playwright install --with-deps chromium || python -m playwright install --with-deps chromium || python -m playwright install chromium)
       - uses: actions/cache/restore@v4
         with:
           path: |

@@ -165,8 +165,9 @@ def plan(now=None, done=None, fast_only=False):
     for hh in (5, 17):
         off_t = local.replace(hour=hh, minute=10, second=0, microsecond=0).astimezone(UTC)
         k = f"misteroff:{local.date()}:{hh}"
-        if due(k, off_t, off_t + dt.timedelta(hours=10)):
-            add(k, off_t, "misteroff", None, off_t + dt.timedelta(hours=10))
+        # com a molt 4 h tard (11/11: les de les 17:10 es van fer a les 21:30 perquè les execucions anteriors fallaven)
+        if due(k, off_t, off_t + dt.timedelta(hours=4)):
+            add(k, off_t, "misteroff", None, off_t + dt.timedelta(hours=4))
     # Mister: alineació cada matí (6:40) i revisió final 45 min abans del primer partit de cada lliga
     xi_t = local.replace(hour=6, minute=40, second=0, microsecond=0).astimezone(UTC)
     k = f"misterxi:{local.date()}"
