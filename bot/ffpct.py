@@ -5,7 +5,13 @@ import sys
 from playwright.sync_api import sync_playwright
 
 from bot.extras import match_pages
-from bot.ff import norm
+import unicodedata
+
+
+def norm(t):
+    return unicodedata.normalize('NFKD', t or '').encode('ascii', 'ignore').decode().lower()
+
+
 from bot.web import login_futbolfantasy, new_context
 
 raw = sys.argv[1:]
