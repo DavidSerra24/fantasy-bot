@@ -332,6 +332,27 @@ def describe(pick, cap, slots=CLASSIC):
     return s + " · " + flags
 
 
+def _when_txt(q):
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    try:
+        d = dt.datetime.fromisoformat(str(q.get("date")).replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Madrid"))
+        return ["dl", "dt", "dc", "dj", "dv", "ds", "dg"][d.weekday()] + f" {d:%H:%M}"
+    except Exception:
+        return ""
+
+
+def img_card(title, pick, cap, slots=CLASSIC, subtitle="", footer="", tag="", tag_col="#2563eb"):
+    """Targeta per a la imatge de Telegram (bot/tgimg.py)."""
+    from bot.tgimg import card, player
+    ps = []
+    for sl, q in zip(slots, pick):
+        sub = " · ".join(x for x in ((q.get("club") or "")[:14], _when_txt(q)) if x)
+        conf = q.get("tier") == 0 and slots == ARENA
+        ps.append(player(sl, q["name"] + (" ✓" if conf else ""), sub, q.get("grade") or "?", cap=q is cap, warn=bool(q.get("rivals"))))
+    return card(title, ps, subtitle=subtitle, footer=footer, tag=tag, tag_col=tag_col)
+
+
 def save_lineup(lb, pick, cap, entry=None):
     inp = {"so5LeaderboardId": lb["id"], "so5Appearances": [{"cardSlug": q["card"], "captain": q is cap, "index": i} for i, q in enumerate(pick)]}
     if entry:
@@ -979,10 +1000,19 @@ def late_arenas(kind="prop", at=None):
             continue
         first = min(_when(q) for q in pick)
         auto = arenas_auto()
-        mid = _tg_send(f"🏟️ Arena Beginner ({ess.get('quantity') or 100} d'essència) amb {pick[0]['name']}:\n{arena_text(pick, cap)}\n"
-                       f"El jugador del primer partit ({first.astimezone(M):%a %H:%M}) ja és titular confirmat. "
-                       + ("La faré (sense confirmació)." if auto else "La faig? Respon «sí» a aquest missatge.")
-                       + f" L'envio a les {(first - dt.timedelta(minutes=6)).astimezone(M):%H:%M}, refeta amb els titulars del moment.")
+        msg = (f"🏟️ Arena Beginner ({ess.get('quantity') or 100} d'essència) amb {pick[0]['name']}:\n{arena_text(pick, cap)}\n"
+               f"El jugador del primer partit ({first.astimezone(M):%a %H:%M}) ja és titular confirmat. "
+               + ("La faré (sense confirmació)." if auto else "La faig? Respon «sí» a aquest missatge.")
+               + f" L'envio a les {(first - dt.timedelta(minutes=6)).astimezone(M):%H:%M}, refeta amb els titulars del moment.")
+        from bot.tgimg import send_cards
+        hhmm = (first - dt.timedelta(minutes=6)).astimezone(M).strftime("%H:%M")
+        mid = send_cards("🏟️ Arena Beginner", [img_card(f"Arena amb {pick[0]['name']}", pick, cap, ARENA,
+                                                         subtitle=f"l'envio a les {hhmm} · {sum(q['avg'] for q in pick):.0f}/260",
+                                                         footer="✓ = titular confirmat · la resta, 80–90%", tag="Arena", tag_col="#9333ea")],
+                         caption=("La faré a les " if auto else "La faig? Respon «sí» a aquesta imatge. L'envio a les ") + hhmm
+                         + f" ({ess.get('quantity') or 100} d'essència), refeta amb els titulars del moment.")
+        if mid is True or not mid:
+            mid = _tg_send(msg) if not mid else None
         asks[gk] = {"id": mid, "at": int(time.time()) - 2, "gk": gk, "gk_name": pick[0]["name"], "players": [q["player"] for q in pick],
                     "first": first.isoformat(), "sig": sig, "status": "approved" if auto else "asked"}
         sent += 1
@@ -1077,6 +1107,12 @@ def run(mode="dry"):
             elif n < 4 and not total:
                 rep.append(f"{lb['displayName']}: {n} alineacions (no queden jugadors per a més)")
     graded = any(q["grade"] for _, pick, _ in plan for q in pick)
+    cards_img = []
+    for lb_, pick_, cap_ in plan:
+        tot = sum(q["avg"] for q in pick_)
+        cards_img.append(img_card(lb_["displayName"], pick_, cap_, subtitle=f"mitjanes {tot:.0f}/370",
+                                  tag=(lb_.get("mainRarityType") or "").capitalize(),
+                                  tag_col="#dc2626" if (lb_.get("mainRarityType") or "").lower() == "rare" else "#ca8a04"))
     if not plan:
         rep.append("No surt cap alineació.")
     elif not graded:
@@ -1100,7 +1136,7 @@ def run(mode="dry"):
                  + f" · {sum(q['avg'] for q in pick):.0f}/260 · {preview(arena, pick, cap)}" for i, (pick, cap) in enumerate(props, 1)]
         if mode == "final":
             print("::notice title=sorare::" + " ¶ ".join(rep + LOG)[:60000])
-            telegram("\n".join(rep))
+            _send_rep(rep, cards_img)
             gk_watch(fx, [])
             from bot.web import load_json as _lj, save_json as _sj
             if _lj(ARSTATE, {}).get("fx") != fx["slug"]:
@@ -1114,8 +1150,22 @@ def run(mode="dry"):
             rep.append("🏟️ Arena: no queden prou jugadors amb ≥80% per a cap Arena")
     gk_watch(fx, rep)
     print("::notice title=sorare::" + " ¶ ".join(rep + LOG)[:60000])
-    telegram("\n".join(rep))
+    _send_rep(rep, cards_img)
     return plan
+
+
+def _send_rep(rep, cards_img):
+    """Imatge amb les alineacions i, a sota, només les línies importants (decisió del David, 11/11: menys text).
+    Si la imatge falla, el text sencer de sempre."""
+    from bot.tgimg import send_cards
+    keep = [l for l in rep[2:] if not l.startswith("🃏") and not l.startswith("   Arena")]
+    cap_txt = "\n".join(rep[:2] + keep)
+    short = len(cap_txt) <= 1000
+    if cards_img and send_cards(rep[0], cards_img, caption=cap_txt if short else "\n".join(rep[:2])):
+        if not short:
+            telegram("\n".join(keep))
+        return
+    telegram("\n".join(rep))
 
 
 if __name__ == "__main__":

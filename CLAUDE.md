@@ -155,4 +155,5 @@ L'usuari és el David (DavidSerra24). Parla en **català**: respon-li sempre en 
 - Mister: l'entrada torna a provar fins a 4 vegades (la web de vegades no respon a les 6:00) i, si una acció del Mister falla, es repeteix a la propera execució (fins a 3 intents, `state/tries.json`). Els errors surten com a `::error` a les anotacions.
 - `fantasy.yml` (manual): proves (`--dry`), forçar competicions. `debug.yml` i `logintest.yml` per diagnosi.
 - Resultats: anotacions dels jobs (`::notice`) i Telegram (`bot/notify.py`).
+- **Imatges a Telegram** (decisió del David, 11/11: «veure tant text em torna boig»; `bot/tgimg.py`, HTML → captura amb Playwright → `sendPhoto`): alineacions de Sorare (Classic: totes en una imatge amb el resum curt a sota; propostes d'Arena: una imatge per Arena, ✓ = titular confirmat) i del Set de futbol. Cada targeta és un camp (porter a baix, Extra al costat) amb nom, club/equip, hora, lletra d'impacte (i punts previstos al Set) i C de capità. Si la imatge falla, s'envia el text de sempre. Pendent: missions, Mister, FutbolFantasy, Predicted11.
 - Equivalències de noms: `config/predicted11.json` (alias) i `config/futbolfantasy.json`.

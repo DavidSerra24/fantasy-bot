@@ -145,6 +145,7 @@ def run(dry=False, focus=None):
     decisió del David, 2/11). Sense focus (cada hora): es refan totes les que no han començat i s'omplen les que falten."""
     now = dt.datetime.now(dt.timezone.utc)
     rep, games, ends = [], set(), set()
+    cards_img = []
     for mode in ("CAREER", "SQUAD"):
         label = f"⚽ Set · {'personal' if mode == 'CAREER' else 'equip'}"
         b = gql(STEP, {"m": mode}, token=token())["currentUser"]["setBoard"]
@@ -277,6 +278,23 @@ def run(dry=False, focus=None):
         # revisió final (els últims minuts abans del primer partit de l'alineació): jugadors de partits posteriors que
         # encara no tenen l'onze oficial (Sorare el posa ~1 h abans) → l'impacte no és el definitiu; avís perquè el David
         # l'acabi a mà (decisió del David, 4/11)
+        for l, pick in targets:  # imatge per a Telegram (11/11)
+            try:
+                from bot.tgimg import card, player
+                nm = (f"Alineació {open_.index(l) + 1}" if l is not None else "Alineació nova") if mode == "CAREER" else "Tauler d'equip"
+                order_ = sorted(pick.items(), key=lambda iq: (GRADE.get(iq[1]["grade"], 6), -iq[1]["proj"], -iq[1]["avg"], iq[0]))
+                ps = []
+                for i, q in sorted(pick.items()):
+                    pp = slots[i]["positions"]
+                    pos = pp[0] if len(pp) == 1 else "Extra"
+                    when = q["date"].astimezone(MAD)
+                    sub = f"{(q.get('team') or '').replace('-', ' ')[:13]} · {['dl','dt','dc','dj','dv','ds','dg'][when.weekday()]} {when:%H:%M}"
+                    ps.append(player(pos, q["name"] + (" ✓" if q["confirmed"] and q["ok"] else ""), sub, f"{q['grade']} {q['proj']:.0f}",
+                                     cap=i == order_[0][0], warn=bool(q.get("rival"))))
+                cards_img.append(card(nm, ps, subtitle=f"{b.get('title')} · nivell {st['level'] + 1} · objectiu {st['target']}",
+                                      tag="Personal" if mode == "CAREER" else "Equip", tag_col="#0891b2" if mode == "CAREER" else "#7c3aed"))
+            except Exception as e:
+                print(f"::warning title=set imatge::{str(e)[:150]}")
         if focus and now >= F - dt.timedelta(minutes=6):
             for l, pick in targets:
                 late = [q for q in pick.values() if q["date"] > F and not q["confirmed"]]
@@ -298,7 +316,12 @@ def run(dry=False, focus=None):
     if dry:
         telegram("Sorare · Set futbol (prova)\n" + "\n".join(rep))
     elif any(("✅ alineació nova" in r or "🔁" in r or "🎁" in r or "🔄" in r or "❌" in r) for r in rep):
-        telegram("Sorare · Set futbol\n" + "\n".join(r for r in rep if r in important or "✅ alineació nova" in r))
+        # imatge amb les alineacions + només les línies importants que no són alineacions (decisió del David, 11/11)
+        from bot.tgimg import send_cards
+        extra = [ln.strip() for r in rep if r in important for ln in r.split("\n")
+                 if any(x in ln for x in ("🎁", "🔄", "⚠️", "❌"))]
+        if not (cards_img and send_cards("⚽ Sorare · Set futbol", cards_img, caption="\n".join(extra)[:1000] or "Alineacions del Set (✓ = titular confirmat)")):
+            telegram("Sorare · Set futbol\n" + "\n".join(r for r in rep if r in important or "✅ alineació nova" in r))
 
 
 def show_order(n=45):
