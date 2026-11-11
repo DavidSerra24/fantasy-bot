@@ -182,8 +182,8 @@ def priority(t):
 
 
 TASK = """query($id: ID!) { currentUser { task(id: $id) { ... on DecisivePlayerPickerTask { id title description maxAppearancesCount mode rarity expired aasmState decisiveActions decisiveStats { name shortName }
-  taskAppearances { id index status anyCard { slug } anyPlayer { displayName slug } game { id date } }
-  pickableGames(first: 60) { nodes { game { id date homeTeam { name } awayTeam { name } } cards { slug xp rarityTyped anyPlayer { displayName slug } } } } } } } }"""
+  taskAppearances { id index status anyCard { slug pictureUrl } anyPlayer { displayName slug } game { id date } }
+  pickableGames(first: 60) { nodes { game { id date homeTeam { name } awayTeam { name } } cards { slug xp rarityTyped pictureUrl anyPlayer { displayName slug } } } } } } } }"""
 FORM = """query($s: String!) { anyPlayer(slug: $s) { displayName
   ... on Player { allPlayerGameScores(first: 20) { nodes { anyGame { date } ... on PlayerGameScore { positiveDecisiveStats { stat statValue } }
     anyPlayerGameStats { ... on PlayerGameStats { gameStarted minsPlayed %s } } } } } } }"""
@@ -457,7 +457,7 @@ def run(dry=False):
             if dry:
                 line.append("   (prova) canviaria: " + ", ".join(q["name"] for q in new) + (" en lloc de " + ", ".join(a["anyPlayer"]["displayName"] for i, a in cur.items() if i not in keep) if len(cur) > len(keep) else ""))
             else:
-                pending.append({"task": task, "tid": tid, "payload": payload, "line": line, "rarity": pl["rarity"]})
+                pending.append({"task": task, "tid": tid, "payload": payload, "line": line, "rarity": pl["rarity"], "pl": pl})
         else:
             if not want and not cur and not locked:
                 continue  # cap carta d'aquesta raresa/esport: no cal dir res
@@ -514,6 +514,7 @@ def run(dry=False):
         if p_.get("done"):
             after = gql(TASK, {"id": p_["tid"]}, token=token())["currentUser"]["task"]["taskAppearances"]
             p_["picks"] = [a["anyPlayer"]["displayName"] for a in sorted(after, key=lambda a: a["index"])]
+            p_["after"] = sorted(after, key=lambda a: a["index"])
             p_["line"].append("   ✅ picks ara: " + ", ".join(p_["picks"]))
         else:
             p_["line"].append(f"   ❌ no he pogut posar els picks: {p_.get('err')}")
@@ -529,10 +530,15 @@ def run(dry=False):
     # de l'últim avís, les recompenses reclamades i els errors. El detall complet queda a les anotacions.
     sent = load_json("sorare_missions_sent.json", {})
     short = [r for r in rep if r.startswith("🎁")]
+    blocks = []  # imatge (decisió del David, 11/11): una franja per missió amb les cartes triades
     for p_ in pending:
         if p_.get("done") and p_.get("picks") is not None:
             if sorted(sent.get(p_["tid"], [])) != sorted(p_["picks"]):
                 short.append(f"🎯 {p_['task']['title']} ({p_.get('rarity')}): " + ", ".join(p_["picks"]))
+                try:
+                    blocks.append(_mission_block(p_, sent.get(p_["tid"]), now, MAD))
+                except Exception as e:
+                    print(f"::warning title=missions imatge::{str(e)[:150]}")
             sent[p_["tid"]] = p_["picks"]
         elif not p_.get("done"):  # el mateix error només s'avisa una vegada
             if sent.get("err:" + p_["tid"]) != p_.get("err"):
@@ -540,7 +546,32 @@ def run(dry=False):
             sent["err:" + p_["tid"]] = p_.get("err")
     save_json("sorare_missions_sent.json", sent)
     if short:
+        from bot.tgimg import send_missions
+        rest = [l for l in short if not l.startswith("🎯")]
+        if blocks and send_missions("Sorare · missions", blocks, caption="\n".join(rest)[:1000]):
+            return
         telegram("Sorare · missions\n" + "\n".join(short))
+
+
+def _mission_block(p_, prev, now, MAD):
+    """Dades d'una missió per a la imatge: cartes triades (amb la imatge de la carta), hora i opcions; NOU = canvi."""
+    pl = p_["pl"]
+    info = {q["slug"]: q for q in pl["ranked"]}
+    PRI = {0: "essència", 1: "pistes", 2: "crèdits", 3: "XP", 4: "altres"}
+    ps = []
+    for a in p_["after"]:
+        q = info.get(a["anyPlayer"]["slug"], {})
+        D = dt.datetime.fromisoformat(a["game"]["date"].replace("Z", "+00:00")).astimezone(MAD)
+        when = ["dl", "dt", "dc", "dj", "dv", "ds", "dg"][D.weekday()] + f" {D:%H:%M}"
+        if pl["nba"]:
+            badge = f"{q.get('margin', 0):+.0f}" if q else ""
+        else:
+            badge = f"{q.get('chance', 0) * 100:.0f}%" if q else ""
+        ps.append({"name": a["anyPlayer"]["displayName"], "pic": (a.get("anyCard") or {}).get("pictureUrl"), "sub": when,
+                   "badge": badge, "locked": a["status"] != "READY" or D <= now, "extra": a["anyPlayer"]["slug"] in pl["extra"],
+                   "new": prev is not None and a["anyPlayer"]["displayName"] not in prev})
+    return {"title": ("🏀 " if pl["nba"] else "⚽ ") + p_["task"]["title"], "tag": p_.get("rarity") or "",
+            "sub": f"{p_['task']['description']} · recompensa: {PRI.get(pl['pri'], '')}", "players": ps}
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

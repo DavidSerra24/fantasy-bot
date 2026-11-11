@@ -313,3 +313,69 @@ def _mark_changes(cards):
     if len(st) > 300:
         st = dict(list(st.items())[-300:])
     save_json("tg_lineups.json", st)
+
+
+# --- Missions (decisió del David, 11/11: «m'ho faràs per les missions també? de NBA també»)
+RAR_COL = {"limited": "#eab308", "rare": "#ef4444", "super_rare": "#3b82f6", "unique": "#a855f7", "common": "#a1a1aa"}
+MCSS = """
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0b0b0f;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#f4f4f5;width:600px}
+.w{padding:20px;background:radial-gradient(120% 60% at 80% 0%,#1d1d2b 0%,#0b0b0f 60%)}
+h1{font-size:24px;font-weight:800;margin-bottom:12px}
+.m{border:1px solid #ffffff26;border-radius:14px;padding:12px;margin-bottom:12px;background:#111114}
+.mh{display:flex;align-items:center;gap:8px}.mt{font-size:16px;font-weight:800;flex:1}
+.tag{border:2px solid;border-radius:16px;padding:2px 10px;font-weight:800;font-size:11.5px;text-transform:capitalize}
+.ms{font-size:11.5px;color:#a1a1aa;margin:3px 0 10px}
+.r{display:flex;flex-wrap:wrap;gap:10px}
+.t{width:100px;text-align:center;position:relative}
+.t img{width:100px;display:block;border-radius:8px;box-shadow:0 4px 12px #000a}
+.t .nm{background:#18181b;border:1px solid #ffffff30;border-radius:8px;padding:30px 4px;font-weight:700;font-size:12.5px}
+.t.new img{outline:4px solid #22d3ee;box-shadow:0 0 16px #22d3eeaa}
+.t.lock{opacity:.5}
+.sub{font-size:10.5px;color:#d4d4d8;margin-top:4px}
+.b{position:absolute;left:4px;top:4px;background:#16a34a;color:#fff;font-weight:800;border-radius:6px;padding:1px 6px;font-size:12px}
+.b.low{background:#64748b}
+.nw{position:absolute;left:50%;transform:translateX(-50%);top:-9px;background:#22d3ee;color:#0b0b0f;font-weight:800;font-size:10px;border-radius:6px;padding:1px 6px}
+.lk{position:absolute;right:4px;top:4px;font-size:13px}
+.lg{font-size:11px;color:#a1a1aa}
+"""
+
+
+def render_missions(title, blocks):
+    from playwright.sync_api import sync_playwright
+    e = _h.escape
+    out = []
+    for m in blocks:
+        tiles = []
+        for p in m["players"]:
+            src = _img(p.get("pic"))
+            body = f'<img src="{src}">' if src else f'<div class="nm">{e(p["name"])}</div>'
+            low = p.get("extra") or str(p.get("badge", "")).startswith(("0", "-"))
+            tiles.append(f'<div class="t{" new" if p.get("new") else ""}{" lock" if p.get("locked") else ""}">{body}'
+                         + (f'<span class="b{" low" if low else ""}">{e(str(p["badge"]))}</span>' if p.get("badge") else "")
+                         + ('<span class="lk">🔒</span>' if p.get("locked") else "")
+                         + ('<span class="nw">NOU</span>' if p.get("new") else "")
+                         + f'<div class="sub">{e(p.get("sub") or "")}</div></div>')
+        col = RAR_COL.get((m.get("tag") or "").lower(), "#a1a1aa")
+        out.append(f"<div class='m'><div class='mh'><div class='mt'>{e(m['title'])}</div>"
+                   f"<div class='tag' style='color:{col};border-color:{col}'>{e((m.get('tag') or '').replace('_', ' '))}</div></div>"
+                   f"<div class='ms'>{e(m.get('sub') or '')}</div><div class='r'>{''.join(tiles)}</div></div>")
+    html = (f"<html><head><meta charset='utf-8'><style>{MCSS}</style></head><body><div class='w'><h1>{e(title)}</h1>{''.join(out)}"
+            "<div class='lg'>% = opcions (titular × accions decisives als últims 20) · a l'NBA, marge sobre l'objectiu · 🔒 partit començat · marc blau = canvi</div>"
+            "</div></body></html>")
+    with sync_playwright() as pw:
+        b = pw.chromium.launch()
+        pg = b.new_page(viewport={"width": 600, "height": 400}, device_scale_factor=2)
+        pg.set_content(html)
+        png = pg.locator("body").screenshot(type="png")
+        b.close()
+    _keep(png)
+    return png
+
+
+def send_missions(title, blocks, caption=""):
+    try:
+        return send_photo(render_missions(title, blocks), caption)
+    except Exception as ex:
+        print(f"::warning title=telegram imatge::{type(ex).__name__}: {str(ex)[:200]}")
+        return False
