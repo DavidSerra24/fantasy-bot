@@ -345,7 +345,7 @@ def _when_txt(q):
         return ""
 
 
-def img_card(title, pick, cap, slots=CLASSIC, subtitle="", footer="", tag="", tag_col="#2563eb"):
+def img_card(title, pick, cap, slots=CLASSIC, subtitle="", footer="", tag="", tag_col="#2563eb", gw="", num=""):
     """Targeta per a la imatge de Telegram (bot/tgimg.py)."""
     from bot.tgimg import card, player
     ps = []
@@ -357,7 +357,10 @@ def img_card(title, pick, cap, slots=CLASSIC, subtitle="", footer="", tag="", ta
         # l'Extra es dibuixa a la línia de la seva posició (decisió del David, 11/11: «porter, dos defenses, 3 mitjos i un davanter»)
         ps.append(player(q.get("pos") or sl if sl == "Extra" else sl, q["name"] + (" ✓" if conf else ""), sub, q.get("grade") or "?", cap=q is cap, warn=riv,
                          pic=q.get("pic")))
-    return card(title, ps, subtitle=subtitle, footer=footer, tag=tag, tag_col=tag_col)
+    c = card(title, ps, subtitle=subtitle, footer=footer, tag=tag, tag_col=tag_col)
+    c.update(gw=gw, num=num, cap_name=(cap or {}).get("name", ""), cap_club=(cap or {}).get("club", ""),
+             score=sum((q.get("proj") or 0) for q in pick) or None)
+    return c
 
 
 def save_lineup(lb, pick, cap, entry=None):
@@ -1036,9 +1039,9 @@ def late_arenas(kind="prop", at=None):
                f"El jugador del primer partit ({first.astimezone(M):%a %H:%M}) ja és titular confirmat. "
                + ("La faré (sense confirmació)." if auto else "La faig? Respon «sí» a aquest missatge.")
                + f" L'envio a les {(first - dt.timedelta(minutes=6)).astimezone(M):%H:%M}, refeta amb els titulars del moment.")
-        from bot.tgimg import send_cards
+        from bot.tgimg import send_lineups
         hhmm = (first - dt.timedelta(minutes=6)).astimezone(M).strftime("%H:%M")
-        mid = send_cards("🏟️ Arena Beginner", [img_card(f"Arena amb {pick[0]['name']}", pick, cap, ARENA,
+        mid = send_lineups([img_card("Arena Beginner", pick, cap, ARENA, gw=fx.get("gameWeek", ""), num=f"ENVIO {hhmm}",
                                                          subtitle=f"l'envio a les {hhmm} · {sum(q['avg'] for q in pick):.0f}/260",
                                                          footer="✓ = titular confirmat · la resta, 80–90%", tag="Arena", tag_col="#9333ea")],
                          caption=("La faré a les " if auto else "La faig? Respon «sí» a aquesta imatge. L'envio a les ") + hhmm
@@ -1155,12 +1158,14 @@ def run(mode="dry", live=False):
             elif n < 4 and not total:
                 rep.append(f"{lb['displayName']}: {n} alineacions (no queden jugadors per a més)")
     graded = any(q["grade"] for _, pick, _ in plan for q in pick)
-    cards_img = []
+    cards_img, nums = [], {}
     for lb_, pick_, cap_ in plan:
         tot = sum(q["avg"] for q in pick_)
+        nums[lb_["slug"]] = nums.get(lb_["slug"], 0) + 1
         cards_img.append(img_card(lb_["displayName"], pick_, cap_, subtitle=f"mitjanes {tot:.0f}/370",
                                   tag=(lb_.get("mainRarityType") or "").capitalize(),
-                                  tag_col="#dc2626" if (lb_.get("mainRarityType") or "").lower() == "rare" else "#ca8a04"))
+                                  tag_col="#ef4444" if (lb_.get("mainRarityType") or "").lower() == "rare" else "#eab308",
+                                  gw=fx["gameWeek"], num=f"ALINEACIÓ #{nums[lb_['slug']]:02d}"))
     if not plan:
         rep.append("No surt cap alineació.")
     elif not graded:
@@ -1209,11 +1214,11 @@ def run(mode="dry", live=False):
 def _send_rep(rep, cards_img):
     """Imatge amb les alineacions i, a sota, només les línies importants (decisió del David, 11/11: menys text).
     Si la imatge falla, el text sencer de sempre."""
-    from bot.tgimg import send_cards
+    from bot.tgimg import send_lineups
     keep = [l for l in rep[2:] if not l.startswith("🃏") and not l.startswith("   Arena")]
     cap_txt = "\n".join(rep[:2] + keep)
     short = len(cap_txt) <= 1000
-    if cards_img and send_cards(rep[0], cards_img, caption=cap_txt if short else "\n".join(rep[:2])):
+    if cards_img and send_lineups(cards_img, caption=cap_txt if short else "\n".join(rep[:2])):
         if not short:
             telegram("\n".join(keep))
         return

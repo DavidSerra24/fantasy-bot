@@ -291,8 +291,12 @@ def run(dry=False, focus=None):
                     sub = f"{(q.get('team') or '').replace('-', ' ')[:13]} · {['dl','dt','dc','dj','dv','ds','dg'][when.weekday()]} {when:%H:%M}"
                     ps.append(player(pos, q["name"] + (" ✓" if q["confirmed"] and q["ok"] else ""), sub, f"{q['grade']} {q['proj']:.0f}",
                                      cap=i == order_[0][0], warn=bool(q.get("rival")), pic=q.get("pic")))
-                cards_img.append(card(nm, ps, subtitle=f"{b.get('title')} · nivell {st['level'] + 1} · objectiu {st['target']}",
-                                      tag="Personal" if mode == "CAREER" else "Equip", tag_col="#0891b2" if mode == "CAREER" else "#7c3aed"))
+                c_ = card(f"{b.get('title')} · objectiu {st['target']}", ps,
+                          tag="Personal" if mode == "CAREER" else "Equip", tag_col="#22d3ee" if mode == "CAREER" else "#a78bfa")
+                cq = pick[order_[0][0]]
+                c_.update(gw=f"Set · nivell {st['level'] + 1}", num=nm.upper(), cap_name=cq["name"], cap_club=(cq.get("team") or "").replace("-", " "),
+                          score=sum(q["proj"] for q in pick.values()))
+                cards_img.append(c_)
             except Exception as e:
                 print(f"::warning title=set imatge::{str(e)[:150]}")
         if focus and now >= F - dt.timedelta(minutes=6):
@@ -317,10 +321,10 @@ def run(dry=False, focus=None):
         telegram("Sorare · Set futbol (prova)\n" + "\n".join(rep))
     elif any(("✅ alineació nova" in r or "🔁" in r or "🎁" in r or "🔄" in r or "❌" in r) for r in rep):
         # imatge amb les alineacions + només les línies importants que no són alineacions (decisió del David, 11/11)
-        from bot.tgimg import send_cards
+        from bot.tgimg import send_lineups
         extra = [ln.strip() for r in rep if r in important for ln in r.split("\n")
                  if any(x in ln for x in ("🎁", "🔄", "⚠️", "❌"))]
-        if not (cards_img and send_cards("⚽ Sorare · Set futbol", cards_img, caption="\n".join(extra)[:1000] or "Alineacions del Set (✓ = titular confirmat)")):
+        if not (cards_img and send_lineups(cards_img, caption="\n".join(extra)[:1000] or "Alineacions del Set (✓ = titular confirmat)")):
             telegram("Sorare · Set futbol\n" + "\n".join(r for r in rep if r in important or "✅ alineació nova" in r))
 
 

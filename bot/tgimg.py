@@ -165,3 +165,126 @@ def send_cards(title, cards, caption="", cols=None):
     except Exception as e:
         print(f"::warning title=telegram imatge::{type(e).__name__}: {str(e)[:200]}")
         return False
+
+
+# --- Format «alineació de Sorare» (decisió del David, 11/11: «podem fer algo així?», amb una imatge d'exemple):
+# fons fosc amb el camp dibuixat, capçalera (jornada, competició, núm. d'alineació), formació, cartes a la seva línia
+# (porter a dalt) i peu amb el capità i els punts previstos. Una imatge per alineació; s'envien juntes (àlbum).
+PITCH_SVG = """<svg class="lines" viewBox="0 0 520 640" preserveAspectRatio="none"><g fill="none" stroke="#ffffff2e" stroke-width="2">
+<path d="M60 8 L460 8 L515 632 L5 632 Z"/><path d="M150 8 L165 92 L355 92 L370 8"/><path d="M205 8 L210 40 L310 40 L315 8"/>
+<path d="M35 320 L485 320"/><ellipse cx="260" cy="320" rx="62" ry="40"/><path d="M120 632 L128 560 L392 560 L400 632"/></g></svg>"""
+
+LCSS = """
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0b0b0f;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#f4f4f5;width:560px}
+.w{padding:22px 22px 18px;background:radial-gradient(120% 60% at 80% 0%,#1d1d2b 0%,#0b0b0f 60%)}
+.top{display:flex;align-items:center;gap:16px}
+.brand{font-size:30px;font-weight:800;letter-spacing:-1px;padding-right:16px;border-right:2px solid #ffffff55;line-height:1}
+.gw{flex:1}.gw b{font-size:26px;font-weight:800;display:block;line-height:1}
+.gw span{font-size:10.5px;letter-spacing:3px;color:#d4d4d8;text-transform:uppercase;display:block;margin-top:5px}
+.pill{border:2px solid #f4f4f5;border-radius:22px;padding:6px 14px;font-weight:800;font-size:13px;white-space:nowrap}
+.form{display:flex;align-items:center;gap:12px;margin:16px 0 8px;color:#a1a1aa;font-weight:700;font-size:20px}
+.form:before,.form:after{content:"";flex:1;height:1px;background:#ffffff40}
+.pitch{position:relative;padding:14px 4px 10px}
+.lines{position:absolute;inset:0;width:100%;height:100%}
+.row{position:relative;display:flex;justify-content:space-evenly;margin:10px 0}
+.t{width:104px;text-align:center;position:relative}
+.t img{width:104px;display:block;border-radius:8px;box-shadow:0 4px 14px #000a}
+.t.warn img{outline:3px solid #f59e0b}
+.t .nm{background:#18181bee;border:1px solid #ffffff30;border-radius:8px;padding:30px 4px;font-weight:700;font-size:13px}
+.t .sub{font-size:10.5px;color:#d4d4d8;margin-top:4px;width:150px;margin-left:-23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g{position:absolute;left:4px;top:4px;color:#fff;font-weight:800;border-radius:6px;padding:1px 6px;font-size:13px;box-shadow:0 1px 3px #000a}
+.cp{position:absolute;right:4px;top:4px;background:#e11d48;color:#fff;font-weight:800;border-radius:50%;font-size:11px;padding:2px 6px}
+.ok{position:absolute;right:4px;bottom:24px;background:#16a34a;color:#fff;font-weight:800;border-radius:50%;width:20px;height:20px;font-size:12px;
+  display:flex;align-items:center;justify-content:center}
+.foot{display:flex;align-items:center;margin-top:12px;border:1px solid #ffffff30;border-radius:14px;padding:12px 16px;background:#111114}
+.cap{flex:1;border-right:1px solid #ffffff30}.cap .k{color:#eab308;font-weight:800;font-size:12px;letter-spacing:2px}
+.cap .n{font-size:18px;font-weight:800;margin-top:3px}.cap .c{font-size:12.5px;color:#a1a1aa}
+.ps{flex:1;padding-left:16px}.ps .k{color:#a1a1aa;font-size:11px;letter-spacing:2px;font-weight:700}.ps .v{font-size:30px;font-weight:800}
+.tag{border:2px solid;border-radius:22px;padding:6px 12px;font-weight:800;font-size:13px}
+.note{font-size:11.5px;color:#a1a1aa;margin-top:8px}
+"""
+
+
+def render_lineup(gw, comp, num, players, cap_name="", cap_club="", score=None, tag="", tag_col="#a855f7", note=""):
+    """Una imatge d'alineació. players: player(...) amb pos G/D/M/F (l'Extra ja a la seva línia)."""
+    from playwright.sync_api import sync_playwright
+    e = _h.escape
+    lines = {k: [p for p in players if p["pos"] == k] for k in "GDMF"}
+    form = "-".join(str(len(lines[k])) for k in "DMF" if lines[k])
+    rows = []
+    for k in "GDMF":  # porter a dalt, com a l'exemple
+        if not lines[k]:
+            continue
+        tiles = []
+        for p in lines[k]:
+            src = _img(p.get("pic"))
+            body = f'<img src="{src}">' if src else f'<div class="nm">{e(p["name"])}</div>'
+            tiles.append(f'<div class="t{" warn" if p["warn"] else ""}">{body}'
+                         + (f'<span class="g" style="background:{p["col"]}">{e(p["badge"])}</span>' if p["badge"] else "")
+                         + ('<span class="cp">C</span>' if p["cap"] else "")
+                         + ('<span class="ok">✓</span>' if p["name"].endswith("✓") else "")
+                         + f'<div class="sub">{e(p["sub"])}</div></div>')
+        rows.append('<div class="row">' + "".join(tiles) + "</div>")
+    html = (f"<html><head><meta charset='utf-8'><style>{LCSS}</style></head><body><div class='w'>"
+            f"<div class='top'><div class='brand'>Sorare</div><div class='gw'><b>{e(("GW " + str(gw)) if str(gw).isdigit() else str(gw))}</b><span>{e(comp)}</span></div>"
+            f"<div class='pill'>{e(num)}</div></div>"
+            f"<div class='form'>{e(form)}</div><div class='pitch'>{PITCH_SVG}{''.join(rows)}</div>"
+            f"<div class='foot'><div class='cap'><div class='k'>👑 CAPITÀ</div><div class='n'>{e(cap_name)}</div><div class='c'>{e(cap_club)}</div></div>"
+            f"<div class='ps'><div class='k'>PUNTS PREVISTOS</div><div class='v'>{'' if score is None else f'{score:.0f}'}</div></div>"
+            + (f"<div class='tag' style='color:{tag_col};border-color:{tag_col}'>{e(tag)}</div>" if tag else "") + "</div>"
+            + (f"<div class='note'>{e(note)}</div>" if note else "") + "</div></body></html>")
+    with sync_playwright() as pw:
+        b = pw.chromium.launch()
+        pg = b.new_page(viewport={"width": 560, "height": 400}, device_scale_factor=2)
+        pg.set_content(html)
+        png = pg.locator("body").screenshot(type="png")
+        b.close()
+    _keep(png)
+    return png
+
+
+def _keep(png):
+    if os.getenv("TG_IMG_DIR"):  # còpia per revisar-la
+        import base64
+        os.makedirs(os.environ["TG_IMG_DIR"], exist_ok=True)
+        n = len(os.listdir(os.environ["TG_IMG_DIR"]))
+        open(os.path.join(os.environ["TG_IMG_DIR"], f"tg{n}.png"), "wb").write(png)
+        b64 = base64.b64encode(png).decode()
+        for i in range(0, len(b64), 4000):
+            print(f"IMG64 {n} " + b64[i:i + 4000])
+
+
+def send_album(pngs, caption=""):
+    """Diverses imatges en un sol missatge (sendMediaGroup, fins a 10); el text va a la primera."""
+    import json
+    tok, chat = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
+    if not tok or not chat or not pngs:
+        return False
+    if len(pngs) == 1:
+        return send_photo(pngs[0], caption)
+    ok = True
+    for k in range(0, len(pngs), 10):
+        part = pngs[k:k + 10]
+        media = [{"type": "photo", "media": f"attach://p{i}", **({"caption": caption[:1000]} if k == 0 and i == 0 and caption else {})}
+                 for i in range(len(part))]
+        r = requests.post(f"https://api.telegram.org/bot{tok}/sendMediaGroup", data={"chat_id": chat, "media": json.dumps(media)},
+                          files={f"p{i}": (f"p{i}.png", png, "image/png") for i, png in enumerate(part)}, timeout=90)
+        if not r.ok:
+            print("::warning title=telegram àlbum::" + r.text[:200])
+            ok = False
+    return ok
+
+
+def send_lineups(cards, caption=""):
+    """Una imatge per alineació (format «alineació de Sorare») en un àlbum. Retorna l'id del missatge o True si ha anat bé."""
+    if not cards:
+        return False
+    try:
+        pngs = [render_lineup(c.get("gw") or "", c["title"], c.get("num") or "", c["players"], c.get("cap_name") or "",
+                              c.get("cap_club") or "", c.get("score"), c.get("tag") or "", c.get("tag_col") or "#a855f7",
+                              " · ".join(x for x in (c.get("subtitle"), c.get("footer")) if x)) for c in cards]
+        return send_album(pngs, caption)
+    except Exception as ex:
+        print(f"::warning title=telegram imatge::{type(ex).__name__}: {str(ex)[:200]}")
+        return False
