@@ -98,13 +98,17 @@ def run(day=None):
     for v in mis:
         oks = [_ok(p.get("status")) for p in v["picks"]]
         blocks.append({"kind": "mission", "title": f"{'🏀' if v['sport'] == 'NBA' else '⚽'} {v.get('title')}", "tag": v.get("rarity") or "",
-                       "desc": v.get("desc") or "", "won": (True if oks and all(o is True for o in oks) else (False if any(o is False for o in oks) else None)),
+                       "desc": v.get("desc") or "", "won": (True if oks and all(o is True for o in oks) else (False if oks and all(o is False for o in oks) else None)),
                        "players": [{"name": p["name"], "pic": p.get("pic"), "ok": o, "status": p.get("status")} for p, o in zip(v["picks"], oks)]})
     d = dt.date.fromisoformat(day)
     title = f"Resum de {['dilluns', 'dimarts', 'dimecres', 'dijous', 'divendres', 'dissabte', 'diumenge'][d.weekday()]} {d.day}/{d.month}"
     won = sum(1 for b in blocks if b["won"] is True)
     lost = sum(1 for b in blocks if b["won"] is False)
-    cap = f"☀️ {title}: {won} guanyades/aconseguides, {lost} perdudes" + ("\n" + "\n".join(evs) if evs else "")
+    sw = sum(1 for b in blocks if b["kind"] == "set" and b["won"] is True)
+    sl = sum(1 for b in blocks if b["kind"] == "set" and b["won"] is False)
+    mk = sum(1 for b in blocks if b["kind"] == "mission" for p in b["players"] if p.get("ok"))
+    mn = sum(1 for b in blocks if b["kind"] == "mission" for p in b["players"])
+    cap = f"☀️ {title}: Set {sw} guanyades, {sl} perdudes · missions {mk}/{mn} picks encertats" + ("\n" + "\n".join(evs) if evs else "")
     if not send_digest(title, blocks, caption=cap[:1000]):
         telegram(cap + "\n" + "\n".join(f"{'✅' if b['won'] else '❌' if b['won'] is False else '•'} {b['title']}" for b in blocks))
 
