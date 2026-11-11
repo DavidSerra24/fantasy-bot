@@ -240,7 +240,8 @@ if __name__ == "__main__":
          "arenas": lambda: __import__("bot.sorarelineup", fromlist=["late_arenas"]).late_arenas("prop"),
          "plandry": lambda: __import__("bot.plandry"),
          "pic": lambda: __import__("bot.sorarepic"),
-         "livak": lambda: __import__("bot.sorarelivak")}[cmd]()
+         "livak": lambda: __import__("bot.sorarelivak"),
+         "live": lambda: __import__("bot.sorarelive")}[cmd]()
     except Exception as e:
         import traceback
         print("::error title=sorare::" + traceback.format_exc().replace("\n", " | ")[-1500:])
