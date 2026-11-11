@@ -91,7 +91,10 @@ def run_action(a):
             mistermarket.run()
         elif a["do"] == "sorare":
             from bot import sorarelineup
-            sorarelineup.run(a["comp"])
+            if str(a["comp"]).startswith("live"):  # competicions de la jornada en joc que tanquen més tard (11/11)
+                sorarelineup.run(a["comp"][4:], live=True)
+            else:
+                sorarelineup.run(a["comp"])
         elif a["do"] in ("soraresetscan", "soraresetgo"):
             from bot import sorareset
             sorareset.run(dry=False, scan=a["do"] == "soraresetscan")

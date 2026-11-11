@@ -205,6 +205,22 @@ def plan(now=None, done=None, fast_only=False):
             k = f"sorare-{mode}:{sf['slug']}:{int(lead.total_seconds())}"
             if due(k, C - lead, C - dt.timedelta(minutes=5)):
                 add(k, C - lead, "sorare", mode, C - dt.timedelta(minutes=5))
+    # Sorare: competicions de la jornada JA COMENÇADA que tanquen més tard (11/11: All Star de la GW729 de seleccions,
+    # tancava dijous a les 16:00): matí (9:30) del dia abans i del dia, 2 h abans i revisió final 40 min abans
+    sl = load_json("sorare_live.json", {})
+    if sl.get("cutoff"):
+        C = dt.datetime.fromisoformat(sl["cutoff"].replace("Z", "+00:00"))
+        if C > now:
+            info.append(f"Sorare GW{sl.get('gw')} (jornada en joc): l'All Star tanca {C.astimezone(MADRID):%a %d %H:%M}")
+            mt = local.replace(hour=9, minute=30, second=0, microsecond=0).astimezone(UTC)
+            if mt < C - dt.timedelta(hours=2) and C - mt < dt.timedelta(hours=48):
+                k = f"sorare-live-mati:{sl['slug']}:{local.date()}"
+                if due(k, mt, C - dt.timedelta(hours=2)):
+                    add(k, mt, "sorare", "livefill", C - dt.timedelta(hours=2))
+            for lead, mode in ((dt.timedelta(hours=2), "livefill"), (dt.timedelta(minutes=40), "livefinal")):
+                k = f"sorare-{mode}:{sl['slug']}:{int(lead.total_seconds())}"
+                if due(k, C - lead, C - dt.timedelta(minutes=5)):
+                    add(k, C - lead, "sorare", mode, C - dt.timedelta(minutes=5))
     # Sorare: porters amb 10–79% → avís 1 h 15 min abans del partit i comprovació de l'onze oficial
     for g in load_json("sorare_gkwatch.json", {}).get("gks", []):
         G = dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00"))

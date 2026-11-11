@@ -241,7 +241,9 @@ if __name__ == "__main__":
          "plandry": lambda: __import__("bot.plandry"),
          "pic": lambda: __import__("bot.sorarepic"),
          "livak": lambda: __import__("bot.sorarelivak"),
-         "live": lambda: __import__("bot.sorarelive")}[cmd]()
+         "live": lambda: __import__("bot.sorarelive"),
+         "livelineups": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("dry", live=True),
+         "livefill": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("fill", live=True)}[cmd]()
     except Exception as e:
         import traceback
         print("::error title=sorare::" + traceback.format_exc().replace("\n", " | ")[-1500:])
