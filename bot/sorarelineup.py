@@ -1131,7 +1131,8 @@ def run(mode="dry", live=False):
                 pool = [q for q in pool if q["player"] not in used[rarity]]
                 plan.append((lb, pick, cap))
                 rep.append(f"🃏 {lb['displayName']} #{n}: {describe(pick, cap)} · {preview(lb, pick, cap)}")
-            if n == 0 and rarity == "rare" and allstar:
+            # (11/11) jornada en joc (All Star de seleccions): si no surt amb ≥80%, també amb menys i amb rivals ("Endavant")
+            if n == 0 and allstar and (rarity == "rare" or live):
                 # All Star Rare: si no hi ha prou jugadors amb ≥80%, s'agafen els de més % (70%, 60%…), per impacte (el David, 3/11)
                 for floor in range(7000, 1999, -1000):
                     pool2 = [q for q in cards(lb, floor) if q["player"] not in used[rarity]]
