@@ -209,12 +209,12 @@ body{background:#0b0b0f;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif
 """
 
 
-def render_lineup(gw, comp, num, players, cap_name="", cap_club="", score=None, tag="", tag_col="#a855f7", note=""):
+def render_lineup(gw, comp, num, players, cap_name="", cap_club="", score=None, tag="", tag_col="#a855f7", note="", form=None, left=None):
     """Una imatge d'alineació. players: player(...) amb pos G/D/M/F (l'Extra ja a la seva línia)."""
     from playwright.sync_api import sync_playwright
     e = _h.escape
     lines = {k: [p for p in players if p["pos"] == k] for k in "GDMF"}
-    form = "-".join(str(len(lines[k])) for k in "DMF" if lines[k])
+    form = form or "-".join(str(len(lines[k])) for k in "DMF" if lines[k])
     rows = []
     for k in "GDMF":  # porter a dalt, com a l'exemple
         if not lines[k]:
@@ -234,8 +234,10 @@ def render_lineup(gw, comp, num, players, cap_name="", cap_club="", score=None, 
             f"<div class='top'><div class='brand'>Sorare</div><div class='gw'><b>{e(("GW " + str(gw)) if str(gw).isdigit() else str(gw))}</b><span>{e(comp)}</span></div>"
             f"<div class='pill'>{e(num)}</div></div>"
             f"<div class='form'>{e(form)}</div><div class='pitch'>{PITCH_SVG}{''.join(rows)}</div>"
-            f"<div class='foot'><div class='cap'><div class='k'>👑 CAPITÀ</div><div class='n'>{e(cap_name)}</div><div class='c'>{e(cap_club)}</div></div>"
-            f"<div class='ps'><div class='k'>PUNTS PREVISTOS</div><div class='v'>{'' if score is None else f'{score:.0f}'}</div></div>"
+            + (f"<div class='foot'><div class='cap'><div class='k'>{e(left[0])}</div><div class='n'>{e(left[1])}</div><div class='c'>{e(left[2] if len(left) > 2 else '')}</div></div>"
+               if left else
+               f"<div class='foot'><div class='cap'><div class='k'>👑 CAPITÀ</div><div class='n'>{e(cap_name)}</div><div class='c'>{e(cap_club)}</div></div>")
+            + f"<div class='ps'><div class='k'>PUNTS PREVISTOS</div><div class='v'>{'' if score is None else f'{score:.0f}'}</div></div>"
             + (f"<div class='tag' style='color:{tag_col};border-color:{tag_col}'>{e(tag)}</div>" if tag else "") + "</div>"
             + (f"<div class='note'>{e(note)}</div>" if note else "") + "</div></body></html>")
     with sync_playwright() as pw:
@@ -288,7 +290,7 @@ def send_lineups(cards, caption=""):
     try:
         pngs = [render_lineup(c.get("gw") or "", c["title"], c.get("num") or "", c["players"], c.get("cap_name") or "",
                               c.get("cap_club") or "", c.get("score"), c.get("tag") or "", c.get("tag_col") or "#a855f7",
-                              " · ".join(x for x in (c.get("subtitle"), c.get("footer")) if x)) for c in cards]
+                              " · ".join(x for x in (c.get("subtitle"), c.get("footer")) if x), c.get("form"), c.get("left")) for c in cards]
         return send_album(pngs, caption)
     except Exception as ex:
         print(f"::warning title=telegram imatge::{type(ex).__name__}: {str(ex)[:200]}")

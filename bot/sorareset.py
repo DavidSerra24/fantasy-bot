@@ -322,9 +322,59 @@ def run(dry=False, sports=("NBA",), scan=False):
                     digest.event(ln.strip())
     for k, r in enumerate(rep):
         print(f"::notice title=set {k + 1}::" + r.replace("\n", " ¶ ")[:3900])
-    if dry or any("✅ alineació" in r or "❌" in r for r in rep):
+    if dry:
         telegram(msg)
+    elif any("✅ alineació" in r or "❌" in r for r in rep):
+        # imatge de les alineacions (12/11) i, a sota, només els avisos (errors, nivells)
+        extra = [ln.strip() for r in rep for ln in r.split("\n") if any(x in ln for x in ("❌", "⚠️", "🎁", "🔄"))]
+        if not send_images("🏀 Sorare · Set NBA" + ("\n" + "\n".join(extra) if extra else "")):
+            telegram(msg)
 
+
+
+def send_images(caption=""):
+    """Imatges de les alineacions del Set NBA (personal i d'equip) amb les cartes, els punts previstos i les estrelles
+    (decisió del David, 12/11: «no veig imatges del Set NBA»). Retorna True si s'han enviat."""
+    from bot.tgimg import card, player, send_lineups
+    from zoneinfo import ZoneInfo
+    M = ZoneInfo("Europe/Madrid")
+    cards = []
+    for mode in ("CAREER", "SQUAD"):
+        b = (gql_step({"sp": "NBA", "m": mode})["currentUser"]["setBoard"] or {})
+        st = b.get("myCurrentStep") or {}
+        lus = [l for l in st.get("myLineups") or [] if l and l.get("taskAppearances")]
+        if not lus:
+            continue
+        info = {}
+        try:
+            for n in bench(st["id"], used=True):
+                gs = [g for g in n.get("eligiblePlayerGameScores") or [] if g and g.get("anyGame")]
+                info[n["anyCard"]["slug"]] = ({g["anyGame"]["id"]: g.get("projectedScore") or 0 for g in gs},
+                                              (n["anyPlayer"].get("gameplayTierStars") or 0))
+        except Exception as e:
+            print(f"::warning title=set imatge::{str(e)[:120]}")
+        for k, l in enumerate(lus, 1):
+            ps, tot, stars = [], 0, 0
+            apps = [a for a in l["taskAppearances"] if a]
+            for i, a in enumerate(apps):
+                pj, sr = info.get(a["anyCard"]["slug"], ({}, 0))
+                proj = pj.get((a.get("game") or {}).get("id"), 0)
+                tot += proj; stars += sr
+                when = ""
+                if a.get("game"):
+                    D = dt.datetime.fromisoformat(a["game"]["date"].replace("Z", "+00:00")).astimezone(M)
+                    when = ["dl", "dt", "dc", "dj", "dv", "ds", "dg"][D.weekday()] + f" {D:%H:%M}"
+                sc = a.get("score")
+                ps.append(player("M" if i < 3 else "F", a["anyPlayer"]["displayName"], f"{sr}★ · {when}",
+                                 f"{proj:.0f}" if sc is None else f"{sc:.0f} pts", badge_col="#334155" if sc is None else "#16a34a",
+                                 pic=(a.get("anyCard") or {}).get("pictureUrl")))
+            c = card(b.get("title") or "Set NBA", ps, tag="Personal" if mode == "CAREER" else "Equip",
+                     tag_col="#22d3ee" if mode == "CAREER" else "#a78bfa")
+            c.update(gw=f"Set NBA · nivell {(st.get('level') or 0) + 1}", num=f"ALINEACIÓ #{k:02d}" if mode == "CAREER" else "EQUIP",
+                     form=f"objectiu {st.get('target')} · {stars}★", left=("🎯 OBJECTIU", f"{st.get('target')} punts", f"{stars} estrelles"),
+                     score=(l.get("score") if l.get("score") else tot))
+            cards.append(c)
+    return bool(cards) and send_lineups(cards, caption=caption[:1000])
 
 
 LINEUPS = """query($sp: Sport!, $m: BoardMode!) { currentUser { setBoard(mode: $m, sport: $sp) { title
@@ -519,7 +569,9 @@ def review(sports=("NBA",), dry=False):
                 rep.append(label + "\n" + "\n".join(lines))
     for k, r in enumerate(rep):
         print(f"::notice title=set revisió {k + 1}::" + r.replace("\n", " ¶ ")[:3900])
-    if rep:
+    if rep and not dry and send_images("🏀 Sorare · Set NBA · revisió\n" + "\n".join(ln.strip() for r in rep for ln in r.split("\n")[1:])):
+        pass
+    elif rep:
         telegram("Sorare · Set · revisió" + (" (prova)" if dry else "") + "\n" + "\n".join(rep))
     else:
         print("::notice title=set revisió::cap alineació millorable; sense canvis")

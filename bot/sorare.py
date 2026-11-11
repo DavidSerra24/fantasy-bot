@@ -245,6 +245,7 @@ if __name__ == "__main__":
          "livelineups": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("dry", live=True),
          "probe2": lambda: __import__("bot.sorareprobe2"),
          "digest": lambda: __import__("bot.digest", fromlist=["run"]).run(sys.argv[2] if len(sys.argv) > 2 else None),
+         "setimg": lambda: __import__("bot.sorareset", fromlist=["send_images"]).send_images("🏀 Sorare · Set NBA (prova d'imatge)"),
          "livefill": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("fill", live=True)}[cmd]()
     except Exception as e:
         import traceback
