@@ -365,6 +365,8 @@ def send_images(caption=""):
                     D = dt.datetime.fromisoformat(a["game"]["date"].replace("Z", "+00:00")).astimezone(M)
                     when = ["dl", "dt", "dc", "dj", "dv", "ds", "dg"][D.weekday()] + f" {D:%H:%M}"
                 sc = a.get("score")
+                if a.get("game") and D > dt.datetime.now(M):
+                    sc = None  # encara no ha començat: Sorare dona 0, es mostra la previsió
                 ps.append(player("M" if i < 3 else "F", a["anyPlayer"]["displayName"], f"{sr}★ · {when}",
                                  f"{proj:.0f}" if sc is None else f"{sc:.0f} pts", badge_col="#334155" if sc is None else "#16a34a",
                                  pic=(a.get("anyCard") or {}).get("pictureUrl")))
@@ -372,7 +374,7 @@ def send_images(caption=""):
                      tag_col="#22d3ee" if mode == "CAREER" else "#a78bfa")
             c.update(gw=f"Set NBA · nivell {(st.get('level') or 0) + 1}", num=f"ALINEACIÓ #{k:02d}" if mode == "CAREER" else "EQUIP",
                      form=f"objectiu {st.get('target')} · {stars}★", left=("🎯 OBJECTIU", f"{st.get('target')} punts", f"{stars} estrelles"),
-                     score=(l.get("score") if l.get("score") else tot))
+                     score=round(tot))
             cards.append(c)
     return bool(cards) and send_lineups(cards, caption=caption[:1000])
 
