@@ -301,7 +301,7 @@ def run(dry=False, focus=None):
             if l is None:
                 k_new += 1
             name = f"alineació {open_.index(l) + 1}" if l is not None else f"alineació nova {k_new}"
-            txt = ", ".join(f"{'🔸' if q['extra'] else ''}{'⚔️' if q.get('rival') else ''}{q['name']} ({q['grade']}, {q['proj']:.0f}, {q['date']:%d/%m %H:%M}Z{', titular' if q['confirmed'] and q['ok'] else ''})"
+            txt = ", ".join(f"{'🔸' if q.get('extra') else ''}{'⚔️' if q.get('rival') else ''}{q['name']} ({q['grade']}, {q['proj']:.0f}, {q['date']:%d/%m %H:%M}Z{', titular' if q['confirmed'] and q['ok'] else ''})"
                             for _, q in sorted(pick.items()))
             if l:
                 old = {a["anyCard"]["slug"] for a in l["taskAppearances"] if a}
