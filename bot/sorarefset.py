@@ -73,7 +73,9 @@ def candidates(step_id, now, used_cards, locked_players, squad=False):
     for n in all_:
         p, c = n["anyPlayer"], n["anyCard"]
         # al tauler d'equip es pot posar qualsevol carta, encara que ja sigui en una alineació del personal (el David, 2/11)
-        if p["slug"] in locked_players or (not squad and c["slug"] not in free and c["slug"] not in used_cards):
+        # els jugadors d'alineacions ja començades també hi són (marcats «locked»): només per repetir-los amb una altra
+        # carta quan no queda ningú més (decisió del David, 12/11)
+        if (squad and p["slug"] in locked_players) or (not squad and c["slug"] not in free and c["slug"] not in used_cards):
             continue
         games = [g for g in n.get("eligiblePlayerGameScores") or [] if g and g.get("anyGame") and D(g["anyGame"]["date"]) > now + dt.timedelta(seconds=40)]
         if not games:
@@ -83,9 +85,13 @@ def candidates(step_id, now, used_cards, locked_players, squad=False):
              "team": ((p.get("activeClub") or {}).get("slug")), "game": g["anyGame"], "date": D(g["anyGame"]["date"]),
              "grade": ((g.get("projection") or {}).get("grade") or "?"), "proj": g.get("projectedScore") or 0, "avg": p.get("avg") or 0, "hi": p["slug"] in hi,
              "pct": 90 if p["slug"] in hi9 else 80 if p["slug"] in hi else None}
+        q["locked"] = p["slug"] in locked_players
         cur = best.get(p["slug"])
+        allc = (cur or {}).get("cards", []) + [(c["slug"], q["xp"], q["pic"])]
+        allc.sort(key=lambda t: -t[1])  # de més a menys XP: primer la de més XP, després la següent (el David, 12/11)
         if not cur or q["xp"] > cur["xp"]:
             best[p["slug"]] = q
+        best[p["slug"]]["cards"] = allc
     out = list(best.values())
     for q in out:
         xi = lineup_status(q["game"], cache) if q["date"] < now + dt.timedelta(hours=2) else None
@@ -105,7 +111,7 @@ def rivals(a, b, level="all"):
     return level == "all" or back(a) or back(b)
 
 
-def fill(cands, slots, taken):
+def fill(cands, slots, taken, dups=None, used=None):
     """Una alineació com la fa el David (2/11, 2a explicació): es recorre la llista ordenada (els que juguen abans; dins de
     la mateixa hora, impacte, punts previstos i mitjana) i cada jugador va a la casella de la seva posició (o a l'Extra)
     si n'hi ha una de lliure i no s'enfronta amb cap dels ja posats. Així el millor de la primera hora (Talbi, C 53) entra
@@ -118,11 +124,20 @@ def fill(cands, slots, taken):
         taken.clear(); taken |= snap
         res = _fill(cands, slots, taken, lvl)
         if res is not None:
-            break
-    return res
+            return res
+    # si no queden jugadors (p. ex. porters), un jugador ja posat es pot repetir amb una altra carta seva, sempre al final
+    # i només per a les caselles que falten, com amb el Gazzaniga (decisió del David, 12/11: Livaković repetit)
+    if dups:
+        for lvl in ("all", "back", "none"):
+            taken.clear(); taken |= snap
+            res = _fill(cands, slots, taken, lvl, dups, used or set())
+            if res is not None:
+                return res
+    taken.clear(); taken |= snap
+    return None
 
 
-def _fill(cands, slots, taken, lvl):
+def _fill(cands, slots, taken, lvl, dups=None, used=frozenset()):
     pick = {}
     for only_ok in (True,):  # només ≥80% o titulars confirmats; sense 🔸 (decisió del David, 8/11)
         for q in cands:
@@ -138,6 +153,19 @@ def _fill(cands, slots, taken, lvl):
             i = min(free, key=lambda i: len(slots[i]["positions"]))  # la casella de la seva posició abans que l'Extra
             pick[i] = dict(q, extra=not only_ok, rival=lvl != "all" and any(rivals(q, x) for x in pick.values()))
             taken.add(q["slug"])
+    for q in dups or []:  # repetits: només les caselles que falten, després de tots els altres
+        if len(pick) == len(slots):
+            break
+        if any(x["slug"] == q["slug"] for x in pick.values()) or not q["ok"] or (q["confirmed"] and not q["ok"]) \
+                or (lvl != "none" and any(rivals(q, x, lvl) for x in pick.values())):
+            continue
+        card = next((t for t in q.get("cards") or [] if t[0] not in used), None)
+        free = [i for i, s_ in enumerate(slots) if i not in pick and set(q["pos"]) & set(s_["positions"])]
+        if not card or not free:
+            continue
+        i = min(free, key=lambda i: len(slots[i]["positions"]))
+        pick[i] = dict(q, card=card[0], xp=card[1], pic=card[2], dup=True, name=q["name"] + " 🔁",
+                       rival=lvl != "all" and any(rivals(q, x) for x in pick.values()))
     return pick if len(pick) == len(slots) else None
 
 
@@ -222,6 +250,7 @@ def run(dry=False, focus=None):
         if cands:
             day0 = min(q["date"] for q in cands).astimezone(MAD).date()
             cands = [q for q in cands if q["date"].astimezone(MAD).date() == day0]
+        allc = cands
         first = lambda l: min((D(a["game"]["date"]) for a in l["taskAppearances"] if a and a.get("game")), default=None)
         if focus:  # només les alineacions que comencen a aquesta hora; els jugadors de les altres es queden on són
             F = D(focus)
@@ -230,16 +259,23 @@ def run(dry=False, focus=None):
             locked_players |= {a["anyPlayer"]["slug"] for l in keep for a in l["taskAppearances"] if a}
             n_new = 0
             cands = [q for q in cands if q["slug"] not in locked_players]
+        # per repetir (només el personal): tots els jugadors, també els d'alineacions ja començades, amb les seves cartes
+        dups = [q for q in allc if q.get("cards")] if mode == "CAREER" else None
+        cands = [q for q in cands if not q.get("locked")]
+        used_now = {a["anyCard"]["slug"] for l in keep for a in l["taskAppearances"] if a} if focus else set()  # cartes de les que es mantenen
         taken = set(locked_players)
         lines = []
         # primer es calculen totes les alineacions i després s'assignen a les que ja hi ha per semblança (les mateixes
         # cartes es queden a la mateixa alineació de Sorare; si no, es mourien cartes d'una a l'altra i xocarien)
         picks = []
         for _ in range(len(open_) + n_new):
-            p_ = fill(cands, slots, taken)
+            p_ = fill(cands, slots, taken, dups, used_now | {q["card"] for q in cands if q["slug"] in taken})
             if not p_:
                 break
             picks.append(p_)
+            used_now |= {q["card"] for q in p_.values()}
+            if any(q.get("dup") for q in p_.values()):
+                lines.append("   🔁 repetit amb una altra carta (no quedaven jugadors): " + ", ".join(q["name"] for q in p_.values() if q.get("dup")))
         if len(picks) < len(open_) + n_new:
             lines.append(f"   ⚠️ no hi ha prou jugadors per completar {len(open_) + n_new - len(picks)} alineacions")
             from collections import Counter
