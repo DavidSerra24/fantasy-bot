@@ -372,7 +372,7 @@ def send_images(caption=""):
                                  pic=(a.get("anyCard") or {}).get("pictureUrl")))
             c = card(b.get("title") or "Set NBA", ps, tag="Personal" if mode == "CAREER" else "Equip",
                      tag_col="#22d3ee" if mode == "CAREER" else "#a78bfa")
-            c.update(gw=f"Set NBA · nivell {(st.get('level') or 0) + 1}", num=f"ALINEACIÓ #{k:02d}" if mode == "CAREER" else "EQUIP",
+            c.update(court=True, gw=f"Set NBA · nivell {(st.get('level') or 0) + 1}", num=f"ALINEACIÓ #{k:02d}" if mode == "CAREER" else "EQUIP",
                      form=f"objectiu {st.get('target')} · {stars}★", left=("🎯 OBJECTIU", f"{st.get('target')} punts", f"{stars} estrelles"),
                      score=round(tot))
             cards.append(c)

@@ -174,6 +174,17 @@ PITCH_SVG = """<svg class="lines" viewBox="0 0 520 640" preserveAspectRatio="non
 <path d="M60 8 L460 8 L515 632 L5 632 Z"/><path d="M150 8 L165 92 L355 92 L370 8"/><path d="M205 8 L210 40 L310 40 L315 8"/>
 <path d="M35 320 L485 320"/><ellipse cx="260" cy="320" rx="62" ry="40"/><path d="M120 632 L128 560 L392 560 L400 632"/></g></svg>"""
 
+# Pista de bàsquet per a l'NBA (decisió del David, 12/11): parquet, cèrcol a dalt, zona, línia de 3 i cercle central.
+COURT_SVG = """<svg class="lines" viewBox="0 0 520 640" preserveAspectRatio="none">
+<defs><pattern id="wd" width="40" height="640" patternUnits="userSpaceOnUse"><rect width="40" height="640" fill="#b5793f"/>
+<rect x="20" width="20" height="640" fill="#a96f38"/><path d="M0 0V640M20 0V640" stroke="#00000022" stroke-width="1"/></pattern></defs>
+<rect x="10" y="8" width="500" height="624" rx="6" fill="url(#wd)" opacity=".55"/>
+<g fill="none" stroke="#ffffffcc" stroke-width="3">
+<rect x="10" y="8" width="500" height="624" rx="6"/>
+<rect x="185" y="8" width="150" height="190" fill="#c2410c66"/><circle cx="260" cy="198" r="75"/>
+<path d="M45 8V120A215 215 0 0 0 475 120V8"/><circle cx="260" cy="48" r="11" stroke="#f97316"/><path d="M228 32H292"/>
+<path d="M10 632H510"/><path d="M185 632A75 75 0 0 1 335 632"/><circle cx="260" cy="632" r="28"/></g></svg>"""
+
 LCSS = """
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0b0b0f;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#f4f4f5;width:560px}
@@ -195,7 +206,7 @@ body{background:#0b0b0f;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif
 .nw{position:absolute;left:50%;transform:translateX(-50%);top:-9px;background:#22d3ee;color:#0b0b0f;font-weight:800;font-size:10px;
   border-radius:6px;padding:1px 6px;letter-spacing:1px}
 .t .nm{background:#18181bee;border:1px solid #ffffff30;border-radius:8px;padding:30px 4px;font-weight:700;font-size:13px}
-.t .sub{font-size:10.5px;color:#d4d4d8;margin-top:4px;width:150px;margin-left:-23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t .sub{font-size:10.5px;color:#e4e4e7;text-shadow:0 1px 3px #000,0 0 6px #000;margin-top:4px;width:150px;margin-left:-23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .g{position:absolute;right:3px;top:4px;color:#fff;font-weight:800;border-radius:6px;padding:1px 6px;font-size:13px;box-shadow:0 1px 3px #000a}
 .g.lt{color:#0b0b0f}.pc~.g{top:29px}
 .cp{position:absolute;left:4px;top:4px;background:#e11d48;color:#fff;font-weight:800;border-radius:50%;font-size:11px;padding:2px 6px}
@@ -237,7 +248,7 @@ def _pct_col(t):
     return "#ffffff" if v >= 100 else "#67e8f9" if v >= 80 else "#fde047" if v >= 60 else "#fdba74" if v >= 40 else "#f87171"
 
 
-def render_lineup(gw, comp, num, players, cap_name="", cap_club="", score=None, tag="", tag_col="#a855f7", note="", form=None, left=None):
+def render_lineup(gw, comp, num, players, cap_name="", cap_club="", score=None, tag="", tag_col="#a855f7", note="", form=None, left=None, court=False):
     """Una imatge d'alineació. players: player(...) amb pos G/D/M/F (l'Extra ja a la seva línia)."""
     from playwright.sync_api import sync_playwright
     e = _h.escape
@@ -262,7 +273,7 @@ def render_lineup(gw, comp, num, players, cap_name="", cap_club="", score=None, 
     html = (f"<html><head><meta charset='utf-8'><style>{LCSS}</style></head><body><div class='w'>"
             f"<div class='top'><div class='brand'>Sorare</div><div class='gw'><b>{e(("GW " + str(gw)) if str(gw).isdigit() else str(gw))}</b><span>{e(comp)}</span></div>"
             f"<div class='pill'>{e(num)}</div></div>"
-            f"<div class='form'>{e(form)}</div><div class='pitch'>{PITCH_SVG}{''.join(rows)}</div>"
+            f"<div class='form'>{e(form)}</div><div class='pitch'>{COURT_SVG if court else PITCH_SVG}{''.join(rows)}</div>"
             + (f"<div class='foot'><div class='cap'><div class='k'>{e(left[0])}</div><div class='n'>{e(left[1])}</div><div class='c'>{e(left[2] if len(left) > 2 else '')}</div></div>"
                if left else
                f"<div class='foot'><div class='cap'><div class='k'>👑 CAPITÀ</div><div class='n'>{e(cap_name)}</div><div class='c'>{e(cap_club)}</div></div>")
@@ -319,7 +330,7 @@ def send_lineups(cards, caption=""):
     try:
         pngs = [render_lineup(c.get("gw") or "", c["title"], c.get("num") or "", c["players"], c.get("cap_name") or "",
                               c.get("cap_club") or "", c.get("score"), c.get("tag") or "", c.get("tag_col") or "#a855f7",
-                              " · ".join(x for x in (c.get("subtitle"), c.get("footer")) if x), c.get("form"), c.get("left")) for c in cards]
+                              " · ".join(x for x in (c.get("subtitle"), c.get("footer")) if x), c.get("form"), c.get("left"), c.get("court", False)) for c in cards]
         return send_album(pngs, caption)
     except Exception as ex:
         print(f"::warning title=telegram imatge::{type(ex).__name__}: {str(ex)[:200]}")
