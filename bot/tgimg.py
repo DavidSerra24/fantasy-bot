@@ -458,7 +458,7 @@ def render_digest(title, blocks):
         out.append(f"<div class='m'><div class='mh'><div class='mt'>{e(m['title'])}</div>{tag}"
                    f"<div class='res {'won' if w else 'lost' if w is False else 'unk'}'>{res}</div></div>"
                    f"<div class='ms'>{e(score + (' punts' if score else '') + (m.get('desc') or ''))}</div><div class='r'>{''.join(tiles)}</div></div>")
-    html = (f"<html><head><meta charset='utf-8'><style>{DCSS}</style></head><body><div class='w'><h1>☀️ {e(title)}</h1>{''.join(out)}"
+    html = (f"<html><head><meta charset='utf-8'><style>{DCSS}</style></head><body><div class='w'><h1>{'' if not title[:1].isalnum() else '☀️ '}{e(title)}</h1>{''.join(out)}"
             "<div class='lg'>Set: punts de cada carta i total / objectiu · Missions: ✅ pick encertat, ❌ fallat</div></div></body></html>")
     with sync_playwright() as pw:
         b = pw.chromium.launch()
