@@ -68,6 +68,7 @@ def candidates(step_id, now, used_cards, locked_players, squad=False):
     all_ = bench(step_id, {"includeUsed": True})
     free = {n["anyCard"]["slug"] for n in bench(step_id, {})}
     hi = {n["anyPlayer"]["slug"] for n in bench(step_id, {"starterOddsBasisPointsRange": {"min": 8000}, "includeUsed": True})}  # també les cartes ja posades
+    hi9 = {n["anyPlayer"]["slug"] for n in bench(step_id, {"starterOddsBasisPointsRange": {"min": 9000}, "includeUsed": True})}  # % a les imatges (12/11)
     best, cache = {}, {}
     for n in all_:
         p, c = n["anyPlayer"], n["anyCard"]
@@ -80,7 +81,8 @@ def candidates(step_id, now, used_cards, locked_players, squad=False):
         g = min(games, key=lambda g: g["anyGame"]["date"])
         q = {"slug": p["slug"], "name": p["displayName"], "card": c["slug"], "xp": c.get("xp") or 0, "pic": c.get("pictureUrl"), "pos": n.get("positions") or [n.get("position")],
              "team": ((p.get("activeClub") or {}).get("slug")), "game": g["anyGame"], "date": D(g["anyGame"]["date"]),
-             "grade": ((g.get("projection") or {}).get("grade") or "?"), "proj": g.get("projectedScore") or 0, "avg": p.get("avg") or 0, "hi": p["slug"] in hi}
+             "grade": ((g.get("projection") or {}).get("grade") or "?"), "proj": g.get("projectedScore") or 0, "avg": p.get("avg") or 0, "hi": p["slug"] in hi,
+             "pct": 90 if p["slug"] in hi9 else 80 if p["slug"] in hi else None}
         cur = best.get(p["slug"])
         if not cur or q["xp"] > cur["xp"]:
             best[p["slug"]] = q
@@ -303,7 +305,8 @@ def run(dry=False, focus=None):
                     when = q["date"].astimezone(MAD)
                     sub = f"{(q.get('team') or '').replace('-', ' ')[:13]} · {['dl','dt','dc','dj','dv','ds','dg'][when.weekday()]} {when:%H:%M}"
                     ps.append(player(pos, q["name"] + (" ✓" if q["confirmed"] and q["ok"] else ""), sub, f"{q['grade']} {q['proj']:.0f}",
-                                     cap=i == order_[0][0], warn=bool(q.get("rival")), pic=q.get("pic")))
+                                     cap=i == order_[0][0], warn=bool(q.get("rival")), pic=q.get("pic"),
+                                     pct="100%" if q["confirmed"] and q["ok"] else (f"{q['pct']}%" if q.get("pct") else "<80%")))
                 c_ = card(f"{b.get('title')} · objectiu {st['target']}", ps,
                           tag="Personal" if mode == "CAREER" else "Equip", tag_col="#22d3ee" if mode == "CAREER" else "#a78bfa")
                 cq = pick[order_[0][0]]

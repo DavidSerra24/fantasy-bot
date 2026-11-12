@@ -17,11 +17,11 @@ POS = {"Goalkeeper": "G", "Defender": "D", "Midfielder": "M", "Forward": "F", "E
 GRADE_COL = {"A": "#16a34a", "B": "#65a30d", "C": "#ca8a04", "D": "#ea580c", "E": "#dc2626", "F": "#991b1b"}
 
 
-def player(pos, name, sub="", badge="", badge_col=None, cap=False, warn=False, dim=False, pic=None):
+def player(pos, name, sub="", badge="", badge_col=None, cap=False, warn=False, dim=False, pic=None, pct=""):
     """pos: Goalkeeper/Defender/…/Extra o G/D/M/F/X. badge: lletra d'impacte, % o punts (es pinta en una píndola)."""
     b = str(badge or "")
     col = badge_col or GRADE_COL.get(b[:1].upper(), "#334155") if b else None
-    return {"pos": POS.get(pos, "X"), "name": name, "sub": sub, "badge": b, "col": col, "cap": cap, "warn": warn, "dim": dim, "pic": pic}
+    return {"pos": POS.get(pos, "X"), "name": name, "sub": sub, "badge": b, "col": col, "cap": cap, "warn": warn, "dim": dim, "pic": pic, "pct": pct}
 
 
 def card(title, players, subtitle="", footer="", tag="", tag_col="#2563eb"):
@@ -200,6 +200,7 @@ body{background:#0b0b0f;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif
 .cp{position:absolute;right:4px;top:4px;background:#e11d48;color:#fff;font-weight:800;border-radius:50%;font-size:11px;padding:2px 6px}
 .ok{position:absolute;right:4px;bottom:24px;background:#16a34a;color:#fff;font-weight:800;border-radius:50%;width:20px;height:20px;font-size:12px;
   display:flex;align-items:center;justify-content:center}
+.pc{position:absolute;left:4px;bottom:24px;color:#fff;font-weight:800;border-radius:6px;padding:1px 6px;font-size:12px;box-shadow:0 1px 3px #000a}
 .foot{display:flex;align-items:center;margin-top:12px;border:1px solid #ffffff30;border-radius:14px;padding:12px 16px;background:#111114}
 .cap{flex:1;border-right:1px solid #ffffff30}.cap .k{color:#eab308;font-weight:800;font-size:12px;letter-spacing:2px}
 .cap .n{font-size:18px;font-weight:800;margin-top:3px}.cap .c{font-size:12.5px;color:#a1a1aa}
@@ -207,6 +208,15 @@ body{background:#0b0b0f;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif
 .tag{border:2px solid;border-radius:22px;padding:6px 12px;font-weight:800;font-size:13px}
 .note{font-size:11.5px;color:#a1a1aa;margin-top:8px}
 """
+
+
+def _pct_col(t):
+    """Color del % de titular: 100% (titular confirmat) verd, 90% verd clar, 80% blau, menys taronja."""
+    try:
+        v = int(str(t).strip("<%"))
+    except ValueError:
+        return "#475569"
+    return "#16a34a" if v >= 100 else "#22c55e" if v >= 90 else "#0284c7" if v >= 80 and not str(t).startswith("<") else "#d97706"
 
 
 def render_lineup(gw, comp, num, players, cap_name="", cap_club="", score=None, tag="", tag_col="#a855f7", note="", form=None, left=None):
@@ -227,6 +237,7 @@ def render_lineup(gw, comp, num, players, cap_name="", cap_club="", score=None, 
                          + (f'<span class="g" style="background:{p["col"]}">{e(p["badge"])}</span>' if p["badge"] else "")
                          + ('<span class="cp">C</span>' if p["cap"] else "")
                          + ('<span class="ok">✓</span>' if p["name"].endswith("✓") else "")
+                         + (f'<span class="pc" style="background:{_pct_col(p["pct"])}">{e(p["pct"])}</span>' if p.get("pct") else "")
                          + ('<span class="nw">NOU</span>' if p.get("new") else "")
                          + f'<div class="sub">{e(p["sub"])}</div></div>')
         rows.append('<div class="row">' + "".join(tiles) + "</div>")

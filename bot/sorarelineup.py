@@ -74,11 +74,13 @@ def cards(lb, floor=8000, rarities=None, skip=()):
     llista. Amb floor < 8000 (All Star Rare quan no n'hi ha prou; decisió del David, 3/11) cada carta porta «tier»:
     0 = ≥80%, 1 = 70%, 2 = 60%…, i els de més % van primer."""
     # la llista sense filtre és la de la posició Extra (jugadors de camp); els porters van a part
-    tier = {}
-    for t, lo in enumerate(range(8000, floor - 1, -1000)):
-        rng = {"min": lo} if lo == 8000 else {"min": lo, "max": lo + 999}
+    # franges: 90%+ i 80% (tier 0), 70% (tier 1), 60%…; el % es mostra a les imatges (decisió del David, 12/11)
+    tier, pct = {}, {}
+    for lo in [9000] + list(range(8000, floor - 1, -1000)):
+        rng = {"min": lo} if lo == 9000 else {"min": lo, "max": lo + 999}
         for n in bench(lb["slug"], rng) + bench(lb["slug"], rng, ["Goalkeeper"]):
-            tier.setdefault(n["anyCard"]["slug"], t)
+            tier.setdefault(n["anyCard"]["slug"], max(0, (8000 - lo) // 1000))
+            pct.setdefault(n["anyCard"]["slug"], lo // 100)
     ok = set(tier)
     allc = bench(lb["slug"]) + bench(lb["slug"], None, ["Goalkeeper"])
     LOG.append(f"{lb['displayName']}: {len(allc)} cartes, {len(ok)} amb ≥80%")
@@ -97,7 +99,7 @@ def cards(lb, floor=8000, rarities=None, skip=()):
              "avg": n.get("avg10") or 0, "avg15": n.get("avg15") or 0, "idx": i,
              "grade": ((g.get("projection") or {}).get("grade")), "proj": (g.get("projection") or {}).get("score"),
              "game": game.get("id"), "gobj": game, "date": game.get("date"), "rival": next((t for t in teams if t and t != club), None),
-             "girona": "girona" in club.lower(), "gazza": "gazzaniga" in p["slug"], "tier": tier.get(c["slug"], 0)}
+             "girona": "girona" in club.lower(), "gazza": "gazzaniga" in p["slug"], "tier": tier.get(c["slug"], 0), "pct": pct.get(c["slug"])}
         q["imp"] = GRADE.get(q["grade"], -1)
         copies[q["player"]] = copies.get(q["player"], 0) + 1
         if q["gazza"]:
@@ -356,7 +358,7 @@ def img_card(title, pick, cap, slots=CLASSIC, subtitle="", footer="", tag="", ta
         conf = q.get("tier") == 0 and slots == ARENA
         # l'Extra es dibuixa a la línia de la seva posició (decisió del David, 11/11: «porter, dos defenses, 3 mitjos i un davanter»)
         ps.append(player(q.get("pos") or sl if sl == "Extra" else sl, q["name"] + (" ✓" if conf else ""), sub, q.get("grade") or "?", cap=q is cap, warn=riv,
-                         pic=q.get("pic")))
+                         pic=q.get("pic"), pct="100%" if conf else (f"{q['pct']}%" if q.get("pct") else "")))
     c = card(title, ps, subtitle=subtitle, footer=footer, tag=tag, tag_col=tag_col)
     c.update(gw=gw, num=num, cap_name=(cap or {}).get("name", ""), cap_club=(cap or {}).get("club", ""),
              score=sum((q.get("proj") or 0) for q in pick) or None)
@@ -602,6 +604,7 @@ def gk_arena(gk, final=False):
     busy_p = {a["anyPlayer"].get("slug") for l in lus for a in l["so5Appearances"]
               if l["so5Leaderboard"].get("isArena") or (l["so5Leaderboard"].get("mainRarityType") or "").lower() == "limited"}
     hi = {n["anyCard"]["slug"] for n in bench(arena["slug"], {"min": 8000})}
+    hi9 = {n["anyCard"]["slug"] for n in bench(arena["slug"], {"min": 9000})}
     cache, pool, gkq = {}, [], None
     for i, n in enumerate(bench(arena["slug"]) + bench(arena["slug"], None, ["Goalkeeper"])):
         c, p = n["anyCard"], n["anyPlayer"]
@@ -617,7 +620,7 @@ def gk_arena(gk, final=False):
         pos = n.get("position") or p.get("position")
         q = {"card": c["slug"], "xp": c["xp"] or 0, "pic": c.get("pictureUrl"), "name": p["displayName"], "player": p["slug"], "club": club, "pos": pos, "poss": [pos],
              "avg": n.get("avg10") or 0, "idx": i, "grade": (g.get("projection") or {}).get("grade"), "proj": (g.get("projection") or {}).get("score"), "game": game["id"], "date": D,
-             "girona": "girona" in club.lower(), "gazza": False}
+             "girona": "girona" in club.lower(), "gazza": False, "pct": 90 if c["slug"] in hi9 else 80 if c["slug"] in hi else None}
         q["imp"] = GRADE.get(q["grade"], -1)
         if p["slug"] == gk["slug"]:
             if not gkq or q["xp"] > gkq["xp"]:
