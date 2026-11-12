@@ -200,7 +200,7 @@ body{background:#0b0b0f;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif
 .cp{position:absolute;right:4px;top:4px;background:#e11d48;color:#fff;font-weight:800;border-radius:50%;font-size:11px;padding:2px 6px}
 .ok{position:absolute;right:4px;bottom:24px;background:#16a34a;color:#fff;font-weight:800;border-radius:50%;width:20px;height:20px;font-size:12px;
   display:flex;align-items:center;justify-content:center}
-.pc{position:absolute;left:4px;bottom:24px;color:#fff;font-weight:800;border-radius:6px;padding:1px 6px;font-size:12px;box-shadow:0 1px 3px #000a}
+.pc{position:absolute;left:30px;top:4px;color:#fff;font-weight:800;border-radius:6px;padding:1px 6px;font-size:12px;box-shadow:0 1px 3px #000a}
 .foot{display:flex;align-items:center;margin-top:12px;border:1px solid #ffffff30;border-radius:14px;padding:12px 16px;background:#111114}
 .cap{flex:1;border-right:1px solid #ffffff30}.cap .k{color:#eab308;font-weight:800;font-size:12px;letter-spacing:2px}
 .cap .n{font-size:18px;font-weight:800;margin-top:3px}.cap .c{font-size:12.5px;color:#a1a1aa}
