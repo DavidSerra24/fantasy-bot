@@ -277,7 +277,8 @@ def run(dry=False, focus=None):
             if any(q.get("dup") for q in p_.values()):
                 lines.append("   🔁 repetit amb una altra carta (no quedaven jugadors): " + ", ".join(q["name"] for q in p_.values() if q.get("dup")))
         if len(picks) < len(open_) + n_new:
-            lines.append(f"   ⚠️ no hi ha prou jugadors per completar {len(open_) + n_new - len(picks)} alineacions")
+            nm = len(open_) + n_new - len(picks)
+            lines.append(f"   ⚠️ {'falta 1 alineació' if nm == 1 else f'falten {nm} alineacions'}: avui no queden jugadors del 80–90% o titulars; es farà amb els partits de l'endemà")
             if dups:
                 rp = [f"{q['name']} ({q['pos'][0][:2]}, {sum(1 for t in q['cards'] if t[0] not in used_now)} cartes lliures)" for q in dups
                       if q["ok"] and any(t[0] not in used_now for t in q["cards"]) and q["slug"] in taken]
@@ -385,7 +386,10 @@ def run(dry=False, focus=None):
         # imatge amb les alineacions + només les línies importants que no són alineacions (decisió del David, 11/11)
         from bot.tgimg import send_lineups
         extra = [ln.strip() for r in rep if r in important for ln in r.split("\n")
-                 if any(x in ln for x in ("🎁", "🔄", "⚠️", "❌"))]
+                 if any(x in ln for x in ("🎁", "🔄", "⚠️", "❌", "🔁"))]
+        nnew = sum(r.count("✅ alineació nova") for r in rep)
+        if nnew:  # que el text de sota també digui què s'ha fet, no només el que falta (el David, 12/11)
+            extra.insert(0, f"✅ {nnew} alineaci{'ó nova feta' if nnew == 1 else 'ons noves fetes'} (a la imatge)")
         if not (cards_img and send_lineups(cards_img, caption="\n".join(extra)[:1000] or "Alineacions del Set (✓ = titular confirmat)")):
             telegram("Sorare · Set futbol\n" + "\n".join(r for r in rep if r in important or "✅ alineació nova" in r))
 
