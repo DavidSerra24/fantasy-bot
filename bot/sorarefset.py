@@ -278,6 +278,10 @@ def run(dry=False, focus=None):
                 lines.append("   🔁 repetit amb una altra carta (no quedaven jugadors): " + ", ".join(q["name"] for q in p_.values() if q.get("dup")))
         if len(picks) < len(open_) + n_new:
             lines.append(f"   ⚠️ no hi ha prou jugadors per completar {len(open_) + n_new - len(picks)} alineacions")
+            if dups:
+                rp = [f"{q['name']} ({q['pos'][0][:2]}, {sum(1 for t in q['cards'] if t[0] not in used_now)} cartes lliures)" for q in dups
+                      if q["ok"] and any(t[0] not in used_now for t in q["cards"]) and q["slug"] in taken]
+                lines.append("   repetibles (≥80% o titulars, amb una altra carta lliure): " + (", ".join(rp) or "cap"))
             from collections import Counter
             cnt = Counter(ps for q in cands if q["slug"] not in taken for ps in q["pos"])
             miss = [s_["positions"] for s_ in slots if not any(cnt.get(x) for x in s_["positions"])]
