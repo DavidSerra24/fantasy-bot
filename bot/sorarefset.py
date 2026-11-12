@@ -181,7 +181,7 @@ def run(dry=False, focus=None):
             b = gql_step({"m": mode})["currentUser"]["setBoard"]; st = b["myCurrentStep"]
         if st["state"] == "FAILED" and mode == "SQUAD" and not dry:  # tauler d'equip perdut: es torna a començar (8/11)
             from bot.sorareset import restart_squad
-            err = restart_squad(b, st)
+            err = restart_squad(b, st, "FOOTBALL")
             rep.append(f"🔄 {label}: nivell {st['level'] + 1} perdut; he tornat a començar el tauler d'equip" if not err
                        else f"⚠️ {label}: nivell {st['level'] + 1} perdut i no l'he pogut reiniciar ({err[:150]}). Reinicia'l tu des del joc.")
             if not err:

@@ -49,10 +49,45 @@ RESTART = """mutation($input: restartTasksTrackInput!) { restartTasksTrack(input
 CLAIMTASK = """mutation($t: ID!) { claimTask(input: {taskId: $t}) { errors { message } } }"""
 
 
-def restart_squad(b, st):
+SQRANK = """query($st: String!) { currentUser { step(id: $st) { ... on SquadStep { level target totalScore
+  squadLeaderboardLineups(top: 20) { ranking lineup { ... on TaskLineup { score user { nickname }
+    taskAppearances { ... on TaskAppearanceInterface { score anyPlayer { displayName } anyCard { pictureUrl } } } } } } } } } }"""
+
+
+def send_squad_rank(b, st, sport="NBA", note="", verb="PERDUT"):
+    """Classificació del tauler d'equip quan es perd (abans de reiniciar-lo; decisió del David, 12/11: «puc rebre la
+    classificació per veure com queda?»): cada alineació de la squad amb la posició, el mànager, els punts i les cartes;
+    les 3 primeres (les que compten) en verd."""
+    try:
+        from bot.tgimg import send_digest
+        s_ = gql(SQRANK, {"st": st["id"]}, token=token())["currentUser"]["step"] or {}
+        rows = sorted(s_.get("squadLeaderboardLineups") or [], key=lambda r: r["ranking"])
+        if not rows:
+            return False
+        blocks = []
+        for r in rows:
+            l = r.get("lineup") or {}
+            blocks.append({"kind": "set", "title": f"#{r['ranking']} · {(l.get('user') or {}).get('nickname', '?')}",
+                           "score": l.get("score"), "target": None, "won": True if r["ranking"] <= 3 else None,
+                           "res": f"{(l.get('score') or 0):.0f} punts",
+                           "players": [{"name": a["anyPlayer"]["displayName"], "pic": (a.get("anyCard") or {}).get("pictureUrl"),
+                                        "badge": "" if a.get("score") is None else f"{a['score']:.0f}"}
+                                       for a in l.get("taskAppearances") or [] if a]})
+        top3 = sum((r.get("lineup") or {}).get("score") or 0 for r in rows[:3])
+        title = f"{'🏀' if sport == 'NBA' else '⚽'} {b.get('title') or 'Equip'} · nivell {(st.get('level') or 0) + 1} {verb}"
+        cap = (f"{title}\n3 millors: {top3:.0f} / {st.get('target')} punts (en faltaven {max(0, (st.get('target') or 0) - top3):.0f})"
+               + (f"\n{note}" if note else ""))
+        return send_digest(title, blocks, caption=cap[:1000])
+    except Exception as e:
+        print(f"::warning title=classificació squad::{str(e)[:200]}")
+        return False
+
+
+def restart_squad(b, st, sport="NBA"):
     """Tauler d'equip perdut (FAILED): es torna a començar (decisió del David, 8/11: «si es perd sí»; el sobre d'un
     nivell guanyat l'obre ell). Primer acknowledgeStep (passar el pas perdut), si no restartTasksTrack. Retorna None si
-    ha anat bé, o el missatge d'error."""
+    ha anat bé, o el missatge d'error. Abans, envia la classificació de la squad (12/11)."""
+    send_squad_rank(b, st, sport)
     err = ""
     for q, var, key in ((CLAIM, {"input": {"stepId": st["id"]}}, "acknowledgeStep"),
                         (RESTART, {"input": {"taskId": b["id"]}}, "restartTasksTrack")):
@@ -169,7 +204,7 @@ def run(dry=False, sports=("NBA",), scan=False):
                 except Exception as e:
                     rep.append(f"⚠️ {label}: no he pogut reclamar la recompensa ({str(e)[:150]})")
             if st["state"] == "FAILED" and mode == "SQUAD" and not dry:
-                err = restart_squad(b, st)
+                err = restart_squad(b, st, sp)
                 rep.append(f"🔄 {label}: nivell {st['level'] + 1} perdut; he tornat a començar el tauler d'equip" if not err
                            else f"⚠️ {label}: nivell {st['level'] + 1} perdut i no l'he pogut reiniciar ({err[:150]}). Reinicia'l tu des del joc.")
                 if not err:
