@@ -247,6 +247,7 @@ if __name__ == "__main__":
          "digest": lambda: __import__("bot.digest", fromlist=["run"]).run(sys.argv[2] if len(sys.argv) > 2 else None),
          "squadrank": lambda: (lambda m: [m.send_squad_rank(d["currentUser"]["setBoard"], d["currentUser"]["setBoard"]["myCurrentStep"], sp, verb="(prova, en joc)")
                                           for sp in ("NBA", "FOOTBALL") for d in [m.gql_step({"sp": sp, "m": "SQUAD"})] if d["currentUser"]["setBoard"]])(__import__("bot.sorareset", fromlist=["x"])),
+         "probe3": lambda: __import__("bot.sorareprobe3"),
          "setimg": lambda: __import__("bot.sorareset", fromlist=["send_images"]).send_images("🏀 Sorare · Set NBA (prova d'imatge)"),
          "livefill": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("fill", live=True)}[cmd]()
     except Exception as e:
