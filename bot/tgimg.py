@@ -196,11 +196,15 @@ body{background:#0b0b0f;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif
   border-radius:6px;padding:1px 6px;letter-spacing:1px}
 .t .nm{background:#18181bee;border:1px solid #ffffff30;border-radius:8px;padding:30px 4px;font-weight:700;font-size:13px}
 .t .sub{font-size:10.5px;color:#d4d4d8;margin-top:4px;width:150px;margin-left:-23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.g{position:absolute;left:4px;top:4px;color:#fff;font-weight:800;border-radius:6px;padding:1px 6px;font-size:13px;box-shadow:0 1px 3px #000a}
-.cp{position:absolute;right:4px;top:4px;background:#e11d48;color:#fff;font-weight:800;border-radius:50%;font-size:11px;padding:2px 6px}
+.g{position:absolute;right:3px;top:4px;color:#fff;font-weight:800;border-radius:6px;padding:1px 6px;font-size:13px;box-shadow:0 1px 3px #000a}
+.g.lt{color:#0b0b0f}.pc~.g{top:29px}
+.cp{position:absolute;left:4px;top:4px;background:#e11d48;color:#fff;font-weight:800;border-radius:50%;font-size:11px;padding:2px 6px}
 .ok{position:absolute;right:4px;bottom:24px;background:#16a34a;color:#fff;font-weight:800;border-radius:50%;width:20px;height:20px;font-size:12px;
   display:flex;align-items:center;justify-content:center}
-.pc{position:absolute;left:30px;top:4px;color:#fff;font-weight:800;border-radius:6px;padding:1px 6px;font-size:12px;box-shadow:0 1px 3px #000a}
+.pc{position:absolute;right:3px;top:4px;color:#0b0b0f;font-weight:800;border-radius:7px;padding:1px 6px 1px 4px;font-size:12.5px;
+  display:flex;align-items:center;gap:2px;box-shadow:0 1px 3px #000a}
+.pc svg{width:13px;height:13px}
+.pc.xi{background:#fff!important;box-shadow:0 0 6px #fff,0 0 14px #ffffffcc,0 0 22px #ffffff88}
 .foot{display:flex;align-items:center;margin-top:12px;border:1px solid #ffffff30;border-radius:14px;padding:12px 16px;background:#111114}
 .cap{flex:1;border-right:1px solid #ffffff30}.cap .k{color:#eab308;font-weight:800;font-size:12px;letter-spacing:2px}
 .cap .n{font-size:18px;font-weight:800;margin-top:3px}.cap .c{font-size:12.5px;color:#a1a1aa}
@@ -210,13 +214,27 @@ body{background:#0b0b0f;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif
 """
 
 
+# com a l'app de Sorare (captura del David, 12/11): samarreta + %, cian ≥80%, groc 60–70%, taronja 40–50%, vermell menys;
+# titular confirmat: 100% en blanc brillant. La lletra d'impacte, a sota, amb els colors clars de Sorare.
+SHIRT = ('<svg viewBox="0 0 24 24"><path fill="#0b0b0f" d="M8 3 2 6.5 4.5 11 7 10v11h10V10l2.5 1L22 6.5 16 3'
+         'c-.5 1.7-2.1 3-4 3s-3.5-1.3-4-3z"/></svg>')
+SGRADE = {"A": "#34d399", "B": "#4ade80", "C": "#bef264", "D": "#fde047", "E": "#fdba74", "F": "#f87171"}
+
+
+def _sg(p):
+    """Color clar de Sorare si la píndola és una lletra d'impacte (A–F, o «A 53» al Set)."""
+    b = str(p.get("badge") or "")
+    return SGRADE.get(b[:1]) if b[:1] in SGRADE and (len(b) == 1 or b[1] == " ") else None
+
+
 def _pct_col(t):
-    """Color del % de titular: 100% (titular confirmat) verd, 90% verd clar, 80% blau, menys taronja."""
     try:
         v = int(str(t).strip("<%"))
     except ValueError:
-        return "#475569"
-    return "#16a34a" if v >= 100 else "#22c55e" if v >= 90 else "#0284c7" if v >= 80 and not str(t).startswith("<") else "#d97706"
+        return "#94a3b8"
+    if str(t).startswith("<"):
+        v = 70
+    return "#ffffff" if v >= 100 else "#67e8f9" if v >= 80 else "#fde047" if v >= 60 else "#fdba74" if v >= 40 else "#f87171"
 
 
 def render_lineup(gw, comp, num, players, cap_name="", cap_club="", score=None, tag="", tag_col="#a855f7", note="", form=None, left=None):
@@ -234,10 +252,10 @@ def render_lineup(gw, comp, num, players, cap_name="", cap_club="", score=None, 
             src = _img(p.get("pic"))
             body = f'<img src="{src}">' if src else f'<div class="nm">{e(p["name"])}</div>'
             tiles.append(f'<div class="t{" warn" if p["warn"] else ""}{" new" if p.get("new") else ""}">{body}'
-                         + (f'<span class="g" style="background:{p["col"]}">{e(p["badge"])}</span>' if p["badge"] else "")
+                         + (f'<span class="pc{" xi" if p["pct"] == "100%" else ""}" style="background:{_pct_col(p["pct"])}">{SHIRT}{e(p["pct"])}</span>' if p.get("pct") else "")
+                         + (f'<span class="g{" lt" if _sg(p) else ""}" style="background:{_sg(p) or p["col"]}">{e(p["badge"])}</span>' if p["badge"] else "")
                          + ('<span class="cp">C</span>' if p["cap"] else "")
                          + ('<span class="ok">✓</span>' if p["name"].endswith("✓") else "")
-                         + (f'<span class="pc" style="background:{_pct_col(p["pct"])}">{e(p["pct"])}</span>' if p.get("pct") else "")
                          + ('<span class="nw">NOU</span>' if p.get("new") else "")
                          + f'<div class="sub">{e(p["sub"])}</div></div>')
         rows.append('<div class="row">' + "".join(tiles) + "</div>")
