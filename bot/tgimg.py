@@ -449,7 +449,8 @@ def render_digest(title, blocks):
                          + (f'<div class="sub">{e(str(p.get("status") or "").lower())}</div>' if ok is None and p.get("status") else "")
                          + "</div>")
         w = m.get("won")
-        res = ("GUANYADA" if w else "PERDUDA" if w is False else "EN JOC / ?") if m["kind"] == "set" else \
+        res = (("GUANYAT" if w else "PERDUT" if w is False else "EN JOC") if m.get("squad") else
+               ("GUANYADA" if w else "PERDUDA" if w is False else "EN JOC / ?")) if m["kind"] == "set" else \
             f"{sum(1 for p in m['players'] if p.get('ok'))}/{len(m['players'])} ENCERTATS"
         score = f"{m['score']:.0f} / {m['target']}" if m.get("score") is not None and m.get("target") is not None else ""
         col = RAR_COL.get((m.get("tag") or "").lower(), "#a1a1aa")

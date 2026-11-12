@@ -45,6 +45,8 @@ def set_lineups(sport, board, step, lineups, kind="setlineup"):
         note(kind, l["id"], {"date": min(dates), "sport": sport, "board": (board or {}).get("title") or "",
                              "mode": step.get("__typename") or "", "level": (step.get("level") or 0) + 1, "target": step.get("target"),
                              "score": l.get("score"), "state": l.get("aasmState"),
+                             # tauler d'equip: compta la suma de les 3 millors alineacions de tota la squad (el David, 12/11)
+                             "total": step.get("totalScore"), "sstate": step.get("state"),
                              "players": [{"name": a["anyPlayer"]["displayName"], "pic": (a.get("anyCard") or {}).get("pictureUrl"),
                                           "score": a.get("score")} for a in apps]})
 
@@ -122,9 +124,18 @@ def run(day=None):
     blocks = []
     for v in sets:
         sc, tg = v.get("score"), v.get("target")
-        won = None if sc is None or tg is None else sc >= tg
-        blocks.append({"kind": "set", "title": f"{'🏀' if v['sport'] == 'NBA' else '⚽'} Set · {v.get('board')} · nivell {v.get('level')}"
-                       + (" · equip" if "Squad" in (v.get("mode") or "") else ""),
+        squad = "Squad" in (v.get("mode") or "")
+        if squad:
+            # tauler d'equip: guanya si la suma de les 3 millors alineacions de la squad arriba a l'objectiu (el David, 12/11),
+            # no la meva alineació sola
+            st, tot = str(v.get("sstate") or "").upper(), v.get("total")
+            won = True if st in ("CLAIMABLE", "COMPLETED", "CLAIMED", "WON", "SUCCEEDED") else False if st in ("FAILED", "LOST") \
+                else (True if tot is not None and tg is not None and tot >= tg else None)
+            sc = tot if tot is not None else sc
+        else:
+            won = None if sc is None or tg is None else sc >= tg
+        blocks.append({"kind": "set", "squad": squad, "title": f"{'🏀' if v['sport'] == 'NBA' else '⚽'} Set · {v.get('board')} · nivell {v.get('level')}"
+                       + (" · EQUIP (3 millors de la squad)" if squad else ""),
                        "score": sc, "target": tg, "won": won,
                        "players": [{"name": p["name"], "pic": p.get("pic"), "badge": "" if p.get("score") is None else f"{p['score']:.0f}"}
                                    for p in v["players"]]})
@@ -137,11 +148,16 @@ def run(day=None):
     title = f"Resum del {['dilluns', 'dimarts', 'dimecres', 'dijous', 'divendres', 'dissabte', 'diumenge'][d.weekday()]} {d.day}/{d.month} (últimes 24 h)"
     won = sum(1 for b in blocks if b["won"] is True)
     lost = sum(1 for b in blocks if b["won"] is False)
-    sw = sum(1 for b in blocks if b["kind"] == "set" and b["won"] is True)
-    sl = sum(1 for b in blocks if b["kind"] == "set" and b["won"] is False)
+    sw = sum(1 for b in blocks if b["kind"] == "set" and not b.get("squad") and b["won"] is True)
+    sl = sum(1 for b in blocks if b["kind"] == "set" and not b.get("squad") and b["won"] is False)
+    sq = [b for b in blocks if b.get("squad")]
+    sqt = " · equip: " + ", ".join(("guanyat" if b["won"] else "perdut" if b["won"] is False else "en joc")
+                                   + (f" ({b['score']:.0f}/{b['target']})" if b.get("score") is not None and b.get("target") else "") for b in sq) if sq else ""
     mk = sum(1 for b in blocks if b["kind"] == "mission" for p in b["players"] if p.get("ok"))
     mn = sum(1 for b in blocks if b["kind"] == "mission" for p in b["players"])
-    cap = f"☀️ {title}: Set {sw} guanyades, {sl} perdudes · missions {mk}/{mn} picks encertats" + ("\n" + "\n".join(evs) if evs else "")
+    for b in sq:
+        print(f"::notice title=resum equip::{b['title']}: {b.get('score')}/{b.get('target')} → {b['won']}")
+    cap = f"☀️ {title}: Set personal {sw} guanyades, {sl} perdudes{sqt} · missions {mk}/{mn} picks encertats" + ("\n" + "\n".join(evs) if evs else "")
     if not send_digest(title, blocks, caption=cap[:1000]):
         telegram(cap + "\n" + "\n".join(f"{'✅' if b['won'] else '❌' if b['won'] is False else '•'} {b['title']}" for b in blocks))
 
