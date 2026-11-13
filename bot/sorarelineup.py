@@ -1196,6 +1196,14 @@ def run(mode="dry", live=False):
                         rep.append(f"🃏 {lb['displayName']} #{n} (amb jugadors de menys del 80%: {', '.join(low)}): {describe(pick, cap)} · {preview(lb, pick, cap)}")
                         break
                 if n == n0:
+                    try:
+                        rest = [q for q in cards(lb, 2000) if q["player"] not in used[rarity]]
+                        from collections import Counter
+                        LOG.append(f"   {lb['displayName']}: no surt cap més alineació; queden (≥20%): "
+                                   + ", ".join(f"{q['name']} ({q['pos'][:3]}, {80 - 10 * q.get('tier', 0)}%{', Girona' if q['girona'] else ''})" for q in rest)
+                                   + " · " + str(dict(Counter(q["pos"] for q in rest))))
+                    except Exception:
+                        pass
                     break
             if n == 0:
                 rep.append(f"{lb['displayName']}: no hi ha prou jugadors amb ≥80% per a una alineació")
