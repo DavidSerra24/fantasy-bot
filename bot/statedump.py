@@ -1,6 +1,6 @@
 """Diagnosi: mostra fitxers d'estat (python -m bot.statedump fitxer1 fitxer2…)."""
 import json, os, sys
-for f in sys.argv[1:] or ["sorare_fixture.json", "sorare_live.json"]:
+for f in [a for a in sys.argv[1:] if a.endswith(".json")] or ["sorare_fixture.json", "sorare_live.json"]:
     p = os.path.join("state", f)
     try:
         st = os.stat(p)
