@@ -249,6 +249,7 @@ if __name__ == "__main__":
                                           for sp in ("NBA", "FOOTBALL") for d in [m.gql_step({"sp": sp, "m": "SQUAD"})] if d["currentUser"]["setBoard"]])(__import__("bot.sorareset", fromlist=["x"])),
          "probe3": lambda: __import__("bot.sorareprobe3"),
          "now": lambda: __import__("bot.sorarenow"),
+         "state": lambda: __import__("bot.statedump"),
          "setimg": lambda: __import__("bot.sorareset", fromlist=["send_images"]).send_images("🏀 Sorare · Set NBA (prova d'imatge)"),
          "livefill": lambda: __import__("bot.sorarelineup", fromlist=["run"]).run("fill", live=True)}[cmd]()
     except Exception as e:
