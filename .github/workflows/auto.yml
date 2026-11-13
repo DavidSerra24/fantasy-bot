@@ -34,6 +34,7 @@ jobs:
             !state/session_*.json
           key: state-${{ github.run_id }}
           restore-keys: state-
+      - run: mkdir -p state && sleep 1 && touch .state_start
       - run: pip install requests python-dotenv cryptography==43.0.1
       - name: Planificar
         id: plan
@@ -46,6 +47,20 @@ jobs:
       - name: Executar
         if: steps.plan.outputs.has == 'true'
         run: python -m bot.execute
+      - name: Fusionar l'estat amb el més recent (13/11, cursa entre execucions)
+        if: always() && steps.plan.outputs.has == 'true'
+        run: rm -rf .state_mine && mv state .state_mine && mkdir -p state
+      - uses: actions/cache/restore@v4
+        if: always() && steps.plan.outputs.has == 'true'
+        with:
+          path: |
+            state
+            !state/session_*.json
+          key: state-merge-${{ github.run_id }}
+          restore-keys: state-
+      - if: always() && steps.plan.outputs.has == 'true'
+        run: |  # només els fitxers que aquesta execució ha canviat trepitgen l'estat més recent
+          cd .state_mine && find . -type f -newer ../.state_start -exec cp --parents {} ../state/ \; && cd .. && ls state | wc -l
       - uses: actions/cache/save@v4
         if: always() && steps.plan.outputs.has == 'true'
         with:

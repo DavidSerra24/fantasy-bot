@@ -33,6 +33,7 @@ jobs:
             !state/session_*.json
           key: state-${{ github.run_id }}
           restore-keys: state-
+      - run: mkdir -p state && sleep 1 && touch .state_start
       - run: python -m bot.sorare ${{ github.event.inputs.cmd }}
       - uses: actions/upload-artifact@v4
         if: always()
@@ -40,6 +41,20 @@ jobs:
           name: tgimg
           path: tgimg
           if-no-files-found: ignore
+      - name: Fusionar l'estat amb el més recent (13/11, cursa entre execucions)
+        if: always()
+        run: rm -rf .state_mine && mv state .state_mine && mkdir -p state
+      - uses: actions/cache/restore@v4
+        if: always()
+        with:
+          path: |
+            state
+            !state/session_*.json
+          key: state-merge-${{ github.run_id }}
+          restore-keys: state-
+      - if: always()
+        run: |  # només els fitxers que aquesta execució ha canviat trepitgen l'estat més recent
+          cd .state_mine && find . -type f -newer ../.state_start -exec cp --parents {} ../state/ \; && cd .. && ls state | wc -l
       - uses: actions/cache/save@v4
         if: always()
         with:
