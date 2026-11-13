@@ -730,6 +730,11 @@ def gk_arena_final(key):
             telegram(f"⚠️ Arena amb {v['gk']['name']}: ara no surt cap alineació vàlida; no l'he feta.")
             continue
         lb, pick, cap, entry = res
+        fx_ = gql(FIXTURE_SLUG, {"s": v["gk"]["fixture"]}, token=token())["so5"]["so5Fixture"]
+        if arena_room(fx_) <= 0:
+            v["status"] = "skip"
+            telegram(f"🏟️ Arena amb {v['gk']['name']}: no l'envio, ja tens les {gw_cfg(fx_.get('gameWeek')).get('arenas_max')} Arenes de la jornada.")
+            continue
         try:
             save_lineup(lb, pick, cap, entry=entry)
             v["status"] = "done"
@@ -958,6 +963,25 @@ def arenas_go_wait(max_wait_min=50):
     late_arenas("go", F.isoformat())
 
 
+def gw_cfg(gw):
+    """Excepcions per jornada (config/sorare_gw.json; decisió del David, 13/11)."""
+    import json
+    try:
+        return json.load(open("config/sorare_gw.json")).get(str(gw)) or {}
+    except Exception:
+        return {}
+
+
+def arena_room(fx, extra=0):
+    """Quantes Arenes més es poden fer aquesta jornada (arenas_max de config/sorare_gw.json menys les ja enviades i
+    `extra` compromeses); 99 si no hi ha límit."""
+    mx = gw_cfg(fx.get("gameWeek")).get("arenas_max")
+    if mx is None:
+        return 99
+    done = len({l["id"] for l in fx.get("mySo5Lineups") or [] if l["so5Leaderboard"].get("isArena")})
+    return mx - done - extra
+
+
 def arenas_auto():
     """Arenes sense confirmació (decisió del David, 7/11: «que faci les arenes sense confirmació meva»).
     config/arenas.json {"auto": true}; amb false es torna a demanar el «sí»."""
@@ -1000,6 +1024,7 @@ def late_arenas(kind="prop", at=None):
     ess = (arena or {}).get("format", {}).get("entryItem") or {}
     if kind == "go":
         T = dt.datetime.fromisoformat(at) if at else dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=6)
+        gone = 0
         for res, ap in built:
             first = dt.datetime.fromisoformat(ap["first"])
             if res:
@@ -1011,8 +1036,13 @@ def late_arenas(kind="prop", at=None):
                 telegram(f"⚠️ Arena amb {ap.get('gk_name') or ap['gk']}: ara no surt cap alineació vàlida; no l'he feta.")
                 continue
             pick, cap = res
+            if arena_room(fx, gone) <= 0:  # límit d'Arenes de la jornada (essència; el David, 13/11)
+                ap["status"] = "skip"
+                telegram(f"🏟️ Arena amb {ap.get('gk_name') or ap['gk']}: no l'envio, ja tens les {gw_cfg(fx.get('gameWeek')).get('arenas_max')} Arenes de la jornada.")
+                continue
             try:
                 save_lineup(arena, pick, cap, entry=ess.get("myEntryItemId"))
+                gone += 1
                 ap["status"] = "done"
                 changed = sorted(set(ap["players"]) ^ {q["player"] for q in pick})
                 telegram(f"✅ Arena enviada ({ess.get('quantity') or 100} d'essència): {arena_text(pick, cap)}"
@@ -1028,9 +1058,12 @@ def late_arenas(kind="prop", at=None):
         f = min(_when(q) for q in p)
         return all(q.get("tier") == 0 for q in p if _when(q) == f)
     sent = 0
+    pend_ap = sum(1 for a in asks.values() if a.get("status") == "approved")
     for pick, cap in props:
         if not ready(pick):
             continue
+        if arena_room(fx, pend_ap + sent) <= 0:  # ja hi ha prou Arenes per a l'essència d'aquesta jornada (13/11)
+            break
         gk = pick[0]["player"]
         sig = ",".join(sorted(q["player"] for q in pick))
         a = asks.get(gk)
@@ -1092,7 +1125,9 @@ def run(mode="dry", live=False):
     except Exception as e:
         print("::warning title=sorare essència::" + str(e)[:300])
     rare_ess = essence.get("rare")
-    girona_rare_allstar = rare_ess is not None and rare_ess < 100
+    gcfg = gw_cfg(fx.get("gameWeek"))
+    rare_max = bool(gcfg.get("rare_max"))  # 13/11: «All Star Rare el màxim d'alineacions, no tinc essència per a Arenes»
+    girona_rare_allstar = (rare_ess is not None and rare_ess < 100) or rare_max
     from zoneinfo import ZoneInfo
     cut = dt.datetime.fromisoformat(fx["cutOffDate"].replace("Z", "+00:00"))
     rep = [f"Sorare · GW{fx['gameWeek']} · tanca {cut.astimezone(ZoneInfo('Europe/Madrid')):%a %d %H:%M}"
@@ -1101,11 +1136,13 @@ def run(mode="dry", live=False):
            + (" → Girona permès a All Star Rare" if girona_rare_allstar else "")]
     used = {"rare": set(), "limited": set()}  # sense repetir jugadors dins de cada raresa (un jugador pot anar a Rare i a Limited)
     plan = []
-    for rarity, total in (("rare", 1), ("limited", None)):  # Rare: 1 alineació a la primera competició possible; Limited: fins a 4 per competició
+    for rarity, total in (("rare", None if rare_max else 1), ("limited", None)):  # Rare: 1 alineació a la primera competició possible; Limited: fins a 4 per competició
         made = 0
         for name, key in COMPS:
             if total and made >= total:
                 break
+            if rarity == "rare" and rare_max and name != "All Star":  # tot el Rare a All Star (13/11)
+                continue
             lb = next((l for l in lbs if key in l["slug"] and (l["mainRarityType"] or "").lower() == rarity), None)
             if not lb:
                 continue
@@ -1141,8 +1178,10 @@ def run(mode="dry", live=False):
                 plan.append((lb, pick, cap))
                 rep.append(f"🃏 {lb['displayName']} #{n}: {describe(pick, cap)} · {preview(lb, pick, cap)}")
             # (11/11) jornada en joc (All Star de seleccions): si no surt amb ≥80%, també amb menys i amb rivals ("Endavant")
-            if n == 0 and allstar and (rarity == "rare" or live):
-                # All Star Rare: si no hi ha prou jugadors amb ≥80%, s'agafen els de més % (70%, 60%…), per impacte (el David, 3/11)
+            while (n == 0 or (rare_max and rarity == "rare" and n < 4)) and allstar and (rarity == "rare" or live):
+                # All Star Rare: si no hi ha prou jugadors amb ≥80%, s'agafen els de més % (70%, 60%…), per impacte (el David, 3/11);
+                # amb rare_max (13/11), així fins a 4 alineacions
+                n0 = n
                 for floor in range(7000, 1999, -1000):
                     pool2 = [q for q in cards(lb, floor) if q["player"] not in used[rarity]]
                     if not girona_rare_allstar:
@@ -1154,8 +1193,10 @@ def run(mode="dry", live=False):
                         used[rarity] |= {q["player"] for q in pick}
                         plan.append((lb, pick, cap))
                         low = [q["name"] + f" ({80 - 10 * q['tier']}%)" for q in pick if q.get("tier")]
-                        rep.append(f"🃏 {lb['displayName']} #1 (amb jugadors de menys del 80%: {', '.join(low)}): {describe(pick, cap)} · {preview(lb, pick, cap)}")
+                        rep.append(f"🃏 {lb['displayName']} #{n} (amb jugadors de menys del 80%: {', '.join(low)}): {describe(pick, cap)} · {preview(lb, pick, cap)}")
                         break
+                if n == n0:
+                    break
             if n == 0:
                 rep.append(f"{lb['displayName']}: no hi ha prou jugadors amb ≥80% per a una alineació")
             elif n < 4 and not total:

@@ -1,0 +1,4 @@
+{
+  "_nota": "Excepcions per jornada (gameWeek). rare_max: All Star Rare amb el màxim d'alineacions (fins a 4, també amb jugadors de menys del 80% si cal), Girona i Gazzaniga Rare inclosos (sense essència Rare per a Arenes). arenas_max: màxim d'Arenes de la jornada (essència Limited). Decisió del David, 13/11 (GW730).",
+  "730": {"rare_max": true, "arenas_max": 3}
+}
