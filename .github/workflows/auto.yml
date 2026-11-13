@@ -34,7 +34,7 @@ jobs:
             !state/session_*.json
           key: state-${{ github.run_id }}
           restore-keys: state-
-      - run: pip install requests python-dotenv
+      - run: pip install requests python-dotenv cryptography==43.0.1
       - name: Planificar
         id: plan
         run: python -m bot.plan

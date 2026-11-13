@@ -197,6 +197,19 @@ def plan(now=None, done=None, fast_only=False):
             if due(k, t, t + dt.timedelta(hours=3)):
                 add(k, t, "sorare", "fill", t + dt.timedelta(hours=3))
     sf = load_json("sorare_fixture.json", {})
+    # (13/11) si l'estat no té la jornada que ve (fitxer vell: es va perdre en una cursa de la memòria cau entre
+    # execucions), es demana a Sorare; si no, la GW730 es va quedar sense revisions del matí, de 2 h ni final
+    if not sf.get("cutoff") or dt.datetime.fromisoformat(sf["cutoff"].replace("Z", "+00:00")) <= now:
+        try:
+            from bot.sorare import gql, token
+            from bot.web import save_json
+            f_ = gql("query { so5 { so5Fixture(sport: FOOTBALL, type: UPCOMING, eventType: CLASSIC) { slug gameWeek cutOffDate } } }",
+                     token=token())["so5"]["so5Fixture"]
+            if f_ and f_.get("cutOffDate"):
+                sf = {"slug": f_["slug"], "gw": f_["gameWeek"], "cutoff": f_["cutOffDate"]}
+                save_json("sorare_fixture.json", sf)
+        except Exception as e:
+            info.append(f"Sorare: no he pogut llegir la jornada ({type(e).__name__}: {str(e)[:100]})")
     if sf.get("cutoff"):
         C = dt.datetime.fromisoformat(sf["cutoff"].replace("Z", "+00:00"))
         if C > now:
