@@ -69,6 +69,9 @@ def bench(slug, rng=None, pos=None):
 SKIP_EXTRA = set()  # (jornada en joc) cartes ja posades a competicions tancades d'aquella jornada
 
 
+GAZZA_KEEP = 2  # Gazzaniga Limited reservats per a l'Arena manual del David (0 amb config/sorare_gw.json girona)
+
+
 def cards(lb, floor=8000, rarities=None, skip=()):
     """Cartes de la competició (de la seva raresa) amb ≥80% (o ≥ floor), una per jugador (la de més XP), en ordre de la
     llista. Amb floor < 8000 (All Star Rare quan no n'hi ha prou; decisió del David, 3/11) cada carta porta «tier»:
@@ -103,7 +106,7 @@ def cards(lb, floor=8000, rarities=None, skip=()):
         q["imp"] = GRADE.get(q["grade"], -1)
         copies[q["player"]] = copies.get(q["player"], 0) + 1
         if q["gazza"]:
-            if c["rarityTyped"].lower() != "limited":
+            if c["rarityTyped"].lower() != "limited" and GAZZA_KEEP:
                 continue  # (6/11) a l'Arena (amb rareses superiors), el Gazzaniga Rare no compta: es reserva per a l'Arena del David
             gazza.append(q)
         if q["player"] not in seen or q["xp"] > seen[q["player"]]["xp"]:
@@ -117,7 +120,7 @@ def cards(lb, floor=8000, rarities=None, skip=()):
             if q["gazza"]:
                 del seen[q["player"]]
         gazza.sort(key=lambda q: -q["xp"])
-        for k, q in enumerate(gazza[:max(0, len(gazza) - 2)]):
+        for k, q in enumerate(gazza[:max(0, len(gazza) - GAZZA_KEEP)]):
             seen[f"{q['player']}#{k}"] = dict(q, player=f"{q['player']}#{k}", gazza=k + 1)
     out = sorted(seen.values(), key=lambda q: q["idx"])
     LOG.append(f"   porters ≥80%: {', '.join(q['name'] + (' #' + str(q['gazza']) if q['gazza'] else '') for q in out if q['pos'] == 'Goalkeeper') or 'cap'}")
@@ -1127,6 +1130,11 @@ def run(mode="dry", live=False):
     rare_ess = essence.get("rare")
     gcfg = gw_cfg(fx.get("gameWeek"))
     rare_max = bool(gcfg.get("rare_max"))  # 13/11: «All Star Rare el màxim d'alineacions, no tinc essència per a Arenes»
+    lim_max = bool(gcfg.get("limited_max"))  # 13/11: «les màximes alineacions possibles a les dues rareses»
+    gir_ok = bool(gcfg.get("girona"))  # 13/11: «es permeten jugadors del Girona, no faré cap Arena»
+    floor_min = int(gcfg.get("floor", 2000))
+    global GAZZA_KEEP
+    GAZZA_KEEP = 0 if gir_ok else 2
     girona_rare_allstar = (rare_ess is not None and rare_ess < 100) or rare_max
     from zoneinfo import ZoneInfo
     cut = dt.datetime.fromisoformat(fx["cutOffDate"].replace("Z", "+00:00"))
@@ -1148,7 +1156,7 @@ def run(mode="dry", live=False):
                 continue
             allstar = name == "All Star"
             pool = [q for q in cards(lb) if q["player"] not in used[rarity]]
-            if allstar and not (rarity == "rare" and girona_rare_allstar):  # Girona fora (els Gazzaniga Limited que sobren sí)
+            if allstar and not gir_ok and not (rarity == "rare" and girona_rare_allstar):  # Girona fora (els Gazzaniga Limited que sobren sí)
                 pool = [q for q in pool if not q["girona"] or (rarity == "limited" and q["gazza"])]
             if rarity == "rare" and not allstar:  # el Rare de Gazzaniga es reserva si no va a All Star Rare
                 pool = [q for q in pool if not q["gazza"]]
@@ -1178,13 +1186,14 @@ def run(mode="dry", live=False):
                 plan.append((lb, pick, cap))
                 rep.append(f"🃏 {lb['displayName']} #{n}: {describe(pick, cap)} · {preview(lb, pick, cap)}")
             # (11/11) jornada en joc (All Star de seleccions): si no surt amb ≥80%, també amb menys i amb rivals ("Endavant")
-            while (n == 0 or (rare_max and rarity == "rare" and n < 4)) and allstar and (rarity == "rare" or live):
+            maxed = (rare_max and rarity == "rare") or (lim_max and rarity == "limited")
+            while (n == 0 or (maxed and n < 4)) and allstar and (rarity == "rare" or live or maxed):
                 # All Star Rare: si no hi ha prou jugadors amb ≥80%, s'agafen els de més % (70%, 60%…), per impacte (el David, 3/11);
                 # amb rare_max (13/11), així fins a 4 alineacions
                 n0 = n
-                for floor in range(7000, 1999, -1000):
+                for floor in range(7000, (floor_min if maxed else 2000) - 1, -1000):
                     pool2 = [q for q in cards(lb, floor) if q["player"] not in used[rarity]]
-                    if not girona_rare_allstar:
+                    if not (girona_rare_allstar if rarity == "rare" else gir_ok):
                         pool2 = [q for q in pool2 if not q["girona"]]
                     pick = build(pool2, CLASSIC)
                     if pick:
