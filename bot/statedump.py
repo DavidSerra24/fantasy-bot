@@ -1,11 +1,9 @@
-"""Diagnosi (només lectura): busca un text als fitxers de state/ i n'imprimeix el context."""
-import pathlib
-import sys
-
-pat = " ".join(sys.argv[1:]).lower()
-for f in sorted(pathlib.Path("state").glob("*.json")):
-    t = f.read_text(encoding="utf-8", errors="ignore")
-    i = t.lower().find(pat)
-    while i >= 0:
-        print(f"::notice title={f.name}::" + t[max(0, i - 1200):i + 600].replace("\n", " ")[:3800])
-        i = t.lower().find(pat, i + 2000)
+"""Diagnosi: mostra fitxers d'estat (python -m bot.statedump fitxer1 fitxer2…)."""
+import json, os, sys
+for f in sys.argv[1:] or ["sorare_fixture.json", "sorare_live.json"]:
+    p = os.path.join("state", f)
+    try:
+        st = os.stat(p)
+        print(f"::notice title={f}::{open(p).read()[:1500]} (mtime {st.st_mtime:.0f})")
+    except Exception as e:
+        print(f"::notice title={f}::{e}")
