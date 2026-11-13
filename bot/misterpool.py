@@ -84,6 +84,7 @@ def run_api(cid, sw, label, picks, dry=False):
             line += " | ⚠️ no trobats: " + ", ".join(miss)
         if bad:
             line += f" | ❗ {len(bad)} no s'han desat bé, revisa-ho"
+            print(f"::warning title=quiniela mister::{label}: després de desar → " + ", ".join(f"{i}: {after.get(i)}" for i in bad))
         return line
     except Exception as e:
         print(f"::warning title=mister api::quiniela per l'API ({label}): {type(e).__name__}: {str(e)[:200]} → navegador")

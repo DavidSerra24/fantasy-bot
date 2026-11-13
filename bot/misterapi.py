@@ -274,7 +274,7 @@ class MisterAPI:
                 d = (self.ajax("sw/" + post, {"post": post, "id": gid}) or {}).get("data") or {}  # selector de jornada: «id»
             res = d.get("results") or {}
             if not res.get("locked"):
-                rows = [{"id": str(m["id"]), "home": m.get("home") or "", "away": m.get("away") or "", "sel": [m["prediction"]] if m.get("prediction") else [],
+                rows = [{"id": str(m["id"]), "home": m.get("home") or "", "away": m.get("away") or "", "sel": [str(m["prediction"]).upper()] if m.get("prediction") not in (None, "") else [],
                          "locked": m.get("status") in ("played", "playing", "live", "started")} for m in res.get("matches") or []]
                 return rows, False
         return [], True
