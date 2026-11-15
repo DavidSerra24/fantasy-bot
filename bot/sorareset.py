@@ -275,7 +275,15 @@ def run(dry=False, sports=("NBA",), scan=False):
             lines = [head + f" · {len(pool)} jugadors amb partit ({nproj} amb previsió > 0; 🔸 = previsió 0, només per omplir)" + (f" · límit {cap} estrelles" if cap else "")]
             made = 0
             for k in range(room):
-                r = best(pool, slots, cap)
+                r = None
+                if mode == "CAREER":
+                    # personal: primer els que juguen abans, com al futbol (decisió del David, 15/11): l'alineació que acaba
+                    # més aviat (hora del seu últim partit) i, dins d'aquesta hora, la de més punts previstos
+                    for T in sorted({c["game"]["date"] for c in pool if c["proj"] > 0}):
+                        r = best([c for c in pool if c["proj"] > 0 and c["game"]["date"] <= T], slots, cap)
+                        if r:
+                            break
+                r = r or best(pool, slots, cap)
                 if not r:
                     lines.append("   no queden jugadors per a una altra alineació")
                     break
@@ -554,7 +562,12 @@ def review(sports=("NBA",), dry=False):
                     plan.append((l, None, cur_val[l["id"]]))
                     continue
                 fx = fixed_all[l["id"]]
-                r = best_fill(pool, slots, cap, fx)
+                pool_l = pool
+                if mode == "CAREER":  # personal: el canvi no pot fer que l'alineació acabi més tard (15/11, «playing soon»)
+                    last = max((a["game"]["date"] for a in l["taskAppearances"] if a and a.get("game")), default=None)
+                    if last:
+                        pool_l = [c for c in pool if c["game"]["date"] <= last]
+                r = best_fill(pool_l, slots, cap, fx)
                 if not r:
                     plan.append((l, None, cur_val[l["id"]]))
                     continue
