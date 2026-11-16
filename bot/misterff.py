@@ -80,7 +80,14 @@ def sync(b, squad, dry=False):
             continue
         if not dry:
             search(pg, used)
-            pg.locator(f'#buscador-selector a.ls-follow[data-jugador="{res[0]["id"]}"]').first.click()
+            # (16/11) el primer enllaç pot ser una còpia amagada i el clic esperava 30 s: es clica el visible amb JS
+            ok = pg.evaluate("""(id) => { const a = [...document.querySelectorAll('#buscador-selector a.ls-follow[data-jugador="' + id + '"]')]
+                .find(a => a.offsetParent !== null) || document.querySelector('#buscador-selector a.ls-follow[data-jugador="' + id + '"]');
+                if (!a) return false; a.click(); return true; }""", res[0]["id"])
+            if not ok:
+                notfound.append(f"{q['short']} (no he pogut clicar «seguir»)")
+                close(pg)
+                continue
             pg.wait_for_timeout(2500)
             close(pg)
         added.append(res[0]["n"])
