@@ -42,7 +42,7 @@ def league_info(page, comp):
         today = dt.date.today()
         d, mth = map(int, dates[0])
         first = dt.date(today.year + (1 if mth < today.month - 6 else 0), mth, d)
-    return {"hours": hours, "first": first, "slugs": links}
+    return {"hours": hours, "first": first, "slugs": links, "end": end}
 
 
 def build_entries(comp, sidata, slugs):
@@ -234,13 +234,18 @@ def run(comps, force=False, max_hours=30.0):
                 h = hashlib.md5(json.dumps([[[p["name"], p.get("ps") is not None] for p in r] for r in entry["rows"]], ensure_ascii=False).encode()).hexdigest()
                 pv = prev_all.get(slug) or {}
                 c0 = pv.get("check") or {}
-                if not force and pv.get("hash") == h and c0.get("n") == 11 and c0.get("icons") == 3 and c0.get("tactic") != "Manual":
+                # (16/11) només es salta si és de la MATEIXA jornada (mateix tancament): abans la memòria era per equip i, si
+                # l'onze de SorareInside era igual que el de la jornada anterior (equips que no havien jugat per un
+                # aplaçament), no es feia la jornada nova
+                if not force and pv.get("hash") == h and pv.get("jornada") == info.get("end") and info.get("end") \
+                        and c0.get("n") == 11 and c0.get("icons") == 3 and c0.get("tactic") != "Manual":
                     ok += 1
                     skipped += 1
                     continue  # res no ha canviat des de l'última vegada
                 try:
                     res = fill_team(pg, comp, slug, entry, prev_all.get(slug))
                     res["hash"] = h
+                    res["jornada"] = info.get("end")
                     prev_all[slug] = res
                     c = res["check"]
                     nops = sum(1 for r in entry["rows"] for p in r if p.get("ps") is None)
