@@ -1135,7 +1135,7 @@ def run(mode="dry", live=False):
     floor_min = int(gcfg.get("floor", 2000))
     global GAZZA_KEEP
     GAZZA_KEEP = 0 if gir_ok else 2
-    girona_rare_allstar = (rare_ess is not None and rare_ess < 100) or rare_max
+    girona_rare_allstar = ((rare_ess is not None and rare_ess < 100) or rare_max) and not gcfg.get("girona_keep")
     from zoneinfo import ZoneInfo
     cut = dt.datetime.fromisoformat(fx["cutOffDate"].replace("Z", "+00:00"))
     rep = [f"Sorare · GW{fx['gameWeek']} · tanca {cut.astimezone(ZoneInfo('Europe/Madrid')):%a %d %H:%M}"
