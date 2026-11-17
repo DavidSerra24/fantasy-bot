@@ -1155,7 +1155,11 @@ def run(mode="dry", live=False):
             if not lb:
                 continue
             allstar = name == "All Star"
-            pool = [q for q in cards(lb) if q["player"] not in used[rarity]]
+            # (17/11) a les competicions Limited també hi poden anar cartes de raresa superior (com a les Arenes);
+            # una carta ja posada en una altra alineació no es repeteix
+            rar_ok = ARENA_RAR if rarity == "limited" else None
+            taken_c = {q["card"] for _, p_, _ in plan for q in p_}
+            pool = [q for q in cards(lb, rarities=rar_ok, skip=taken_c) if q["player"] not in used[rarity]]
             if allstar and not gir_ok and not (rarity == "rare" and girona_rare_allstar):  # Girona fora (els Gazzaniga Limited que sobren sí)
                 pool = [q for q in pool if not q["girona"] or (rarity == "limited" and q["gazza"])]
             if rarity == "rare" and not allstar:  # el Rare de Gazzaniga es reserva si no va a All Star Rare
@@ -1193,7 +1197,8 @@ def run(mode="dry", live=False):
                 # amb rare_max (13/11), així fins a 4 alineacions
                 n0 = n
                 for floor in range(7000, (floor_min if (maxed or one) else 2000) - 1, -1000):
-                    pool2 = [q for q in cards(lb, floor) if q["player"] not in used[rarity]]
+                    pool2 = [q for q in cards(lb, floor, rarities=rar_ok, skip={q["card"] for _, p_, _ in plan for q in p_})
+                             if q["player"] not in used[rarity]]
                     if not (girona_rare_allstar if rarity == "rare" else gir_ok):
                         pool2 = [q for q in pool2 if not q["girona"]]
                     pick = build(pool2, CLASSIC)

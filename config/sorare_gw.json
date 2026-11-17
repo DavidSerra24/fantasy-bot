@@ -9,6 +9,6 @@
   },
   "731": {
     "limited_min": true,
-    "floor": 0
+    "floor": 1000
   }
 }
