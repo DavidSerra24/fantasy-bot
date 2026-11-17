@@ -1144,7 +1144,8 @@ def run(mode="dry", live=False):
            + (" → Girona permès a All Star Rare" if girona_rare_allstar else "")]
     used = {"rare": set(), "limited": set()}  # sense repetir jugadors dins de cada raresa (un jugador pot anar a Rare i a Limited)
     plan = []
-    for rarity, total in (("rare", None if rare_max else 1), ("limited", None)):  # Rare: 1 alineació a la primera competició possible; Limited: fins a 4 per competició
+    # Rare: tantes com pugui (fins a 4 per competició) amb jugadors del ≥80% (el David, 17/11; abans només 1)
+    for rarity, total in (("rare", None), ("limited", None)):  # Rare: 1 alineació a la primera competició possible; Limited: fins a 4 per competició
         made = 0
         for name, key in COMPS:
             if total and made >= total:
