@@ -19,6 +19,7 @@ import datetime as dt
 from bot.notify import telegram
 from bot.sorare import gql, token
 from bot.sorareset import RESTART, UPSERT, claim_step
+DELETE_TL = """mutation($input: deleteTaskLineupInput!) { deleteTaskLineup(input: $input) { errors { message } } }"""
 from bot.web import load_json, save_json
 
 STEP = """query($m: BoardMode!) { currentUser { setBoard(mode: $m, sport: FOOTBALL) { id title
@@ -298,6 +299,7 @@ def run(dry=False, focus=None):
                 remaining.remove(best)
             targets.append((best, p_))
         k_new = 0
+        jobs = []
         for l, pick in targets:
             if l is None:
                 k_new += 1
@@ -320,17 +322,44 @@ def run(dry=False, focus=None):
             inp = {"stepId": st["id"], "appearances": apps}
             if l:
                 inp["lineupId"] = l["id"]
-            try:
-                d = gql(UPSERT, {"input": inp}, token=token())["upsertStepLineup"]
-                if d.get("errors"):
-                    raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
-                lines.append(f"   {'🔁' if l else '✅'} {name}: {txt}")
-                games.add(min((q["game"]["date"] for q in pick.values()), key=D))
-                if mode == "CAREER":
-                    ds_ = [q["game"]["date"] for q in pick.values()]
-                    ends.add((min(ds_, key=D), max(ds_, key=D)))
-            except Exception as e:
-                lines.append(f"   ❌ {name}: {str(e)[:200]}")
+            jobs.append((l, pick, name, txt, inp))
+        # (17/11) quan les cartes es mouen d'una alineació a una altra, la primera falla («You can't pick a card used in
+        # a lineup») perquè la carta encara és a l'altra: es tornen a provar les que fallen després de les que funcionen
+        # i, si s'encallen (intercanvi), s'esborra una de les alineacions (encara no començada) i es torna a crear
+        pend, last_err = list(jobs), {}
+        for _ in range(len(jobs) + 2):
+            if not pend:
+                break
+            nxt = []
+            for job in pend:
+                l, pick, name, txt, inp = job
+                try:
+                    d = gql(UPSERT, {"input": inp}, token=token())["upsertStepLineup"]
+                    if d.get("errors"):
+                        raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
+                    lines.append(f"   {'🔁' if l else '✅'} {name}: {txt}")
+                    games.add(min((q["game"]["date"] for q in pick.values()), key=D))
+                    if mode == "CAREER":
+                        ds_ = [q["game"]["date"] for q in pick.values()]
+                        ends.add((min(ds_, key=D), max(ds_, key=D)))
+                except Exception as e:
+                    last_err[name] = str(e)[:200]
+                    nxt.append(job)
+            if nxt and len(nxt) == len(pend):  # cap avenç: s'esborra la primera encallada i es crea de nou
+                l, pick, name, txt, inp = nxt[0]
+                if l and "used in a lineup" in last_err.get(name, ""):
+                    try:
+                        gql(DELETE_TL, {"input": {"taskLineupId": l["id"]}}, token=token())
+                        inp = {k: v for k, v in inp.items() if k != "lineupId"}
+                        nxt[0] = (None, pick, name, txt, inp)
+                    except Exception as e:
+                        last_err[name] = f"no he pogut esborrar-la per refer-la: {str(e)[:150]}"
+                        break
+                else:
+                    break
+            pend = nxt
+        for l, pick, name, txt, inp in pend:
+            lines.append(f"   ❌ {name}: {last_err.get(name, '?')}")
         # revisió final (els últims minuts abans del primer partit de l'alineació): jugadors de partits posteriors que
         # encara no tenen l'onze oficial (Sorare el posa ~1 h abans) → l'impacte no és el definitiu; avís perquè el David
         # l'acabi a mà (decisió del David, 4/11)
