@@ -1187,11 +1187,12 @@ def run(mode="dry", live=False):
                 rep.append(f"🃏 {lb['displayName']} #{n}: {describe(pick, cap)} · {preview(lb, pick, cap)}")
             # (11/11) jornada en joc (All Star de seleccions): si no surt amb ≥80%, també amb menys i amb rivals ("Endavant")
             maxed = (rare_max and rarity == "rare") or (lim_max and rarity == "limited")
-            while (n == 0 or (maxed and n < 4)) and allstar and (rarity == "rare" or live or maxed):
+            one = rarity == "limited" and bool(gcfg.get("limited_min"))  # 17/11: «vull completar mínim una» (All Star Limited)
+            while (n == 0 or (maxed and n < 4)) and allstar and (rarity == "rare" or live or maxed or one):
                 # All Star Rare: si no hi ha prou jugadors amb ≥80%, s'agafen els de més % (70%, 60%…), per impacte (el David, 3/11);
                 # amb rare_max (13/11), així fins a 4 alineacions
                 n0 = n
-                for floor in range(7000, (floor_min if maxed else 2000) - 1, -1000):
+                for floor in range(7000, (floor_min if (maxed or one) else 2000) - 1, -1000):
                     pool2 = [q for q in cards(lb, floor) if q["player"] not in used[rarity]]
                     if not (girona_rare_allstar if rarity == "rare" else gir_ok):
                         pool2 = [q for q in pool2 if not q["girona"]]
