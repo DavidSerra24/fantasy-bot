@@ -66,13 +66,32 @@ def gk_list(sidata, players=None):
             g = rows[0][0]
             fp = ff.ff_pct(g["name"], t, ffp) if ffp else None
             if g.get("ps") is not None and (fp >= ff.FF_MIN if fp is not None else (g.get("pct") or 0) >= 80):
-                out.append({"si": g["name"], "team": t, "ps": g["ps"]})
+                # (17/11) el nom com el té futbolfantasy.com (mateix equip): el buscador del joc no trobava «Sivera»,
+                # «Odysseas», «S. HERRERA»… i quedaven descartats per sempre
+                ffn = None
+                for e in ffp or []:
+                    seg = (e.get("url") or "").rstrip("/").split("/")[-1].replace("-", " ")
+                    if ff.team_score(t, seg) > 0 and ff.name_score(g["name"], e["name"]) >= 60:
+                        ffn = e["name"]
+                        break
+                out.append({"si": g["name"], "ff": ffn, "team": t, "ps": g["ps"]})
     return out
+
+
+def _unusable():
+    """Jugadors sense usos per joc extra. (17/11) la llista vella barrejava «no trobats» (noms de SorareInside que el
+    buscador del joc no troba) amb «sense usos» i descartava porters per sempre: es buida una vegada (v2)."""
+    from bot.web import load_json, save_json
+    d = load_json("extras_unusable.json", {})
+    if d.get("_v") != 2:
+        d = {"_v": 2}
+        save_json("extras_unusable.json", d)
+    return d
 
 
 def fill_names(page, jid, names, report, label, want=3):
     """Busca cada nom al selector del joc i el posa (usa la mateixa lògica de noms que el Fantasy)."""
-    placed = []
+    placed, nf = [], []
     for n in names:
         if len(placed) >= want:
             break
@@ -81,19 +100,25 @@ def fill_names(page, jid, names, report, label, want=3):
         if not res and ff.norm(n):
             res = page.evaluate("(q) => __ff.search(q)", ff.norm(n)[-1]) or []
         best = max(res, key=lambda r: ff.name_score(n, r["n"]), default=None)
-        if not best or ff.name_score(n, best["n"]) < 80 or (best["u"] is not None and str(best["u"]) == "0"):
+        if not best or ff.name_score(n, best["n"]) < 80:
             ff.close_modal(page)
-            skip = load_json("extras_unusable.json", {})
+            nf.append(n)  # no trobat: aquesta vegada no, però no es descarta per sempre (17/11)
+            continue
+        if best["u"] is not None and str(best["u"]) == "0":
+            ff.close_modal(page)
+            skip = _unusable()
             skip.setdefault(label.split(" (")[0], [])
             if n not in skip[label.split(" (")[0]]:
-                skip[label.split(" (")[0]].append(n)  # sense usos o no trobat: no s'ha de tornar a triar
+                skip[label.split(" (")[0]].append(n)  # sense usos: no s'ha de tornar a triar
             save_json("extras_unusable.json", skip)
             continue
         page.locator(".modal.show .sel-item:visible").filter(has=page.locator(".sel-nombre", has_text=best["n"])).first.click()
         page.locator(".modal.show").wait_for(state="hidden", timeout=10000)
         page.wait_for_timeout(800)
         placed.append({"n": best["n"], "id": str(best["id"])})
-    report.append(f"{'✅' if len(placed) == want else '⚠️'} {label}: {', '.join(p['n'] for p in placed) or 'cap'}")
+    report.append(f"{'✅' if len(placed) == want else '⚠️'} {label}: {', '.join(p['n'] for p in placed) or 'cap'}"
+                  + (f" (no trobats al joc: {', '.join(nf)})" if nf and len(placed) < want else ""))
+    fill_names.notfound = nf
     return placed
 
 
@@ -113,9 +138,9 @@ def orders(sidata, players):
     hot = sorted([p for p in starters if p["pj"] > 0], key=lambda p: -(p["amarillas"] / p["pj"]))
     return {
         "revulsivo": [{"n": p["name"], "team": None} for p in pick_revulsivo(players)],
-        "antagonista": [{"n": x["si"], "team": x["team"], "gk": True} for x in low[:4]]
+        "antagonista": [{"n": x.get("ff") or x["si"], "alt": x["si"], "team": x["team"], "gk": True} for x in low[:4]]
                        + [{"n": p["name"], "team": None} for p in hot if not any(ff.name_score(p["name"], x["si"]) >= 80 for x in low)],
-        "resiliencia": [{"n": x["si"], "team": x["team"], "gk": True} for x in sorted(gks, key=lambda x: -x["ps"])],
+        "resiliencia": [{"n": x.get("ff") or x["si"], "alt": x["si"], "team": x["team"], "gk": True} for x in sorted(gks, key=lambda x: -x["ps"])],
     }
 
 
@@ -197,7 +222,7 @@ def final_extras(page, report, dry=False):
                 return is_starter(x["n"])
             return True
 
-        bad = set(load_json("extras_unusable.json", {}).get(KINDS[kind], []))
+        bad = set(_unusable().get(KINDS[kind], []))
         desired = [x["n"] for x in ords[kind] if valid(x) and x["n"] not in bad]
         slots = ff.read_slots(page, card["id"])
         top = desired[:3]
@@ -228,4 +253,6 @@ def final_extras(page, report, dry=False):
         else:
             report.append(f"{'✅' if ok else '⚠️'} {KINDS[kind]}: " + (f"surten {', '.join(gone)} → entren {', '.join(came) or 'cap'}" if gone else "")
                           + (f"entren {', '.join(came)}" if (not gone and came) else "")
-                          + (f" (es queda {', '.join(back)})" if back else "") + ("" if ok else f" — REVISA-HO: només {len(placed)} de {len(out) + empty}"))
+                          + (f" (es queda {', '.join(back)})" if back else "") + ("" if ok else f" — REVISA-HO: només {len(placed)} de {len(out) + empty}"
+                                + (f"; no trobats al joc: {', '.join(getattr(fill_names, 'notfound', []))}" if getattr(fill_names, 'notfound', []) else "")
+                                + f"; sense usos: {', '.join(bad) or 'cap'}"))
