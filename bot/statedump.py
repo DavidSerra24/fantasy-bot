@@ -4,7 +4,12 @@ for f in [a for a in sys.argv[1:] if a.endswith(".json")] or ["sorare_fixture.js
     p = os.path.join("state", f)
     try:
         st = os.stat(p)
-        print(f"::notice title={f}::{open(p).read()[:1500]} (mtime {st.st_mtime:.0f})")
+        txt = open(p).read()
+        try:
+            txt = json.dumps(json.loads(txt), ensure_ascii=False)
+        except Exception:
+            txt = txt.replace("\n", " ")
+        print(f"::notice title={f}::{txt[:3000]} (mtime {st.st_mtime:.0f})")
     except Exception as e:
         print(f"::notice title={f}::{e}")
 try:

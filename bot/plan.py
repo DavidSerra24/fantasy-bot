@@ -415,6 +415,11 @@ def telegram_commands(now):
         if str((m.get("chat") or {}).get("id")) != str(chat):
             continue  # només el xat del David
         t = (m.get("text") or "").strip()
+        rt = ((m.get("reply_to_message") or {}).get("text") or "")
+        if "NO en venc cap" in rt and not t.startswith("/") and re.search(r"(?i)\bs[ií]\b|\bven|\bok\b|endavant|fes-ho", t):
+            # resposta a l'avís de la salvaguarda del Mister («sí», «ven-los»…; 18/11): com «/ven <lliga>»
+            lgs = [k for k in ("Quique", "Fentaniños") if re.search(rf"⚠️ {k}:.*NO en venc cap", rt)]
+            t = "/ven " + (lgs[0] if len(lgs) == 1 else "")
         if re.fullmatch(r"s[ií]\W*|yes\W*|ok\W*|endavant\W*|fes-la\W*|fes-les\W*", t.lower()):  # «sí» per a una Arena de Sorare
             from bot.web import save_json as _sj
             _sj("sorare_yes.json", (load_json("sorare_yes.json", []) + [m.get("date", 0)])[-20:])
@@ -434,11 +439,14 @@ def telegram_commands(now):
             from bot.web import save_json as _sj
             arg = mv.group(1).strip()
             bl = load_json("mister_blocked.json", {})
-            lg = next((k for k in bl if arg.lower() in (k.lower(), k.lower().split()[0])), None) if arg else None
+            lg = next((k for k in ("Quique", "Fentaniños") if arg.lower().strip(" .!") in (k.lower(), k.lower().replace("ñ", "n"))), None) if arg else None
             if not arg:
-                names = [n for v in bl.values() for n in v]
+                names = [n for v in bl.values() for n in v] or ["@Quique", "@Fentaniños"]
             elif lg:
-                names = bl[lg]
+                # tots els de la lliga per sota del mínim, encara que l'avís sigui d'abans de «/ven» (18/11)
+                names = bl.get(lg) or [f"@{lg}"]
+                if f"@{lg}" not in names:
+                    names = names + [f"@{lg}"]
             else:
                 names = [x.strip() for x in re.split(r",|\n| i ", arg) if x.strip()]
             if names:
@@ -447,7 +455,7 @@ def telegram_commands(now):
                 _sj("mister_force.json", ff_)
                 out.append({"key": f"mister-ven:{u['update_id']}", "at": now.isoformat(), "do": "mister", "comp": None,
                             "deadline": (now + dt.timedelta(hours=6)).isoformat()})
-                msg_ = "💸 Entesos: poso en venda " + ", ".join(names) + " ara mateix (si no deixen la plantilla sense onze)."
+                msg_ = "💸 Entesos: poso en venda " + ", ".join(("tots els de " + n[1:] + " per sota del mínim") if n.startswith("@") else n for n in names) + " ara mateix (si no deixen la plantilla sense onze)."
             else:
                 msg_ = "⚠️ No sé quins vendre: escriu «/ven Quique» (els que t'he avisat) o «/ven Nom, Nom»."
             requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat, "text": msg_}, timeout=20)

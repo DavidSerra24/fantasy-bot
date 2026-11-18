@@ -381,6 +381,8 @@ def forced(q, force):
     full = (q.get("name") or "").lower()
     for f in force:
         f = re.sub(r"\s", "", f).lower()
+        if f.startswith("@"):
+            continue
         if f and (f == sh or sh.endswith(f) or (len(f) > 3 and f in re.sub(r"\s", "", full))):
             return True
     return False
@@ -431,7 +433,11 @@ def run(dry=False, retira=(), force=()):
                 # Salvaguarda (2/11): si de cop surten molts jugadors per sota del mínim (p. ex. 4 o més, o més d'un terç
                 # de la plantilla), segurament la font està malament (jornada acabada, dades encara no publicades):
                 # no es ven ningú i s'avisa el David.
-                if len(below) >= 4 or len(below) * 3 > len(keep):
+                # «/ven Quique»: el David diu que es venguin tots els d'aquesta lliga per sota del mínim (18/11)
+                whole = any(re.sub(r"\s", "", f).lower() == "@" + name.lower() for f in force)
+                if whole:
+                    report.append(f"💸 {name}: el David ha dit «/ven {name}»: venc els {len(below)} per sota del {minimum}% (si la plantilla pot fer l'onze).")
+                elif len(below) >= 4 or len(below) * 3 > len(keep):
                     blocked = [q for q in below if not forced(q, force)]
                     if blocked:
                         report.append(f"⚠️ {name}: {len(below)} jugadors surten per sota del {minimum}% ({', '.join(q['short'] + ' ' + str(q['pct']) + '%' for q in below[:8])}); "
