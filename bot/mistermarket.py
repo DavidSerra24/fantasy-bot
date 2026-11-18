@@ -375,8 +375,22 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
     return bal, squad, market, have, cap
 
 
+def forced(q, force):
+    """El jugador és a la llista de vendes demanades pel David? (nom curt «A. Sola», o només el cognom «Sola»)."""
+    sh = re.sub(r"\s", "", q.get("short") or "").lower()
+    full = (q.get("name") or "").lower()
+    for f in force:
+        f = re.sub(r"\s", "", f).lower()
+        if f and (f == sh or sh.endswith(f) or (len(f) > 3 and f in re.sub(r"\s", "", full))):
+            return True
+    return False
+
+
 def run(dry=False, retira=(), force=()):
     report = []
+    # vendes demanades pel David per Telegram («/ven», 18/11): state/mister_force.json → es venen sí o sí
+    _ff = load_json("mister_force.json", {})
+    force = set(force) | {re.sub(r"\s", "", n) for v in _ff.values() for n in v}
     done = load_json("mister_bids.json", {})
     sold = load_json("mister_sales.json", {})
     cache = {}
@@ -418,15 +432,20 @@ def run(dry=False, retira=(), force=()):
                 # de la plantilla), segurament la font està malament (jornada acabada, dades encara no publicades):
                 # no es ven ningú i s'avisa el David.
                 if len(below) >= 4 or len(below) * 3 > len(keep):
-                    report.append(f"⚠️ {name}: {len(below)} jugadors surten per sota del {minimum}% ({', '.join(q['short'] + ' ' + str(q['pct']) + '%' for q in below[:8])}); "
-                                  "sembla un error de la font i NO en venc cap. Si de debò cal vendre'n, digues-m'ho.")
+                    blocked = [q for q in below if not forced(q, force)]
+                    if blocked:
+                        report.append(f"⚠️ {name}: {len(below)} jugadors surten per sota del {minimum}% ({', '.join(q['short'] + ' ' + str(q['pct']) + '%' for q in below[:8])}); "
+                                      f"sembla un error de la font i NO en venc cap. Si de debò cal vendre'n, envia «/ven {name}» (tots) o «/ven Nom, Nom».")
+                        bl = load_json("mister_blocked.json", {})
+                        bl[name] = [q["short"] for q in below]
+                        save_json("mister_blocked.json", bl)
                     below = []
                 # vendes que el David demana a mà (--ven=Nom,Nom; 9/11): sí o sí, encara que salti la salvaguarda
-                below += [q for q in keep if q["short"].replace(" ", "") in force and q not in below and not q["loaned"] and not q.get("loanin")]
+                below += [q for q in keep if forced(q, force) and q not in below and not q["loaned"] and not q.get("loanin")]
                 for q in sorted(below, key=lambda q: (q["pct"] if q["pct"] is not None else 0, q["ps"] or 0)):
                     # Fentaniños: abans de vendre, segona comprovació a la fitxa del jugador de futbolfantasy.com
                     # («Titular J13 70%»; 11/11: Sergio Gómez es va vendre amb un 0% mal llegit)
-                    if league == "Primera División" and q["short"].replace(" ", "") not in force:
+                    if league == "Primera División" and not forced(q, force):
                         fp = ff_profile_pct(cache.get("fpage"), q.get("href"))
                         if fp is not None and fp >= minimum:
                             nosale.append(f"{q['short']} (la fitxa de futbolfantasy.com diu {fp}%; no el venc)")
@@ -568,6 +587,8 @@ def run(dry=False, retira=(), force=()):
                 report.append(f"❌ Mis equipos: {type(e).__name__}: {str(e)[:200]}")
         save_json("mister_sales.json", {k: v for k, v in sold.items() if v >= (dt.date.today() - dt.timedelta(days=2)).isoformat()})
         save_json("mister_bids.json", {k: v for k, v in done.items() if v >= (dt.date.today() - dt.timedelta(days=3)).isoformat()})
+        if not dry and _ff:
+            save_json("mister_force.json", {})  # les vendes demanades per Telegram ja s'han fet
         b.close()
     msg = "Mister · mercat" + (" (prova, sense pujar)" if dry else "") + "\n" + "\n".join(report)
     print(msg)

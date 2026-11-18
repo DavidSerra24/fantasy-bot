@@ -429,6 +429,29 @@ def telegram_commands(now):
             requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat, "text":
                           "⏸️ Entesos: el proper partit de " + ", ".join(teams_) + " compta com a aplaçat (Mister, FutbolFantasy i Predicted11)."}, timeout=20)
             continue
+        mv = re.match(r"(?i)/ven(?:dre|\b)\s*(.*)$", t, re.S)
+        if mv:  # «/ven Quique» (tots els que la salvaguarda no ha venut) o «/ven Nom, Nom»: vendre sí o sí (18/11)
+            from bot.web import save_json as _sj
+            arg = mv.group(1).strip()
+            bl = load_json("mister_blocked.json", {})
+            lg = next((k for k in bl if arg.lower() in (k.lower(), k.lower().split()[0])), None) if arg else None
+            if not arg:
+                names = [n for v in bl.values() for n in v]
+            elif lg:
+                names = bl[lg]
+            else:
+                names = [x.strip() for x in re.split(r",|\n| i ", arg) if x.strip()]
+            if names:
+                ff_ = load_json("mister_force.json", {})
+                ff_[str(u["update_id"])] = names
+                _sj("mister_force.json", ff_)
+                out.append({"key": f"mister-ven:{u['update_id']}", "at": now.isoformat(), "do": "mister", "comp": None,
+                            "deadline": (now + dt.timedelta(hours=6)).isoformat()})
+                msg_ = "💸 Entesos: poso en venda " + ", ".join(names) + " ara mateix (si no deixen la plantilla sense onze)."
+            else:
+                msg_ = "⚠️ No sé quins vendre: escriu «/ven Quique» (els que t'he avisat) o «/ven Nom, Nom»."
+            requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat, "text": msg_}, timeout=20)
+            continue
         cmd_ = next((c for c in ("/nom", "/p11", "/mister") if t.lower().startswith(c)), None)
         if cmd_:  # equivalències de noms: /nom (FutbolFantasy), /p11 (Predicted11), /mister (Mister); «A = B» o «A = no»
             # un missatge pot portar diverses ordres barrejades, en línies o seguides (5/11): cada tros va al fitxer de
