@@ -6,7 +6,7 @@ Q = """query($t: So5FixtureEvent!) { so5 { so5Fixture(sport: FOOTBALL, type: UPC
   so5Leaderboards { slug displayName mainRarityType isArena seasonality format { title }
     canCompose { missingCards missingPositions notEnoughEligibleCards missingAnyRarities }
     eligibleCardsCountByPosition { position seasonality totalCount usedCardsCount }
-    myThresholdsStreakTasks { id progress currentThreshold { score } } } } } }"""
+    so5League { name myThresholdsStreakTasks { id progress currentThreshold { score } } } } } } }"""
 
 for t in ("CLASSIC", "DAILY"):
     try:
@@ -23,7 +23,7 @@ for t in ("CLASSIC", "DAILY"):
         ok = not (c.get("missingCards") or c.get("notEnoughEligibleCards") or c.get("missingPositions"))
         cnt = ", ".join(f"{x['position'][:3]} {x['seasonality'][:2]} {x['totalCount']}-{x['usedCardsCount']}"
                         for x in l["eligibleCardsCountByPosition"] if x["totalCount"])
-        hs = l.get("myThresholdsStreakTasks") or []
+        hs = (l.get("so5League") or {}).get("myThresholdsStreakTasks") or []
         hs_ = " · streak " + "; ".join(f"progrés {h['progress']} llindar {(h.get('currentThreshold') or {}).get('score')}" for h in hs) if hs else ""
         print(f"::notice title={'✅' if ok else '❌'} {l['format']['title']} · {l['seasonality']} · {l['mainRarityType']}::"
               f"{l['displayName']} ({l['slug']}) · falten {c.get('missingCards')} cartes {c.get('missingPositions')} "
