@@ -15,4 +15,13 @@ STEP = """__typename id ... on CareerProStep { level target state ladderPoints
 for rar in (None, "limited", "rare"):
     d = q("""query($r: Rarity) { currentUser { boards(mode: CAREER, sport: FOOTBALL, rarity: $r) {
       __typename id title description featured endDate myCurrentStep { %s } } } }""" % STEP, {"r": rar})
-    print(f"::notice title=boards CAREER {rar}::" + json.dumps(d, ensure_ascii=False)[:3500])
+    if rar:
+        continue
+    for b in ((d.get("currentUser") or {}).get("boards") or []):
+        st = b.get("myCurrentStep") or {}
+        rules = "; ".join(x["descriptions"][0]["title"] + (" (" + ", ".join(i["title"] for i in x["descriptions"][0]["items"]) + ")" if x["descriptions"][0]["items"] else "")
+                          for x in st.get("displayedTypedRules") or [] if x.get("descriptions"))
+        print(f"::notice title=Pro {b['title']}::{b['description']} · {st.get('__typename')} nivell {st.get('level')} objectiu {st.get('target')} "
+              f"{st.get('state')} · alineacions {len(st.get('myLineups') or [])} · {rules}")
+    if d.get("error"):
+        print("::notice title=error::" + d["error"])
