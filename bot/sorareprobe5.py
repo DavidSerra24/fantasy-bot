@@ -2,7 +2,7 @@
 import sys
 from bot.sorare import gql, token
 Q = """query($slug: String!, $r: RangeInput, $pos: [Position!], $after: String) { so5 { so5Leaderboard(slug: $slug) {
-  myBench(first: 50, after: $after, includeUsed: true, starterOddsBasisPointsRange: $r, positions: $pos) { pageInfo { hasNextPage endCursor } nodes {
+  myBench(first: 50, after: $after, includeUsed: true, includeNoGame: true, inSeasonEligible: true, starterOddsBasisPointsRange: $r, positions: $pos) { pageInfo { hasNextPage endCursor } nodes {
     ... on ComposeTeamBenchCard { position avg10: averageScore(type: LAST_TEN_PLAYED_SO5_AVERAGE_SCORE)
       anyCard { slug rarityTyped inSeasonEligible } anyPlayer { displayName activeClub { name } }
       eligiblePlayerGameScores(so5LeaderboardSlug: $slug) { projection { grade score } anyGame { date homeTeam { name } awayTeam { name } } } } } } } } }"""
