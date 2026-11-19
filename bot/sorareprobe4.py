@@ -3,7 +3,7 @@ amb les meves cartes (canCompose, cartes elegibles per posició i temporada)."""
 from bot.sorare import gql, token
 
 Q = """query($t: So5FixtureEvent!) { so5 { so5Fixture(sport: FOOTBALL, type: UPCOMING, eventType: $t) { slug gameWeek cutOffDate
-  so5Leaderboards { rulesSummary slug displayName mainRarityType isArena seasonality format { title }
+  so5Leaderboards { rulesSummary description slug displayName mainRarityType isArena seasonality format { title }
     canCompose { missingCards missingPositions notEnoughEligibleCards missingAnyRarities }
     eligibleCardsCountByPosition { position seasonality totalCount usedCardsCount }
     so5League { name myThresholdsStreakTasks { id progress currentThreshold { score } } } } } } }"""
@@ -28,5 +28,5 @@ for t in ("CLASSIC", "DAILY"):
         print(f"::notice title={'✅' if ok else '❌'} {l['format']['title']} · {l['seasonality']} · {l['mainRarityType']}::"
               f"[{l['format']['title']}] {l['displayName']} ({l['slug']}) · falten {c.get('missingCards')} cartes {c.get('missingPositions')} "
               f"poques={c.get('notEnoughEligibleCards')} · elegibles: {cnt}{hs_}")
-        if l["seasonality"] == "IN_SEASON" and ("spain" in l["slug"] or "korea_limited" in l["slug"] or "contenders_limited" in l["slug"]):
+        if "most-wanted" in l["slug"]:
             print(f"::notice title=regles {l['displayName']}::{(l.get('rulesSummary') or '')[:900]} ¶ {(l.get('description') or '')[:600]}".replace("\n", " ¶ "))
