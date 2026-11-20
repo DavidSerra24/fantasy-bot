@@ -31,6 +31,7 @@ ALIAS = json.loads((ROOT / "config" / "futbolfantasy.json").read_text(encoding="
 # Noms dubtosos (no idèntics): el bot no els fa servir fins que el David els confirma per Telegram amb
 # «/nom Rodrigo = Rodri» (o «/nom Rodrigo = no»); es desen a state/ff_alias.json (decisió del David, 3/11).
 ASKS = []
+NAME_BTNS = []  # (nom SorareInside, nom FutbolFantasy) per preguntar amb botons (20/11)
 
 
 def confirmed():
@@ -755,6 +756,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
             seen.add(k)
             if asked.get(k) != today:  # cada pregunta com a molt un cop al dia
                 new.append(f"• «{si_name.strip()}» ({team}, {ps} PS) = «{ffn}»?\n  /nom {si_name.strip()} = {ffn}")
+                NAME_BTNS.append((si_name.strip(), ffn))
                 asked[k] = today
         _sj("ff_asked.json", asked)
         if new:
@@ -766,6 +768,10 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
         print("::notice title=ff::" + l)
     if report:
         telegram(msg)
+    if NAME_BTNS and not dry:  # (20/11) botons en lloc d'escriure «/nom …»
+        from bot.notify import ask
+        ask("❓ És el mateix jugador?", [[(f"✅ {a} = {b_}"[:60], f"/nom {a} = {b_}"), ("❌ No", f"/nom {a} = no")] for a, b_ in NAME_BTNS[:15]])
+    NAME_BTNS.clear()
 
 
 if __name__ == "__main__":

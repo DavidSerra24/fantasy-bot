@@ -394,6 +394,36 @@ def plan(now=None, done=None, fast_only=False):
     return acts, info
 
 
+def button_message(cq, token):
+    """Converteix un botó premut en un missatge equivalent (bot/notify.ask): «sí» en resposta a la proposta d'Arena,
+    «/ven Quique», «/nom A = B»… Treu els botons del missatge i hi afegeix què s'ha triat."""
+    from bot.web import STATE_LOCK, save_json as _sj
+    data = (cq.get("data") or "")[2:]
+    with STATE_LOCK:
+        bt = load_json("tg_buttons.json", {})
+        info = bt.pop(data, None)
+        # els altres botons del mateix missatge ja no valen
+        _sj("tg_buttons.json", bt)
+    msg = cq.get("message") or {}
+    api = f"https://api.telegram.org/bot{token}"
+    try:
+        requests.post(f"{api}/answerCallbackQuery", json={"callback_query_id": cq["id"],
+                      "text": ("👍 " + info["label"]) if info else "Aquest botó ja no és vàlid"}, timeout=20)
+        if info and msg.get("message_id"):
+            txt = (msg.get("text") or "") + f"\n\n→ {info['label']}"
+            requests.post(f"{api}/editMessageText", json={"chat_id": msg["chat"]["id"], "message_id": msg["message_id"], "text": txt[:4000]}, timeout=20)
+    except Exception as e:
+        print("telegram botó:", e)
+    if not info:
+        return {}
+    cmd, reply = info["cmd"], None
+    mm = re.match(r"^sí@(\d+)$", cmd)
+    if mm:  # «sí» a la proposta d'Arena amb aquest id de missatge
+        cmd, reply = "sí", int(mm.group(1))
+    return {"text": cmd, "chat": msg.get("chat") or {}, "date": int(time.time()), "message_id": msg.get("message_id"),
+            "reply_to_message": {"message_id": reply} if reply else None}
+
+
 def telegram_commands(now):
     """Llegeix els missatges nous del xat de Telegram. «/quiniela [competició] resultats» → acció immediata."""
     token, chat = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
@@ -409,6 +439,8 @@ def telegram_commands(now):
     out = []
     for u in r.get("result", []):
         m = u.get("message") or {}
+        if u.get("callback_query"):  # botó premut (20/11): es fa l'ordre desada com si el David l'hagués escrit
+            m = button_message(u["callback_query"], token)
         # codi de 6 xifres recent (entrada de Sorare): no el consumim, és per a bot/sorare.py
         if re.fullmatch(r"\d{6}", re.sub(r"\s", "", m.get("text") or "")) and time.time() - m.get("date", 0) < 600:
             break
@@ -425,6 +457,11 @@ def telegram_commands(now):
             from bot.web import save_json as _sj
             _sj("sorare_yes.json", (load_json("sorare_yes.json", []) + [m.get("date", 0)])[-20:])
             _sj("sorare_yes2.json", (load_json("sorare_yes2.json", []) + [{"d": m.get("date", 0), "r": (m.get("reply_to_message") or {}).get("message_id"), "m": m.get("message_id")}])[-30:])
+            continue
+        mn = re.match(r"(?i)/arenano\s+(\d+)$", t)
+        if mn:  # botó «No» d'una proposta d'Arena (20/11)
+            from bot.web import save_json as _sj
+            _sj("sorare_no.json", (load_json("sorare_no.json", []) + [int(mn.group(1))])[-50:])
             continue
         ma = re.match(r"(?i)/apla[çc]a[tr]?\S*\s+(.+)$", t)
         if ma:  # «/aplaçat Castellón»: partit aplaçat que FotMob encara no marca (5/11)

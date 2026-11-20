@@ -222,6 +222,8 @@ def resolve_by_search(pg, players, entries, field, report, ask=True):
             q[field] = hit; used.add((hit["name"], hit["key"])); alias[str(q["pid"])] = hit["name"]; q.pop("doubt", None)
         elif ask and q.get("in_squad"):
             asked.append(f"{q['short']} ({q['team']})" + (f": és «{q['doubt']}»? → /mister {q['name']} = {q['doubt']}" if q.get("doubt") else ""))
+            if q.get("doubt"):
+                NAME_ASK.append((q["name"], q["doubt"]))
     save_json("mister_alias.json", alias)
     doubt = [a for a in asked if "/mister" in a]
     absent = [a for a in asked if "/mister" not in a]
@@ -375,6 +377,10 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
     return bal, squad, market, have, cap
 
 
+NAME_ASK = []  # (nom Mister, nom font) dubtosos: es pregunta amb botons (20/11)
+BLOCKED_ASK = []  # (lliga, mínim, jugadors) que la salvaguarda no ha venut: es pregunta amb botons (20/11)
+
+
 def forced(q, force):
     """El jugador és a la llista de vendes demanades pel David? (nom curt «A. Sola», o només el cognom «Sola»)."""
     sh = re.sub(r"\s", "", q.get("short") or "").lower()
@@ -442,6 +448,7 @@ def run(dry=False, retira=(), force=()):
                     if blocked:
                         report.append(f"⚠️ {name}: {len(below)} jugadors surten per sota del {minimum}% ({', '.join(q['short'] + ' ' + str(q['pct']) + '%' for q in below[:8])}); "
                                       f"sembla un error de la font i NO en venc cap. Si de debò cal vendre'n, envia «/ven {name}» (tots) o «/ven Nom, Nom».")
+                        BLOCKED_ASK.append((name, minimum, [q["short"] + " " + str(q["pct"]) + "%" for q in below]))
                         bl = load_json("mister_blocked.json", {})
                         bl[name] = [q["short"] for q in below]
                         save_json("mister_blocked.json", bl)
@@ -601,6 +608,16 @@ def run(dry=False, retira=(), force=()):
     for l in report:
         print("::notice title=mister::" + l)
     telegram(msg)
+    if not dry:  # (20/11) botons en lloc de «/ven …»
+        from bot.notify import ask
+        for name, minimum, who in BLOCKED_ASK:
+            ask(f"💸 {name}: vols que posi en venda els que surten per sota del {minimum}%?\n" + ", ".join(who)
+                + "\n(només els que no calen per fer l'onze)", [[(f"💸 Sí, ven-los", f"/ven {name}"), ("✋ No", "/res")]])
+        uniq = list(dict.fromkeys(NAME_ASK))[:15]
+        if uniq:
+            ask("❓ Mister: és el mateix jugador?", [[(f"✅ {a} = {b_}"[:60], f"/mister {a} = {b_}"), ("❌ No", f"/mister {a} = no")] for a, b_ in uniq])
+    BLOCKED_ASK.clear()
+    NAME_ASK.clear()
 
 
 if __name__ == "__main__":

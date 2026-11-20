@@ -805,12 +805,20 @@ def arena_props(fx, final=False, approved=()):
     print("::notice title=sorare arenes ocupats::" + ", ".join(sorted(a["anyPlayer"]["displayName"] for l in lus for a in l["so5Appearances"]
                                                                        if a["anyPlayer"].get("slug") in busy_p))[:1500])
     cache, pool = {}, []
-    allq = cards(arena, floor=2000, rarities=ARENA_RAR, skip=busy)
+    nG = int(gw_cfg(fx.get("gameWeek")).get("girona_arenas") or 0)  # Arenes del Girona amb confirmació (20/11)
+    global GAZZA_KEEP
+    keep_ = GAZZA_KEEP
+    if nG:  # els Gazzaniga reservats són precisament per a les Arenes del Girona
+        GAZZA_KEEP = 0
+    try:
+        allq = cards(arena, floor=2000, rarities=ARENA_RAR, skip=busy)
+    finally:
+        GAZZA_KEEP = keep_
     print("::notice title=sorare arenes porters::" + ", ".join(f"{q['name']} (tier {q['tier']}, {q.get('date')}, carta {'ocupada' if q['card'] in busy else 'lliure'})"
                                                                  for q in allq if q["pos"] == "Goalkeeper")[:1500])
     for q in allq:
         base_p = q["player"].split("#")[0]
-        if q["card"] in busy or (base_p in busy_p and not q["gazza"]) or not q.get("date") or (q["girona"] and not q["gazza"]):
+        if q["card"] in busy or (base_p in busy_p and not q["gazza"]) or not q.get("date") or (q["girona"] and not q["gazza"] and not nG):
             continue
         D = _when(q)
         if D < now + dt.timedelta(minutes=3 if final else 10):
@@ -820,37 +828,57 @@ def arena_props(fx, final=False, approved=()):
         if xi is not None:
             if not starts(xi, base_p, q["name"]):
                 continue  # onze oficial publicat i no hi és
-            q = dict(q, tier=0, src=xi[0])  # titular confirmat
+            q = dict(q, tier=0, src=xi[0], xi=True)  # titular confirmat
         elif q["tier"] == 0 and not (final and D - now < dt.timedelta(minutes=50)):
             q = dict(q, tier=1)  # ≥80%, encara sense onze
         else:
             continue  # <80% sense onze, o partit que ja hauria de tenir onze i no se sap
         pool.append(q)
-    dates = sorted({_when(q) for q in pool})
+    # (20/11) Arenes del Girona: amb jugadors del Girona (primer) i la resta de partits que comencen a la mateixa hora
+    # o més tard (l'Arena es tanca amb el primer partit); les altres Arenes ja no fan servir cap jugador del Girona
+    gpool = []
+    if nG:
+        gir = [q for q in pool if q["girona"]]
+        if gir:
+            G = min(_when(q) for q in gir)
+            gpool = [dict(q, tier=-1) if q["girona"] else q for q in pool if q["girona"] or _when(q) >= G]
+        pool = [q for q in pool if not q["girona"]]
+    dates = sorted({_when(q) for q in pool + gpool})
     done_ap = []
+
+    def _drop(got):
+        nonlocal pool, gpool
+        pool = [q for q in pool if q["player"] not in got]
+        gpool = [q for q in gpool if q["player"] not in got]
     for ap in approved:
-        gkq = next((q for q in pool if q["player"] == ap["gk"]), None)
+        src = gpool if ap.get("girona") else pool
+        gkq = next((q for q in src if q["player"] == ap["gk"]), None)
         pick = None
         if gkq:
-            sub = [gkq] + [dict(q, tier=-1) if q["player"] in ap["players"] else q for q in pool if q["pos"] != "Goalkeeper"]
+            sub = [gkq] + [dict(q, tier=-2 if q["player"] in ap["players"] else q["tier"]) for q in src if q["pos"] != "Goalkeeper"]
             pick = build(sub, ARENA, ARENA_CAP, "avg", hard=True)
             if pick and pick[0]["player"] != gkq["player"]:
                 pick = None
         if pick:
-            got = {q["player"] for q in pick}
-            pool = [q for q in pool if q["player"] not in got]
+            _drop({q["player"] for q in pick})
             done_ap.append(((pick, captain(pick)), ap))
         else:
             done_ap.append((None, ap))
+    gprops = []
+    for _ in range(nG):
+        pick = build(gpool, ARENA, ARENA_CAP, "avg", hard=True)
+        if not pick:
+            break
+        gprops.append((pick, captain(pick)))
+        _drop({q["player"] for q in pick})
     props = []
     while True:
         pick = build(pool, ARENA, ARENA_CAP, "avg", hard=True)
         if not pick:
             break
         props.append((pick, captain(pick)))
-        got = {q["player"] for q in pick}
-        pool = [q for q in pool if q["player"] not in got]
-    return arena, done_ap, props, dates
+        _drop({q["player"] for q in pick})
+    return arena, done_ap, props, dates, gprops
 
 
 def _arena_line(i, pick, cap):
@@ -982,7 +1010,9 @@ def arena_room(fx, extra=0):
     if mx is None:
         return 99
     done = len({l["id"] for l in fx.get("mySo5Lineups") or [] if l["so5Leaderboard"].get("isArena")})
-    return mx - done - extra
+    from bot.web import load_json as _lj
+    gdone = sum(1 for a in (_lj(ARSTATE, {}).get("asks") or {}).values() if a.get("girona") and a.get("status") == "done")
+    return mx - (done - gdone) - extra
 
 
 def arenas_auto():
@@ -993,6 +1023,31 @@ def arenas_auto():
         return bool(json.load(open("config/arenas.json")).get("auto"))
     except Exception:
         return False
+
+
+def _ask_arena(text):
+    """Missatge de proposta d'Arena amb els botons «Sí, fes-la» / «No» (20/11); torna l'id del missatge."""
+    import os
+    import secrets
+    import requests
+    from bot.notify import ask
+    from bot.web import STATE_LOCK, load_json, save_json
+    mid = ask(text, [])
+    if not mid:
+        return None
+    with STATE_LOCK:
+        bt = load_json("tg_buttons.json", {})
+        ky, kn = secrets.token_hex(4), secrets.token_hex(4)
+        bt[ky] = {"cmd": f"sí@{mid}", "label": "✅ Sí, fes-la"}
+        bt[kn] = {"cmd": f"/arenano {mid}", "label": "❌ No"}
+        save_json("tg_buttons.json", bt)
+    try:
+        requests.post(f"https://api.telegram.org/bot{os.getenv('TELEGRAM_BOT_TOKEN')}/editMessageReplyMarkup",
+                      json={"chat_id": os.getenv("TELEGRAM_CHAT_ID"), "message_id": mid, "reply_markup": {"inline_keyboard": [[
+                          {"text": "✅ Sí, fes-la", "callback_data": "b:" + ky}, {"text": "❌ No", "callback_data": "b:" + kn}]]}}, timeout=20)
+    except Exception as e:
+        print("::warning title=telegram botons::" + str(e)[:200])
+    return mid
 
 
 def late_arenas(kind="prop", at=None):
@@ -1015,6 +1070,10 @@ def late_arenas(kind="prop", at=None):
         st = {"fx": fx["slug"], "asks": {}}
     asks = st["asks"]
     ev = _yes_events()
+    nos = set(load_json("sorare_no.json", []))
+    for a in asks.values():  # botó «No» (20/11)
+        if a.get("status") == "asked" and a.get("id") in nos:
+            a["status"] = "rejected"
     asked = sorted([a for a in asks.values() if a.get("status") == "asked"], key=lambda a: a["at"])
     for a in asked:
         later = [b["at"] for b in asked if b["at"] > a["at"]]
@@ -1022,7 +1081,7 @@ def late_arenas(kind="prop", at=None):
         if any(r == a.get("id") for d, r in ev if r) or any(r is None and a["at"] <= d < nxt for d, r in ev):
             a["status"] = "approved"
     approved = [a for a in asks.values() if a.get("status") == "approved"]
-    arena, built, props, dates = arena_props(fx, final=kind == "go", approved=approved)
+    arena, built, props, dates, gprops = arena_props(fx, final=kind == "go", approved=approved)
     st["kicks"] = [d.isoformat() for d in dates] + [a["first"] for a in approved if a.get("first")]
     ess = (arena or {}).get("format", {}).get("entryItem") or {}
     if kind == "go":
@@ -1039,13 +1098,13 @@ def late_arenas(kind="prop", at=None):
                 telegram(f"⚠️ Arena amb {ap.get('gk_name') or ap['gk']}: ara no surt cap alineació vàlida; no l'he feta.")
                 continue
             pick, cap = res
-            if arena_room(fx, gone) <= 0:  # límit d'Arenes de la jornada (essència; el David, 13/11)
+            if not ap.get("girona") and arena_room(fx, gone) <= 0:  # límit d'Arenes de la jornada (essència; el David, 13/11)
                 ap["status"] = "skip"
                 telegram(f"🏟️ Arena amb {ap.get('gk_name') or ap['gk']}: no l'envio, ja tens les {gw_cfg(fx.get('gameWeek')).get('arenas_max')} Arenes de la jornada.")
                 continue
             try:
                 save_lineup(arena, pick, cap, entry=ess.get("myEntryItemId"))
-                gone += 1
+                gone += 0 if ap.get("girona") else 1
                 ap["status"] = "done"
                 changed = sorted(set(ap["players"]) ^ {q["player"] for q in pick})
                 telegram(f"✅ Arena enviada ({ess.get('quantity') or 100} d'essència): {arena_text(pick, cap)}"
@@ -1061,7 +1120,28 @@ def late_arenas(kind="prop", at=None):
         f = min(_when(q) for q in p)
         return all(q.get("tier") == 0 for q in p if _when(q) == f)
     sent = 0
-    pend_ap = sum(1 for a in asks.values() if a.get("status") == "approved")
+    pend_ap = sum(1 for a in asks.values() if a.get("status") == "approved" and not a.get("girona"))
+    # (20/11) Arenes del Girona: el bot les prepara quan surt l'onze del Girona i les pregunta amb botons (sempre,
+    # encara que les altres Arenes vagin sense confirmació); s'envien 6 min abans del primer partit si el David diu sí
+    for pick, cap in gprops:
+        gir = [q for q in pick if q.get("girona")]
+        if not gir or not all(q.get("xi") for q in gir):
+            continue  # encara no hi ha l'onze oficial del Girona (o algun no és titular confirmat)
+        gk = pick[0]["player"]
+        sig = ",".join(sorted(q["player"] for q in pick))
+        a = asks.get(gk)
+        if a and (a["status"] in ("approved", "done", "rejected") or (a["status"] == "asked" and a.get("sig") == sig)):
+            continue
+        first = min(_when(q) for q in pick)
+        hhmm = (first - dt.timedelta(minutes=6)).astimezone(M).strftime("%H:%M")
+        from bot.tgimg import send_lineups
+        send_lineups([img_card("Arena Beginner · Girona", pick, cap, ARENA, gw=fx.get("gameWeek", ""), num=f"ENVIO {hhmm}",
+                               subtitle=f"l'envio a les {hhmm} si dius que sí · {sum(q['avg'] for q in pick):.0f}/260",
+                               footer="✓ = titular confirmat · la resta, 80–90%", tag="Arena", tag_col="#dc2626")])
+        mid = _ask_arena(f"🏟️ Arena del Girona ({ess.get('quantity') or 100} d'essència): {arena_text(pick, cap)}\n"
+                         f"La faig? Si dius que sí, l'envio a les {hhmm} (refeta amb els titulars del moment).")
+        asks[gk] = {"id": mid, "at": int(time.time()) - 2, "gk": gk, "gk_name": pick[0]["name"], "players": [q["player"] for q in pick],
+                    "first": first.isoformat(), "sig": sig, "status": "asked", "girona": True}
     for pick, cap in props:
         if not ready(pick):
             continue
@@ -1076,16 +1156,18 @@ def late_arenas(kind="prop", at=None):
         auto = arenas_auto()
         msg = (f"🏟️ Arena Beginner ({ess.get('quantity') or 100} d'essència) amb {pick[0]['name']}:\n{arena_text(pick, cap)}\n"
                f"El jugador del primer partit ({first.astimezone(M):%a %H:%M}) ja és titular confirmat. "
-               + ("La faré (sense confirmació)." if auto else "La faig? Respon «sí» a aquest missatge.")
+               + ("La faré (sense confirmació)." if auto else "La faig?")
                + f" L'envio a les {(first - dt.timedelta(minutes=6)).astimezone(M):%H:%M}, refeta amb els titulars del moment.")
         from bot.tgimg import send_lineups
         hhmm = (first - dt.timedelta(minutes=6)).astimezone(M).strftime("%H:%M")
         mid = send_lineups([img_card("Arena Beginner", pick, cap, ARENA, gw=fx.get("gameWeek", ""), num=f"ENVIO {hhmm}",
                                                          subtitle=f"l'envio a les {hhmm} · {sum(q['avg'] for q in pick):.0f}/260",
                                                          footer="✓ = titular confirmat · la resta, 80–90%", tag="Arena", tag_col="#9333ea")],
-                         caption=("La faré a les " if auto else "La faig? Respon «sí» a aquesta imatge. L'envio a les ") + hhmm
+                         caption=("La faré a les " if auto else "L'envio a les ") + hhmm
                          + f" ({ess.get('quantity') or 100} d'essència), refeta amb els titulars del moment.")
-        if mid is True or not mid:
+        if not auto:  # (20/11) confirmació amb botons
+            mid = _ask_arena(msg)
+        elif mid is True or not mid:
             mid = _tg_send(msg) if not mid else None
         asks[gk] = {"id": mid, "at": int(time.time()) - 2, "gk": gk, "gk_name": pick[0]["name"], "players": [q["player"] for q in pick],
                     "first": first.isoformat(), "sig": sig, "status": "approved" if auto else "asked"}

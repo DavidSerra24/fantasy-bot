@@ -172,6 +172,9 @@ def fill_team(page, comp, slug, entry, prev):
     return res
 
 
+P11_ASK = []  # (nom SorareInside, nom Predicted11) dubtosos: es pregunta amb botons (20/11)
+
+
 def run(comps, force=False, max_hours=30.0):
     report = []
     # equivalències confirmades pel David per Telegram («/p11 A = B»; «= no» → es posa el suplent)
@@ -263,6 +266,7 @@ def run(comps, force=False, max_hours=30.0):
                             if a and b_:
                                 done_ = "L'he posat igualment perquè no hi havia cap suplent segur (mai deixo l'onze amb menys d'11)" if a in forced_si else "No l'he posat"
                                 bad.append(f"{slug}: ❓ «{a}» (SorareInside) és «{b_}» a Predicted11? {done_}. Respon «/p11 {a} = {b_}» si és el mateix (o «= no»)")
+                                P11_ASK.append((a, b_))
                     if sub:  # s'ha posat el suplent, però cal corregir el nom
                         bad.append(f"{slug}: ❓ no trobo a Predicted11 i hi he posat el suplent ({sub.group(1).strip()}) — digues-me com es diu allà i ho corregeixo")
                     if c["n"] != 11:  # (6/11, Como amb 10) que no passi desapercebut
@@ -297,6 +301,11 @@ def run(comps, force=False, max_hours=30.0):
     for l in report:
         print("::notice title=p11::" + l.replace("\n", " | "))
     telegram(msg)
+    uniq = list(dict.fromkeys(P11_ASK))[:15]
+    if uniq:  # (20/11) botons en lloc d'escriure «/p11 …»
+        from bot.notify import ask
+        ask("❓ Predicted11: és el mateix jugador?", [[(f"✅ {a} = {b_}"[:60], f"/p11 {a} = {b_}"), ("❌ No", f"/p11 {a} = no")] for a, b_ in uniq])
+    P11_ASK.clear()
 
 
 if __name__ == "__main__":

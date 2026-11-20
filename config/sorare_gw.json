@@ -1,5 +1,5 @@
 {
-  "_nota": "Excepcions per jornada (gameWeek). rare_max / limited_max: All Star amb el màxim d'alineacions (fins a 4), baixant de franja de % si cal fins a floor (punts bàsics, 0 = qualsevol %). girona: jugadors del Girona permesos a All Star i sense reservar Gazzaniga (totes les còpies es fan servir). arenas_max: màxim d'Arenes de la jornada (0 = cap). Decisió del David, 13/11 (GW730): «màximes alineacions possibles a les dues rareses, es permeten jugadors del Girona, no faré cap Arena». limited_min: si a All Star Limited no surt cap alineació amb ≥80%, se'n fa una baixant de franja (el David, 17/11, GW731: «vull completar mínim una»). girona_keep: el Girona es guarda també a Rare (només si el David ho demana). GW732 (el David, 17/11): arenas_max 0, guarda 200 d'essència per fer ell dues Arenes del Girona (el Girona ja queda fora de Limited; a Rare, amb <100 d'essència Rare, sí que hi va).",
+  "_nota": "Excepcions per jornada (gameWeek). rare_max / limited_max: All Star amb el màxim d'alineacions (fins a 4), baixant de franja de % si cal fins a floor (punts bàsics, 0 = qualsevol %). girona: jugadors del Girona permesos a All Star i sense reservar Gazzaniga (totes les còpies es fan servir). arenas_max: màxim d'Arenes de la jornada (0 = cap). Decisió del David, 13/11 (GW730): «màximes alineacions possibles a les dues rareses, es permeten jugadors del Girona, no faré cap Arena». limited_min: si a All Star Limited no surt cap alineació amb ≥80%, se'n fa una baixant de franja (el David, 17/11, GW731: «vull completar mínim una»). girona_keep: el Girona es guarda també a Rare (només si el David ho demana). GW732 (el David, 17/11): arenas_max 0, guarda 200 d'essència per fer ell dues Arenes del Girona (el Girona ja queda fora de Limited; a Rare, amb <100 d'essència Rare, sí que hi va). GW732 (el David, 20/11): 400 d'essència → 2 Arenes del Girona (girona_arenas: el bot les prepara quan surt l'onze del Girona i les pregunta amb botons) + com a molt 2 Arenes més automàtiques (arenas_max, sense comptar les del Girona).",
   "730": {
     "rare_max": true,
     "limited_max": true,
@@ -12,6 +12,7 @@
     "floor": 1000
   },
   "732": {
-    "arenas_max": 0
+    "arenas_max": 2,
+    "girona_arenas": 2
   }
 }
