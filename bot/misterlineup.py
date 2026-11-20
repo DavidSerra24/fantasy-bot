@@ -102,7 +102,10 @@ def _best_lineup(squad):
                 q.pop("rule_skip", None)
             best = alt
     _, tac, pick = best
-    cap = max(pick, key=lambda q: (q["xps"] or -1, q["xpct"] or 0))
+    # Quique (% de SorareInside): el capità només entre els del 80–90% (o titulars confirmats, 100%); decisió del
+    # David, 20/11 («ara el té Martí Vilà i si no juga la liem»). Si no n'hi ha cap, el de més % i després més PS.
+    sure = [q for q in pick if q.get("bmode") == "ff" or (q["xpct"] or 0) >= 80]
+    cap = max(sure, key=lambda q: (q["xps"] or -1, q["xpct"] or 0)) if sure else max(pick, key=lambda q: (q["xpct"] or 0, q["xps"] or -1))
     return tac, pick, cap
 
 
