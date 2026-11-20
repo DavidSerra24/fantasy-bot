@@ -251,7 +251,7 @@ if __name__ == "__main__":
          "probe4": lambda: __import__("bot.sorareprobe4"),
          "probe5": lambda: __import__("bot.sorareprobe5"),
          "probe6": lambda: __import__("bot.sorareprobe6"),
-         "inseason": lambda: __import__("bot.sorareinseason", fromlist=["x"]).run(dry=True),
+         "inseason": lambda: print("::notice title=Pro / In Season (prova)::" + " ¶ ".join(__import__("bot.sorareinseason", fromlist=["x"]).play(dry=True)[1]) or "cap"),
          "now": lambda: __import__("bot.sorarenow"),
          "state": lambda: __import__("bot.statedump"),
          "setimg": lambda: __import__("bot.sorareset", fromlist=["send_images"]).send_images("🏀 Sorare · Set NBA (prova d'imatge)"),

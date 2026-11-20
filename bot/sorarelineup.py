@@ -1116,6 +1116,14 @@ def run(mode="dry", live=False):
                           for a in l["so5Appearances"])
     else:
         SKIP_EXTRA.clear()
+        # (20/11) prioritat: primer el tauler Pro, després In Season i després les Classic (el David: «no ha de preguntar»)
+        ins_rep = []
+        try:
+            from bot import sorareinseason
+            ins_used, ins_rep = sorareinseason.play(dry=dry)
+            SKIP_EXTRA.update(ins_used)
+        except Exception as e:
+            ins_rep = [f"⚠️ Pro / In Season: {type(e).__name__}: {str(e)[:200]}"]
         fx = gql(FIXTURE, token=token())["so5"]["so5Fixture"]
         save_json("sorare_fixture.json", {"slug": fx["slug"], "gw": fx["gameWeek"], "cutoff": fx["cutOffDate"]})
         lbs = [l for l in fx["so5Leaderboards"] if not l["isArena"] and l["format"]["title"] == "Classic"]
@@ -1142,6 +1150,8 @@ def run(mode="dry", live=False):
            + {"dry": " (PROVA: no envio res)", "fill": "", "final": " · revisió final"}[mode],
            f"Essència: Rare {rare_ess if rare_ess is not None else '?'} · Limited {essence.get('limited', '?')}"
            + (" → Girona permès a All Star Rare" if girona_rare_allstar else "")]
+    if not live and ins_rep:
+        rep += ins_rep
     used = {"rare": set(), "limited": set()}  # sense repetir jugadors dins de cada raresa (un jugador pot anar a Rare i a Limited)
     plan = []
     # Rare: tantes com pugui (fins a 4 per competició) amb jugadors del ≥80% (el David, 17/11; abans només 1)

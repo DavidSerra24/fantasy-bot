@@ -220,10 +220,7 @@ def plan(now=None, done=None, fast_only=False):
             k = f"sorare-mati:{sf['slug']}:{local.date()}"
             if due(k, mt, C - dt.timedelta(hours=2)):
                 add(k, mt, "sorare", "fill", C - dt.timedelta(hours=2))
-        # (20/11) un cop per jornada: hi ha 5 jugadors del 80–90% per fer alguna alineació In Season o del tauler Pro?
-        k = f"sorare-inseason:{sf['slug']}"
-        if due(k, C - dt.timedelta(hours=3), C - dt.timedelta(minutes=30)):
-            add(k, C - dt.timedelta(hours=3), "sorareinseason", None, C - dt.timedelta(minutes=30))
+        # (20/11) el tauler Pro i les In Season es fan dins de cada passada de Sorare Pro (sorareinseason.play)
         for lead, mode in ((dt.timedelta(hours=2), "fill"), (dt.timedelta(minutes=40), "final")):
             k = f"sorare-{mode}:{sf['slug']}:{int(lead.total_seconds())}"
             if due(k, C - lead, C - dt.timedelta(minutes=5)):
