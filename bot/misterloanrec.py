@@ -55,12 +55,13 @@ def run(name="Quique", maxn=None, send=False):
             sid = cache.get("sid:" + league)
             slots_ = (cap or 20) - (have or len(squad))  # places lliures a la plantilla (màx. 20; el David, 7/11: amb 17 només 3)
         b.close()
-    maxn = dict(maxn, N=max(0, min(maxn.get("N", 99), slots_)))
+    # (20/11, el David) sense límit per posició: com a molt tantes cessions com places lliures a la plantilla
+    N = max(0, slots_)
     have = {q["pid"] for q in squad}
     cands = []
     for c in loans:
         P = PN.get(c.get("P"))
-        if P not in maxn or P == "N" or not maxn[P] or c["pid"] in have or not c.get("si_e") or c.get("pct") is None:
+        if not P or c["pid"] in have or not c.get("si_e") or c.get("pct") is None:
             continue
         cands.append({"pid": c["pid"], "name": c["name"], "short": f"{c['name']} (cessió de {c['owner']})", "P": P, "pct": c["pct"],
                       "si": c["si_e"], "onsale": False, "loaned": False, "team": c.get("team"), "owner": c["owner"], "loan": c.get("loan"), "new": True})
@@ -71,38 +72,43 @@ def run(name="Quique", maxn=None, send=False):
         k = str(((q.get("si") or {}).get("key")) or "")
         if k in order:
             q["side"] = k
-    base = evaluate(squad)
+    base = evaluate(squad) or ((0, 0, 0, 0.0), "-", [], None)
     print("::notice title=onze d'ara::" + base[1] + ": " + ", ".join(q["name"] for q in base[2]) + f" · {base[0]}")
-    # els millors de cada posició (per punts esperats) per no provar milers de combinacions
-    pools = {P: sorted([c for c in cands if c["P"] == P], key=lambda c: -((c["si"].get("ps") or 0) * c["pct"]))[:8] for P in maxn if P in "GDMF"}
+    # cerca voraç: a cada pas s'afegeix la cessió que més millora l'onze (més jugadors, menys rivals, més punts esperats)
+    pool = sorted(cands, key=lambda c: -((c["si"].get("ps") or 0) * c["pct"]))[:30]
     best = (base[0], 0), base, ()
-    combos = [[()] + [x for k in range(1, maxn[P] + 1) for x in itertools.combinations(pools[P], k)] for P in pools if maxn[P]]
-    for parts in itertools.product(*combos):
-        add = tuple(q for part in parts for q in part)
-        if not add or len(add) > maxn.get("N", 99):  # N = màxim de cessions en total (el David, 7/11: «només puc fitxar 3»)
-            continue
-        r = evaluate(squad + list(add))
-        if not r:
-            continue
-        used = tuple(q for q in add if q in r[2])
-        if len(used) < len(add):
-            continue  # la mateixa combinació sense els que no entren ja s'ha provat
-        key = (r[0], -len(add))
-        if key > best[0]:
-            best = key, r, add
+    add = []
+    while len(add) < N:
+        top = None
+        for c in pool:
+            if c in add:
+                continue
+            r = evaluate(squad + add + [c])
+            if not r or c not in r[2]:
+                continue
+            key = (r[0], -(len(add) + 1))
+            if top is None or key > top[0]:
+                top = (key, r, c)
+        if not top or top[0][0] <= best[0][0]:
+            break
+        add.append(top[2])
+        best = top[0], top[1], tuple(add)
+    maxn = {"N": N}
     (_, (bkey, tac, pick, capn), add) = best[0], best[1], best[2]
     o = {"G": 0, "D": 1, "M": 2, "F": 3}
     fmt = lambda q: f"{q['short'] if not q.get('new') else q['name']}{' ©' if q is capn else ''} ({q.get('xpct') if q.get('xpct') is not None else '?'}%/{q.get('xps') if q.get('xps') is not None else '-'})"
-    lines = [f"🔁 {name} · cessions recomanades per a l'alineació (fins a {', '.join(f'{v} {LBL[k]}' for k, v in maxn.items() if v and k in LBL)}{f", {maxn['N']} en total" if maxn.get('N') else ''}):"]
+    lines = [f"🔁 {name} · demana la cessió d'aquests jugadors (tens {N} places lliures a la plantilla):"]
     if not add:
         lines.append("Cap cessió millora l'onze d'ara." + (f" ({len(cands)} cedibles mirats)" if cands else " No hi ha cedibles amb dades de SorareInside."))
     else:
         for q in sorted(add, key=lambda q: o[q["P"]]):
             ps = q["si"].get("ps")
             lines.append(f"• {LBL[q['P']]} {q['name']} ({q['team']}) · {q['pct']}% · PS {('≈' if q['si'].get('ps_est') else '') + str(ps) if ps is not None else '-'} · de {q['owner']}")
-        lines.append(f"Punts esperats de l'onze: {base[0][3]} → {bkey[3]} (+{bkey[3] - base[0][3]:.1f})")
+        lines.append(f"Punts esperats de l'onze: {base[0][3]} → {bkey[3]} (+{bkey[3] - base[0][3]:.1f})"
+                     + (f" · onze complet ({bkey[0]} jugadors; ara {base[0][0]})" if bkey[0] > base[0][0] else ""))
     lines.append(f"Onze ({tac}): " + ", ".join(fmt(q) for q in sorted(pick, key=lambda q: o[q["P"]])))
-    lines.append("Aquests no els demano: les cessions les fas tu. Quan els tinguis, l'alineació els tindrà en compte.")
+    if add:
+        lines.append("El bot no les pot demanar: les demanes tu. Quan els tinguis, l'alineació els tindrà en compte.")
     msg = "\n".join(lines)
     print("::notice title=cessions recomanades::" + msg.replace("\n", " ¶ "))
     print("::notice title=cedibles mirats::" + ", ".join(f"{c['name']} {LBL[c['P']]} {c['pct']}%/{c['si'].get('ps')}" for c in cands)[:3000])

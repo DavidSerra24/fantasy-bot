@@ -6,6 +6,9 @@ on:
     - cron: "5,35 * * * *"
   workflow_dispatch:
 concurrency: fantasy
+permissions:
+  contents: read
+  actions: write  # per encadenar la següent execució (20/11)
 jobs:
   auto:
     runs-on: ubuntu-24.04
@@ -68,3 +71,10 @@ jobs:
             state
             !state/session_*.json
           key: state-${{ github.run_id }}
+      # (20/11) GitHub de vegades no arrenca les execucions programades durant hores (el 20/11 de 5:25 a 9:00 no en va
+      # arrencar cap i no es va fer el mercat de les 6:00): en acabar, cada execució amb feina deixa la següent a la cua
+      - name: Encadenar la següent execució
+        if: always() && steps.plan.outputs.has == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST repos/${{ github.repository }}/actions/workflows/auto.yml/dispatches -f ref=main || true
