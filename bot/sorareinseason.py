@@ -255,7 +255,10 @@ def play(dry=False):
                 if pos:
                     f["positions"] = pos
                 ns += _pages(lambda a: _g(GAMES_STEP, {"st": st["id"], "f": f, "after": a}, token=tk)["currentUser"]["step"]["myFilteredBench"])
-            r = pick5(_cands(ns, now), used)
+            cc = _cands(ns, now)
+            r = pick5(cc, used)
+            if dry:
+                rep.append(f"· Pro {bd['title']}: {len(ns)} cartes, {len(cc)} amb partit, {sum(q['ins'] for q in cc)} In Season")
         except Exception as e:
             rep.append(f"⚠️ Pro {bd['title']}: {type(e).__name__}: {str(e)[:150]}"); continue
         if not r:
@@ -298,6 +301,9 @@ def play(dry=False):
             for pos in (None, ["Goalkeeper"]):
                 ns += _pages(lambda a: _g(GAMES_LB, {"slug": lb["slug"], "r": R80, "pos": pos, "after": a}, token=tk)["so5"]["so5Leaderboard"]["myBench"])
             cands = _cands(ns, now)
+            if dry:
+                rep.append(f"· {lb['displayName']}: {len(ns)} cartes, {len(cands)} amb partit, {sum(q['ins'] for q in cands)} In Season "
+                           f"({', '.join(q['name'] + ' ' + q['pos'] for q in cands if q['ins'])})")
         except Exception as e:
             rep.append(f"⚠️ {lb['displayName']}: {type(e).__name__}: {str(e)[:150]}"); continue
         picks, players = [], set()
