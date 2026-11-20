@@ -73,6 +73,21 @@ def best_lineup(squad):
         LEVEL[0] = "none"
         free = _best_lineup(squad)
         if free and len(free[1]) >= base[0] and sum(lband(q) for q in free[1]) < base[1]:
+            # treure els rivals que es puguin treure sense perdre franja: es canvia el jugador per un altre de la mateixa
+            # posició, de la mateixa franja o millor, que no xoqui amb ningú (p. ex. Vilà → A. Rodríguez, tots dos 60%)
+            tac, pick, _ = free
+            LEVEL[0] = "all"
+            for q in list(pick):
+                if not clash(q, [o for o in pick if o is not q]):
+                    continue
+                rest = [o for o in pick if o is not q]
+                alts = [c for c in squad if c not in pick and c["P"] == q["P"] and not c.get("loaned") and not c["onsale"]
+                        and lband(c) <= lband(q) and not clash(c, rest)]
+                if alts:
+                    pick[pick.index(q)] = max(alts, key=lambda c: (-lband(c), c["xps"] or -1))
+            sure = [o for o in pick if (o["xpct"] or 0) >= 80]
+            cap = max(sure, key=lambda o: (o["xps"] or -1, o["xpct"] or 0)) if sure else max(pick, key=lambda o: (o["xpct"] or 0, o["xps"] or -1))
+            free = (tac, pick, cap)
             for q in free[1]:
                 q["rule_skip"] = any(o is not q and o.get("match") and o.get("match") == q.get("match") and o.get("side") != q.get("side")
                                      for o in free[1])
