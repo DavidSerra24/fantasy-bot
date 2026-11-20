@@ -253,6 +253,7 @@ if __name__ == "__main__":
          "probe6": lambda: __import__("bot.sorareprobe6"),
          "probe7": lambda: __import__("bot.sorareprobe7"),
          "probe8": lambda: __import__("bot.sorareprobe8"),
+         "probe9": lambda: __import__("bot.sorareprobe9"),
          "inseason": lambda: print("::notice title=Pro / In Season (prova)::" + " ¶ ".join(__import__("bot.sorareinseason", fromlist=["x"]).play(dry=True)[1]) or "cap"),
          "now": lambda: __import__("bot.sorarenow"),
          "state": lambda: __import__("bot.statedump"),
