@@ -41,7 +41,7 @@ LEVEL = ["all"]  # norma de rivals que s'està provant: "all" (cap rival) → "b
 def clash(q, pick):
     """Norma de rivals (decisió del David, 4/11): cap jugador amb un de l'equip rival. Si així no surt l'onze, la
     norma antiga (un porter o defensa no va amb cap jugador del rival) i, si tampoc, se salta (best_lineup)."""
-    if not q.get("match"):
+    if not q.get("match") or LEVEL[0] == "none":
         return False
     for o in pick:
         if o.get("match") == q["match"] and o.get("side") != q.get("side") and (LEVEL[0] == "all" or q["P"] in "GD" or o["P"] in "GD"):
@@ -60,12 +60,26 @@ def lband(q):
 
 def best_lineup(squad):
     """Primer sense cap rival; si no surt cap onze complet així, amb la norma antiga; si tampoc, saltant-la."""
-    res = None
+    res, used = None, "all"
     for lvl in ("all", "back"):
-        LEVEL[0] = lvl
+        LEVEL[0] = used = lvl
         res = _best_lineup(squad)
         if res and not any(q.get("rule_skip") for q in res[1]):
             break
+    # Quique (20/11, el David: «jo vull que siguin titulars tots»): la norma de rivals no pot fer entrar un jugador de
+    # menys %. Si l'onze sense la norma té millors franges de % que el que la respecta, es posa el de sense norma.
+    if res and any(q.get("bmode") != "ff" for q in res[1]):
+        base = (len(res[1]), sum(lband(q) for q in res[1]))
+        LEVEL[0] = "none"
+        free = _best_lineup(squad)
+        if free and len(free[1]) >= base[0] and sum(lband(q) for q in free[1]) < base[1]:
+            for q in free[1]:
+                q["rule_skip"] = any(o is not q and o.get("match") and o.get("match") == q.get("match") and o.get("side") != q.get("side")
+                                     for o in free[1])
+            res = free
+        else:  # es torna a calcular amb la norma (el càlcul sense norma ha esborrat les marques)
+            LEVEL[0] = used
+            res = _best_lineup(squad)
     LEVEL[0] = "all"
     return res
 
