@@ -385,10 +385,12 @@ def plan(now=None, done=None, fast_only=False):
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))
-    if fast_only:
-        return [a for a in acts if is_fast(a)], info
     try:  # els missatges de Telegram mai han d'aturar el planificador
-        new_tg = telegram_commands(now)
+        # (20/11) també al carril ràpid (cada 3 min), perquè els botons responguin aviat; amb el bloqueig, els dos
+        # carrils no llegeixen els mateixos missatges alhora. Les ordres lentes queden a tg_actions.json per al lent.
+        from bot.web import STATE_LOCK as _L0
+        with _L0:
+            new_tg = telegram_commands(now)
         # (20/11) les ordres del David (quiniela, /ven…) es desen fins que es fan: el 20/11 les quinieles van arribar
         # quan l'execució s'acabava, van quedar «per a la següent» i es van perdre (el missatge ja estava llegit)
         from bot.web import STATE_LOCK as _L, save_json as _sj
@@ -399,6 +401,8 @@ def plan(now=None, done=None, fast_only=False):
         acts += [a for a in keep if a["key"] not in {x["key"] for x in acts}]
     except Exception as e:
         info.append(f"Telegram: error llegint missatges ({type(e).__name__}: {e})")
+    if fast_only:
+        return [a for a in acts if is_fast(a)], info
     return acts, info
 
 
