@@ -7,10 +7,19 @@ txt = json.dumps(load_json("digest.json", {}), ensure_ascii=False)
 slugs = set()
 for w in who:
     slugs |= set(re.findall(r'"([a-z0-9-]*' + w + r'[a-z0-9-]*)"', txt))
+try:  # els slugs surten del banc del tauler personal (totes les meves cartes, també sense partit o no disponibles)
+    from bot.sorareset import STEP, BENCH
+    st = gql(STEP, {"sp": "NBA", "m": "CAREER"}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
+    d = gql(BENCH, {"st": st["id"], "after": None, "f": {"includeUsed": True, "includeNoGame": True, "includeUnavailablePlayers": True}}, token=token())
+    for n in d["currentUser"]["step"]["myFilteredBench"]["nodes"]:
+        if n and any(w in n["anyPlayer"]["displayName"].lower() for w in who):
+            slugs.add(n["anyPlayer"]["slug"])
+except Exception as e:
+    print("::notice title=banc::" + str(e)[:400])
 for w in who:  # fragment del resum
     i = txt.lower().find(w)
     if i >= 0:
-        print(f"::notice title=resum {w}::" + txt[max(0, i - 700):i + 300])
+        pass
 Q = """query($s: String!) { anyPlayer(slug: $s) { displayName ... on NBAPlayer { activeInjuries { id status kind details startDate expectedEndDate }
   activeClub { name } }
   anyGameStats(last: 3) { ... on PlayerGameStatsBasketball { minsPlayed points rebounds assists playedInGame onGameSheet
