@@ -254,6 +254,7 @@ if __name__ == "__main__":
          "probe7": lambda: __import__("bot.sorareprobe7"),
          "probe8": lambda: __import__("bot.sorareprobe8"),
          "probe9": lambda: __import__("bot.sorareprobe9"),
+         "btntest": lambda: __import__("bot.notify", fromlist=["ask"]).ask("🔘 Prova dels botons: prem-lo i en uns minuts aquest missatge hauria de canviar.", [[("👍 Funciona", "/res")]]),
          "inseason": lambda: print("::notice title=Pro / In Season (prova)::" + " ¶ ".join(__import__("bot.sorareinseason", fromlist=["x"]).play(dry=True)[1]) or "cap"),
          "now": lambda: __import__("bot.sorarenow"),
          "state": lambda: __import__("bot.statedump"),
