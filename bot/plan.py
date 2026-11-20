@@ -388,7 +388,15 @@ def plan(now=None, done=None, fast_only=False):
     if fast_only:
         return [a for a in acts if is_fast(a)], info
     try:  # els missatges de Telegram mai han d'aturar el planificador
-        acts += telegram_commands(now)
+        new_tg = telegram_commands(now)
+        # (20/11) les ordres del David (quiniela, /ven…) es desen fins que es fan: el 20/11 les quinieles van arribar
+        # quan l'execució s'acabava, van quedar «per a la següent» i es van perdre (el missatge ja estava llegit)
+        from bot.web import STATE_LOCK as _L, save_json as _sj
+        with _L:
+            keep = [a for a in load_json("tg_actions.json", []) + new_tg
+                    if a["key"] not in done and dt.datetime.fromisoformat(a["deadline"]) > now]
+            _sj("tg_actions.json", list({a["key"]: a for a in keep}.values()))
+        acts += [a for a in keep if a["key"] not in {x["key"] for x in acts}]
     except Exception as e:
         info.append(f"Telegram: error llegint missatges ({type(e).__name__}: {e})")
     return acts, info
