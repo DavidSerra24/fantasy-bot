@@ -10,10 +10,17 @@ for w in who:
 try:  # els slugs surten del banc del tauler personal (totes les meves cartes, també sense partit o no disponibles)
     from bot.sorareset import STEP, BENCH
     st = gql(STEP, {"sp": "NBA", "m": "CAREER"}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
-    d = gql(BENCH, {"st": st["id"], "after": None, "f": {"includeUsed": True, "includeNoGame": True, "includeUnavailablePlayers": True}}, token=token())
-    for n in d["currentUser"]["step"]["myFilteredBench"]["nodes"]:
-        if n and any(w in n["anyPlayer"]["displayName"].lower() for w in who):
-            slugs.add(n["anyPlayer"]["slug"])
+    after, tot = None, 0
+    for _ in range(20):
+        d = gql(BENCH, {"st": st["id"], "after": after, "f": {"includeUsed": True, "includeNoGame": True, "includeUnavailablePlayers": True}}, token=token())["currentUser"]["step"]["myFilteredBench"]
+        for n in d["nodes"]:
+            tot += 1
+            if n and any(w in n["anyPlayer"]["displayName"].lower() for w in who):
+                slugs.add(n["anyPlayer"]["slug"])
+        if not d["pageInfo"]["hasNextPage"]:
+            break
+        after = d["pageInfo"]["endCursor"]
+    print(f"::notice title=banc::{tot} cartes")
 except Exception as e:
     print("::notice title=banc::" + str(e)[:400])
 for w in who:  # fragment del resum
