@@ -193,7 +193,8 @@ def pick5(cands, taken):
         k = (q["player"], q["ins"])
         if k not in per or q["xp"] > per[k]["xp"]:
             per[k] = q
-    ps = sorted(per.values(), key=lambda q: (-GRADE.get(q["grade"], -1), -q["proj"]))[:40]
+    allp = sorted(per.values(), key=lambda q: (-GRADE.get(q["grade"], -1), -q["proj"]))
+    ps = [q for q in allp if q["ins"]] + [q for q in allp if not q["ins"]][:25]  # totes les In Season + les 25 millors de la resta
     by = {k: [q for q in ps if q["pos"] == k] for k in ("goa", "def", "mid", "for")}
     field = by["def"] + by["mid"] + by["for"]
     best_ = None
