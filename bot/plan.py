@@ -410,13 +410,17 @@ def button_message(cq, token):
     """Converteix un botó premut en un missatge equivalent (bot/notify.ask): «sí» en resposta a la proposta d'Arena,
     «/ven Quique», «/nom A = B»… Treu els botons del missatge i hi afegeix què s'ha triat."""
     from bot.web import STATE_LOCK, save_json as _sj
-    data = (cq.get("data") or "")[2:]
-    with STATE_LOCK:
-        bt = load_json("tg_buttons.json", {})
-        info = bt.pop(data, None)
-        # els altres botons del mateix missatge ja no valen
-        _sj("tg_buttons.json", bt)
+    raw = cq.get("data") or ""
     msg = cq.get("message") or {}
+    if raw.startswith("c:"):  # l'ordre va dins del botó; l'etiqueta és el text del botó premut
+        label = next((b_.get("text") for row in ((msg.get("reply_markup") or {}).get("inline_keyboard") or [])
+                      for b_ in row if b_.get("callback_data") == raw), raw[2:])
+        info = {"cmd": raw[2:], "label": label}
+    else:
+        with STATE_LOCK:
+            bt = load_json("tg_buttons.json", {})
+            info = bt.pop(raw[2:], None)
+            _sj("tg_buttons.json", bt)
     api = f"https://api.telegram.org/bot{token}"
     try:
         requests.post(f"{api}/answerCallbackQuery", json={"callback_query_id": cq["id"],

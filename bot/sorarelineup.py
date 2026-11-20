@@ -1035,16 +1035,10 @@ def _ask_arena(text):
     mid = ask(text, [])
     if not mid:
         return None
-    with STATE_LOCK:
-        bt = load_json("tg_buttons.json", {})
-        ky, kn = secrets.token_hex(4), secrets.token_hex(4)
-        bt[ky] = {"cmd": f"sí@{mid}", "label": "✅ Sí, fes-la"}
-        bt[kn] = {"cmd": f"/arenano {mid}", "label": "❌ No"}
-        save_json("tg_buttons.json", bt)
-    try:
+    try:  # l'ordre va dins del botó (20/11: les execucions no veien els botons creats per una altra)
         requests.post(f"https://api.telegram.org/bot{os.getenv('TELEGRAM_BOT_TOKEN')}/editMessageReplyMarkup",
                       json={"chat_id": os.getenv("TELEGRAM_CHAT_ID"), "message_id": mid, "reply_markup": {"inline_keyboard": [[
-                          {"text": "✅ Sí, fes-la", "callback_data": "b:" + ky}, {"text": "❌ No", "callback_data": "b:" + kn}]]}}, timeout=20)
+                          {"text": "✅ Sí, fes-la", "callback_data": f"c:sí@{mid}"}, {"text": "❌ No", "callback_data": f"c:/arenano {mid}"}]]}}, timeout=20)
     except Exception as e:
         print("::warning title=telegram botons::" + str(e)[:200])
     return mid

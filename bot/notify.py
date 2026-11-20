@@ -55,6 +55,9 @@ def ask(text, rows, reply_to=None):
         for row in rows:
             r_ = []
             for label, cmd in row:
+                if len(("c:" + cmd).encode()) <= 64:  # l'ordre va dins del botó (no depèn de l'estat de cap execució)
+                    r_.append({"text": label[:60], "callback_data": "c:" + cmd})
+                    continue
                 k = secrets.token_hex(4)
                 st[k] = {"cmd": cmd, "label": label}
                 r_.append({"text": label[:60], "callback_data": "b:" + k})
