@@ -11,3 +11,13 @@ for m in ("CAREER", "SQUAD"):
             f"{a['anyPlayer']['displayName']} {a.get('score')} ({(a.get('game') or {}).get('date')}, {(a.get('game') or {}).get('id')})"
             for a in l.get("taskAppearances") or [] if a))
     print("::notice title=Set NBA " + m + "::" + " ¶ ".join(out))
+from bot.sorareset import bench
+st = gql(STEP, {"sp": "NBA", "m": "CAREER"}, token=token())["currentUser"]["setBoard"]["myCurrentStep"]
+names = {a["anyPlayer"]["slug"] for l in st.get("myLineups") or [] for a in l.get("taskAppearances") or [] if a}
+rows = []
+for n in bench(st["id"], used=True):
+    p = n["anyPlayer"]
+    if p["slug"] in names:
+        g = (n.get("eligiblePlayerGameScores") or [{}])[0] or {}
+        rows.append(f"{p['displayName']} prev {g.get('projectedScore')} lesions {len(p.get('activeInjuries') or [])} {p.get('gameplayTierStars')}★ {(g.get('anyGame') or {}).get('date')}")
+print("::notice title=previsions::" + " ¶ ".join(sorted(rows)))
