@@ -46,6 +46,11 @@ def sure(si_name, team, ff_name):
         v = conf.get(k)
         if v is not None:
             return None if str(v).lower() == "no" else norm(v) == norm(ff_name)
+    # (20/11) clau escrita una mica diferent: «/nom Mellot = …» per a « Mellot» de SorareInside (espai al davant)
+    for k, v in conf.items():
+        kt, _, kn = k.rpartition("|")
+        if norm(kn) == norm(si_name) and (not kt or norm(kt) == norm(team)) and norm(kn):
+            return None if str(v).lower() == "no" else norm(v) == norm(ff_name)
     # també escrit al revés («/nom Nom FutbolFantasy = Nom SorareInside», 5/11)
     if any(str(v).lower() != "no" and norm(v) == norm(si_name) and norm(k.split("|")[-1]) == norm(ff_name) for k, v in conf.items()):
         return True
@@ -749,7 +754,7 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
                 continue
             seen.add(k)
             if asked.get(k) != today:  # cada pregunta com a molt un cop al dia
-                new.append(f"• «{si_name}» ({team}, {ps} PS) = «{ffn}»?\n  /nom {si_name} = {ffn}")
+                new.append(f"• «{si_name.strip()}» ({team}, {ps} PS) = «{ffn}»?\n  /nom {si_name.strip()} = {ffn}")
                 asked[k] = today
         _sj("ff_asked.json", asked)
         if new:
