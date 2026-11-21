@@ -497,6 +497,13 @@ def gk_check(gid, mins):
             if not starts(xi, g["slug"], g["name"]):
                 continue
             g = dict(g, fixture=g.get("fixture") or load_json("sorare_gkwatch.json", {}).get("fixture"))
+            try:  # (21/11) límit d'Arenes de la jornada: ni es proposa ni s'anuncia
+                fx_r = gql(FIXTURE_SLUG, {"s": g["fixture"]}, token=token())["so5"]["so5Fixture"] if g.get("fixture") else None
+                if fx_r and arena_room(fx_r) <= 0:
+                    lines.append(f"🏟️ {g['name']} és titular, però aquesta jornada no faig cap Arena més (límit d'Arenes / essència).")
+                    continue
+            except Exception as e:
+                print("::warning title=sorare arena porter::" + str(e)[:200])
             try:
                 res = gk_arena(g)
             except Exception as e:
