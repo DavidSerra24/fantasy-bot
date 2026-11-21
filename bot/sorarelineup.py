@@ -794,31 +794,34 @@ def _when(q):
     return dt.datetime.fromisoformat(q["date"].replace("Z", "+00:00"))
 
 
-def arena_props(fx, final=False, approved=()):
+def arena_props(fx, final=False, approved=(), rar="limited"):
     """Arenes Beginner possibles ara amb les cartes lliures. Retorna (arena, fetes_aprovades, props, dates dels candidats).
     approved: Arenes que el David ja ha aprovat ({"gk", "players"}): es refan primer, amb el mateix porter i, si poden,
     els mateixos jugadors (si un ja no és titular, el bot el canvia). fetes_aprovades = [(pick, cap) o None, ask]."""
     import datetime as dt
-    arena = next((l for l in fx["so5Leaderboards"] if l["isArena"] and "beginner" in l["slug"]), None)
+    # (21/11) l'Arena Beginner de la raresa: limited (100 d'essència Limited) o rare (100 d'essència Rare)
+    arena = next((l for l in fx["so5Leaderboards"] if l["isArena"] and "beginner" in l["slug"]
+                  and (l.get("mainRarityType") or "limited").lower() == rar), None)
     if not arena:
-        return None, [], [], []
+        return None, [], [], [], []
     now = dt.datetime.now(dt.timezone.utc)
     lus = fx.get("mySo5Lineups") or []
     busy = {a["anyCard"]["slug"] for l in lus for a in l["so5Appearances"]}
     # jugadors ja alineats: només compten els de les alineacions Limited i les Arenes (un jugador pot anar a Rare i a
     # Limited; 6/11: ter Stegen era a All Star Rare i el bot no el posava a cap Arena)
     busy_p = {a["anyPlayer"].get("slug") for l in lus for a in l["so5Appearances"]
-              if l["so5Leaderboard"].get("isArena") or (l["so5Leaderboard"].get("mainRarityType") or "").lower() == "limited"}
+              if (l["so5Leaderboard"].get("isArena") and (l["so5Leaderboard"].get("mainRarityType") or "limited").lower() == rar)
+              or (l["so5Leaderboard"].get("mainRarityType") or "").lower() == rar}
     print("::notice title=sorare arenes ocupats::" + ", ".join(sorted(a["anyPlayer"]["displayName"] for l in lus for a in l["so5Appearances"]
                                                                        if a["anyPlayer"].get("slug") in busy_p))[:1500])
     cache, pool = {}, []
-    nG = int(gw_cfg(fx.get("gameWeek")).get("girona_arenas") or 0)  # Arenes del Girona amb confirmació (20/11)
+    nG = int(gw_cfg(fx.get("gameWeek")).get("girona_arenas" if rar == "limited" else "girona_arenas_rare") or 0)  # Arenes del Girona amb confirmació (20/11)
     global GAZZA_KEEP
     keep_ = GAZZA_KEEP
     if nG:  # els Gazzaniga reservats són precisament per a les Arenes del Girona
         GAZZA_KEEP = 0
     try:
-        allq = cards(arena, floor=2000, rarities=ARENA_RAR, skip=busy)
+        allq = cards(arena, floor=2000, rarities=ARENA_RAR if rar == "limited" else ("rare", "super_rare", "unique"), skip=busy)
     finally:
         GAZZA_KEEP = keep_
     print("::notice title=sorare arenes porters::" + ", ".join(f"{q['name']} (tier {q['tier']}, {q.get('date')}, carta {'ocupada' if q['card'] in busy else 'lliure'})"
@@ -879,7 +882,7 @@ def arena_props(fx, final=False, approved=()):
         gprops.append((pick, captain(pick)))
         _drop({q["player"] for q in pick})
     props = []
-    while True:
+    while rar == "limited":  # a Rare només les del Girona (21/11)
         pick = build(pool, ARENA, ARENA_CAP, "avg", hard=True)
         if not pick:
             break
@@ -1082,13 +1085,18 @@ def late_arenas(kind="prop", at=None):
         if any(r == a.get("id") for d, r in ev if r) or any(r is None and a["at"] <= d < nxt for d, r in ev):
             a["status"] = "approved"
     approved = [a for a in asks.values() if a.get("status") == "approved"]
-    arena, built, props, dates, gprops = arena_props(fx, final=kind == "go", approved=approved)
-    st["kicks"] = [d.isoformat() for d in dates] + [a["first"] for a in approved if a.get("first")]
+    arena, built, props, dates, gprops = arena_props(fx, final=kind == "go", approved=[a for a in approved if a.get("rar", "limited") == "limited"])
     ess = (arena or {}).get("format", {}).get("entryItem") or {}
+    # (21/11) Arenes Rare del Girona (Beginner Rare, 100 d'essència Rare): girona_arenas_rare a config/sorare_gw.json
+    arena_r, built_r, gprops_r, dates_r = None, [], [], []
+    if gw_cfg(fx.get("gameWeek")).get("girona_arenas_rare"):
+        arena_r, built_r, _, dates_r, gprops_r = arena_props(fx, final=kind == "go", approved=[a for a in approved if a.get("rar") == "rare"], rar="rare")
+    ess_r = (arena_r or {}).get("format", {}).get("entryItem") or {}
+    st["kicks"] = sorted({d.isoformat() for d in dates + dates_r} | {a["first"] for a in approved if a.get("first")})
     if kind == "go":
         T = dt.datetime.fromisoformat(at) if at else dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=6)
         gone = 0
-        for res, ap in built:
+        for res, ap, arena, ess in [(r_, a_, arena, ess) for r_, a_ in built] + [(r_, a_, arena_r, ess_r) for r_, a_ in built_r]:
             first = dt.datetime.fromisoformat(ap["first"])
             if res:
                 first = min(first, min(_when(q) for q in res[0]))
@@ -1124,11 +1132,11 @@ def late_arenas(kind="prop", at=None):
     pend_ap = sum(1 for a in asks.values() if a.get("status") == "approved" and not a.get("girona"))
     # (20/11) Arenes del Girona: el bot les prepara quan surt l'onze del Girona i les pregunta amb botons (sempre,
     # encara que les altres Arenes vagin sense confirmació); s'envien 6 min abans del primer partit si el David diu sí
-    for pick, cap in gprops:
+    for pick, cap, rar_, ess_ in [(p_, c_, "limited", ess) for p_, c_ in gprops] + [(p_, c_, "rare", ess_r) for p_, c_ in gprops_r]:
         gir = [q for q in pick if q.get("girona")]
         if not gir or not all(q.get("xi") for q in gir):
             continue  # encara no hi ha l'onze oficial del Girona (o algun no és titular confirmat)
-        gk = pick[0]["player"]
+        gk = ("r:" if rar_ == "rare" else "") + pick[0]["player"]
         sig = ",".join(sorted(q["player"] for q in pick))
         a = asks.get(gk)
         if a and (a["status"] in ("approved", "done", "rejected") or (a["status"] == "asked" and a.get("sig") == sig)):
@@ -1136,13 +1144,14 @@ def late_arenas(kind="prop", at=None):
         first = min(_when(q) for q in pick)
         hhmm = (first - dt.timedelta(minutes=6)).astimezone(M).strftime("%H:%M")
         from bot.tgimg import send_lineups
-        send_lineups([img_card("Arena Beginner · Girona", pick, cap, ARENA, gw=fx.get("gameWeek", ""), num=f"ENVIO {hhmm}",
+        lbl = "Arena Rare del Girona" if rar_ == "rare" else "Arena del Girona"
+        send_lineups([img_card(("Arena Beginner Rare" if rar_ == "rare" else "Arena Beginner") + " · Girona", pick, cap, ARENA, gw=fx.get("gameWeek", ""), num=f"ENVIO {hhmm}",
                                subtitle=f"l'envio a les {hhmm} si dius que sí · {sum(q['avg'] for q in pick):.0f}/260",
                                footer="✓ = titular confirmat · la resta, 80–90%", tag="Arena", tag_col="#dc2626")])
-        mid = _ask_arena(f"🏟️ Arena del Girona ({ess.get('quantity') or 100} d'essència): {arena_text(pick, cap)}\n"
+        mid = _ask_arena(f"🏟️ {lbl} ({ess_.get('quantity') or 100} d'essència {'Rare' if rar_ == 'rare' else 'Limited'}): {arena_text(pick, cap)}\n"
                          f"La faig? Si dius que sí, l'envio a les {hhmm} (refeta amb els titulars del moment).")
-        asks[gk] = {"id": mid, "at": int(time.time()) - 2, "gk": gk, "gk_name": pick[0]["name"], "players": [q["player"] for q in pick],
-                    "first": first.isoformat(), "sig": sig, "status": "asked", "girona": True}
+        asks[gk] = {"id": mid, "at": int(time.time()) - 2, "gk": pick[0]["player"], "gk_name": pick[0]["name"], "players": [q["player"] for q in pick],
+                    "first": first.isoformat(), "sig": sig, "status": "asked", "girona": True, "rar": rar_}
     for pick, cap in props:
         if not ready(pick):
             continue
@@ -1253,7 +1262,13 @@ def run(mode="dry", live=False):
             # una carta ja posada en una altra alineació no es repeteix
             rar_ok = ARENA_RAR if rarity == "limited" else None
             taken_c = {q["card"] for _, p_, _ in plan for q in p_}
-            pool = [q for q in cards(lb, rarities=rar_ok, skip=taken_c) if q["player"] not in used[rarity]]
+            keep_ = GAZZA_KEEP
+            if rarity == "rare" and allstar and girona_rare_allstar:  # (21/11) amb el Girona a All Star Rare, també el Gazzaniga Rare
+                GAZZA_KEEP = 0
+            try:
+                pool = [q for q in cards(lb, rarities=rar_ok, skip=taken_c) if q["player"] not in used[rarity]]
+            finally:
+                GAZZA_KEEP = keep_
             if allstar and not gir_ok and not (rarity == "rare" and girona_rare_allstar):  # Girona fora (els Gazzaniga Limited que sobren sí)
                 pool = [q for q in pool if not q["girona"] or (rarity == "limited" and q["gazza"])]
             if rarity == "rare" and not allstar:  # el Rare de Gazzaniga es reserva si no va a All Star Rare
