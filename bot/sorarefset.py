@@ -287,6 +287,10 @@ def run(dry=False, focus=None):
             from collections import Counter
             cnt = Counter(ps for q in cands if q["slug"] not in taken for ps in q["pos"])
             miss = [s_["positions"] for s_ in slots if not any(cnt.get(x) for x in s_["positions"])]
+            okc = Counter(ps for q in cands if q["slug"] not in taken and q["ok"] for ps in q["pos"])
+            lines.append("   del 80–90% o titulars: " + (", ".join(f"{k} {v}" for k, v in okc.items()) or "cap") + " · porters: "
+                         + ", ".join(f"{q['name']} ({q['date'].astimezone(MAD):%H:%M}, {'titular' if q['confirmed'] and q['ok'] else 'NO a l’onze' if q['confirmed'] else (str(q['pct']) + '%' if q['pct'] else '<80%')})"
+                                     for q in cands if q["slug"] not in taken and "Goalkeeper" in q["pos"])[:600])
             lines.append("   candidats lliures per posició: " + ", ".join(f"{k} {v}" for k, v in cnt.items())
                          + (f" · cap per a: {miss}" if miss else "")
                          + f" · alineacions ja fetes: {len(lineups)} ({sum(len([a for a in l['taskAppearances'] if a]) for l in lineups)} cartes)")
