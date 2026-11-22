@@ -255,6 +255,7 @@ if __name__ == "__main__":
          "probe8": lambda: __import__("bot.sorareprobe8"),
          "probe9": lambda: __import__("bot.sorareprobe9"),
          "btntest": lambda: __import__("bot.notify", fromlist=["ask"]).ask("🔘 Prova dels botons: prem-lo i en uns minuts aquest missatge hauria de canviar.", [[("👍 Funciona", "/res")]]),
+         "gironanow": lambda: __import__("bot.gironanow"),
          "tgpeek": lambda: print("::notice title=tgpeek::" + __import__("json").dumps([{k: (v if k != "callback_query" else {"data": v.get("data"), "date": (v.get("message") or {}).get("date")}) for k, v in u.items() if k in ("update_id", "callback_query")} | {"text": ((u.get("message") or {}).get("text") or "")[:40]} for u in __import__("requests").get(f"https://api.telegram.org/bot{__import__('os').getenv('TELEGRAM_BOT_TOKEN')}/getUpdates", params={"timeout": 0}, timeout=20).json().get("result", [])], ensure_ascii=False)[:3000] + " ¶ webhook: " + str(__import__("requests").get(f"https://api.telegram.org/bot{__import__('os').getenv('TELEGRAM_BOT_TOKEN')}/getWebhookInfo", timeout=20).json())[:500]),
          "inseason": lambda: print("::notice title=Pro / In Season (prova)::" + " ¶ ".join(__import__("bot.sorareinseason", fromlist=["x"]).play(dry=True)[1]) or "cap"),
          "now": lambda: __import__("bot.sorarenow"),
