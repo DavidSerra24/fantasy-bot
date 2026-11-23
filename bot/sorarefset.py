@@ -155,7 +155,50 @@ def fill(cands, slots, taken, dups=None, used=None):
     return None
 
 
+def _search(cands, slots, taken, lvl, limit=200000):
+    """(23/11) Cerca amb marxa enrere: el mateix ordre que el David (cada jugador entra si pot, per ordre de la llista),
+    però si per haver posat un jugador ja no es pot completar l'alineació sense rivals, es prova sense ell. La primera
+    alineació completa que surt és la millor segons l'ordre (si l'omplir directe funciona, és la mateixa). Error del
+    23/11 (tauler d'equip): Garner/Tarkowski (Everton) entraven primer i deixaven fora l'únic porter (Kelleher, Brentford),
+    i el bot se saltava la norma de rivals quan sí que hi havia una alineació sense rivals."""
+    el = [q for q in cands if q["slug"] not in taken and q["ok"]]
+    n, nodes = len(slots), [0]
+    pick = {}
+
+    def can_fill(k):  # cada casella buida té algun candidat restant de la seva posició
+        rest = el[k:]
+        return all(any(set(q["pos"]) & set(s_["positions"]) for q in rest) for i, s_ in enumerate(slots) if i not in pick)
+
+    def go(k):
+        nodes[0] += 1
+        if len(pick) == n:
+            return True
+        if k >= len(el) or nodes[0] > limit or len(el) - k < n - len(pick) or not can_fill(k):
+            return False
+        q = el[k]
+        if not any(x["slug"] == q["slug"] for x in pick.values()) and \
+                not (lvl != "none" and any(rivals(q, x, lvl) for x in pick.values())):
+            free = sorted([i for i, s_ in enumerate(slots) if i not in pick and set(q["pos"]) & set(s_["positions"])],
+                          key=lambda i: len(slots[i]["positions"]))
+            for i in free:
+                pick[i] = q
+                if go(k + 1):
+                    return True
+                del pick[i]
+        return go(k + 1)
+
+    if not go(0):
+        return None
+    out = {}
+    for i, q in pick.items():
+        out[i] = dict(q, extra=False, rival=lvl != "all" and any(rivals(q, x) for j, x in pick.items() if j != i))
+        taken.add(q["slug"])
+    return out
+
+
 def _fill(cands, slots, taken, lvl, dups=None, used=frozenset()):
+    if not dups:
+        return _search(cands, slots, taken, lvl)
     pick = {}
     for only_ok in (True,):  # només ≥80% o titulars confirmats; sense 🔸 (decisió del David, 8/11)
         for q in cands:
