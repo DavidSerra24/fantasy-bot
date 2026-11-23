@@ -173,7 +173,7 @@ def _replan(fast, queue, done):
         if not fast and P.KICK:
             with LOCK:
                 (STATE / "mister_kickoffs.json").write_text(json.dumps(P.KICK), encoding="utf-8")
-        new = [n for n in new if is_fast(n) == fast and n["key"] not in have and (n["do"], n["comp"]) not in done]
+        new = [n for n in new if is_fast(n) == fast and n["key"] not in have and n["key"] not in done]
         if new:
             print(f"::notice title=carril {'ràpid' if fast else 'lent'}::noves accions: " + " | ".join(f"{n['do']} {n['comp'] or ''} {n['at'][11:16]}Z" for n in new))
         return new
@@ -204,14 +204,17 @@ def lane(queue, fast):
             time.sleep(min(wait, 20 if fast else 60))
             continue
         queue.pop(0)
-        key = (a["do"], a["comp"])
+        # (23/11) per clau: abans era (acció, comp) i, dins d'una mateixa execució, només es feia la primera de les
+        # accions amb el mateix comp (p. ex. «sorarearenas prop»: el 22/11 no es van proposar les Arenes del Girona;
+        # també «misterloan» de cada hora i les peticions de cessió de cada 5 min)
+        key = a["key"]
         if key in done:
             continue
         ok = run_action(a)
         done.add(key)
         if ok:
             _mark_done(a["key"])
-    left = [q for q in queue if (q["do"], q["comp"]) not in done]
+    left = [q for q in queue if q["key"] not in done]
     if left:
         print(f"::notice title=carril {'ràpid' if fast else 'lent'}::fi de l'execució; queden per a la següent: "
               + " | ".join(f"{q['do']} {q['at'][11:16]}Z" for q in left[:30]))
