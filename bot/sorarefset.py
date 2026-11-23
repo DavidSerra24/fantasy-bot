@@ -71,6 +71,23 @@ def candidates(step_id, now, used_cards, locked_players, squad=False):
     hi = {n["anyPlayer"]["slug"] for n in bench(step_id, {"starterOddsBasisPointsRange": {"min": 8000}, "includeUsed": True})}  # també les cartes ja posades
     hi9 = {n["anyPlayer"]["slug"] for n in bench(step_id, {"starterOddsBasisPointsRange": {"min": 9000}, "includeUsed": True})}  # % a les imatges (12/11)
     best, cache = {}, {}
+    # (23/11) la llista de «lliures» de Sorare de vegades no hi posa cartes que no s'estan fent servir enlloc (22/11:
+    # Lammens, titular a les 17:30, no hi era i el bot no va poder fer 2 alineacions del nivell 2): per a les cartes
+    # «ocupades» del 80–90% amb partit encara no començat es mira on es fan servir i, si és enlloc, compten com a lliures
+    if not squad:
+        sus = [n["anyCard"]["slug"] for n in all_ if n["anyCard"]["slug"] not in free and n["anyCard"]["slug"] not in used_cards
+               and n["anyPlayer"]["slug"] in hi and n["anyPlayer"]["slug"] not in locked_players
+               and any(g and g.get("anyGame") and D(g["anyGame"]["date"]) > now for g in n.get("eligiblePlayerGameScores") or [])]
+        rescued = []
+        for cs in sus[:40]:
+            try:
+                d = gql("query($s: String!) { anyCard(slug: $s) { activeTaskAppearances { __typename } } }", {"s": cs}, token=token())
+                if not (d.get("anyCard") or {}).get("activeTaskAppearances"):
+                    free.add(cs); rescued.append(cs)
+            except Exception:
+                pass
+        if rescued:
+            print("::notice title=set futbol::cartes que Sorare no donava com a lliures però no es fan servir enlloc: " + ", ".join(rescued)[:800])
     for n in all_:
         p, c = n["anyPlayer"], n["anyCard"]
         # al tauler d'equip es pot posar qualsevol carta, encara que ja sigui en una alineació del personal (el David, 2/11)
