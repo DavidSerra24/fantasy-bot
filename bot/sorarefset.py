@@ -155,13 +155,13 @@ def fill(cands, slots, taken, dups=None, used=None):
     return None
 
 
-def _search(cands, slots, taken, lvl, limit=200000):
+def _search(cands, slots, taken, lvl, limit=200000, extra=()):
     """(23/11) Cerca amb marxa enrere: el mateix ordre que el David (cada jugador entra si pot, per ordre de la llista),
     però si per haver posat un jugador ja no es pot completar l'alineació sense rivals, es prova sense ell. La primera
     alineació completa que surt és la millor segons l'ordre (si l'omplir directe funciona, és la mateixa). Error del
     23/11 (tauler d'equip): Garner/Tarkowski (Everton) entraven primer i deixaven fora l'únic porter (Kelleher, Brentford),
     i el bot se saltava la norma de rivals quan sí que hi havia una alineació sense rivals."""
-    el = [q for q in cands if q["slug"] not in taken and q["ok"]]
+    el = [q for q in cands if q["slug"] not in taken and q["ok"]] + list(extra)  # els repetits (🔁), sempre al final
     n, nodes = len(slots), [0]
     pick = {}
 
@@ -192,13 +192,22 @@ def _search(cands, slots, taken, lvl, limit=200000):
     out = {}
     for i, q in pick.items():
         out[i] = dict(q, extra=False, rival=lvl != "all" and any(rivals(q, x) for j, x in pick.items() if j != i))
-        taken.add(q["slug"])
+        if not q.get("dup"):
+            taken.add(q["slug"])
     return out
 
 
 def _fill(cands, slots, taken, lvl, dups=None, used=frozenset()):
     if not dups:
         return _search(cands, slots, taken, lvl)
+    ex = []
+    for q in dups:  # (23/11) els repetits també entren a la cerca amb marxa enrere (abans: alineació 2 amb ⚔️ Kelleher)
+        card = next((t for t in q.get("cards") or [] if t[0] not in used), None)
+        if card and q["ok"]:
+            ex.append(dict(q, card=card[0], xp=card[1], pic=card[2], dup=True, name=q["name"] + " 🔁"))
+    res = _search(cands, slots, taken, lvl, extra=ex)
+    if res is not None or lvl != "none":
+        return res
     pick = {}
     for only_ok in (True,):  # només ≥80% o titulars confirmats; sense 🔸 (decisió del David, 8/11)
         for q in cands:
