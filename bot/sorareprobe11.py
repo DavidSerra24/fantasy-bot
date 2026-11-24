@@ -7,6 +7,8 @@ for t in ("LIVE", "UPCOMING"):
         fx = gql(Q, {"t": t}, token=token())["so5"]["so5Fixture"]
     except Exception as e:
         print(t, "error", str(e)[:300]); continue
+    if not fx:
+        print(t, "cap"); continue
     mine = {}
     for l in fx["mySo5Lineups"]:
         mine[l["so5Leaderboard"]["slug"]] = mine.get(l["so5Leaderboard"]["slug"], 0) + 1
