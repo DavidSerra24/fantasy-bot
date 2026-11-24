@@ -21,8 +21,10 @@ from bot.notify import telegram
 from bot.sorare import gql, token
 
 GRADE = {"A": 5, "B": 4, "C": 3, "D": 2, "E": 1, "F": 0}
-COMPS = [("U23", "under_twenty_one"), ("Champion", "seasonal-champions"), ("All Star", "seasonal-all_star-all_seasons_all_star_"),
-         ("Europa", "special-weekly-european-contenders")]  # (24/11) European Contenders: especial de setmana europea, tanca dijous
+# (24/11) European Contenders (especial de setmana europea, tanca dijous) abans d'All Star: «Contender prioritat abans que
+# All Star, quan es quedi sense jugadors 80-90 passa a All Star» (el David)
+COMPS = [("U23", "under_twenty_one"), ("Champion", "seasonal-champions"), ("Europa", "special-weekly-european-contenders"),
+         ("All Star", "seasonal-all_star-all_seasons_all_star_")]
 CAP = 370  # bonificació Classic: suma de mitjanes L10 jugades ≤ 370
 ARENA_CAP = 260  # Arena Beginner: límit obligatori de la suma de mitjanes
 # Classic (Pro): 7 jugadors (índexs 0-6 com a Sorare); Arena: 5
