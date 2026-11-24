@@ -21,7 +21,8 @@ from bot.notify import telegram
 from bot.sorare import gql, token
 
 GRADE = {"A": 5, "B": 4, "C": 3, "D": 2, "E": 1, "F": 0}
-COMPS = [("U23", "under_twenty_one"), ("Champion", "seasonal-champions"), ("All Star", "seasonal-all_star-all_seasons_all_star_")]
+COMPS = [("U23", "under_twenty_one"), ("Champion", "seasonal-champions"), ("All Star", "seasonal-all_star-all_seasons_all_star_"),
+         ("Europa", "special-weekly-european-contenders")]  # (24/11) European Contenders: especial de setmana europea, tanca dijous
 CAP = 370  # bonificació Classic: suma de mitjanes L10 jugades ≤ 370
 ARENA_CAP = 260  # Arena Beginner: límit obligatori de la suma de mitjanes
 # Classic (Pro): 7 jugadors (índexs 0-6 com a Sorare); Arena: 5
@@ -560,7 +561,8 @@ def live_open(save=True):
     now = dt.datetime.now(dt.timezone.utc)
     lbs = [l for l in (fx or {}).get("so5Leaderboards") or [] if not l["isArena"] and l["format"]["title"] == "Classic"
            and (l.get("canCompose") or {}).get("value") and l.get("cutOffDate")
-           and dt.datetime.fromisoformat(l["cutOffDate"].replace("Z", "+00:00")) > now + dt.timedelta(minutes=2)]
+           and dt.datetime.fromisoformat(l["cutOffDate"].replace("Z", "+00:00")) > now + dt.timedelta(minutes=2)
+           and any(k in l["slug"] for _, k in COMPS)]  # només les que fa el bot (24/11: EFL/MLS avançaven el tancament)
     if save:
         save_json("sorare_live.json", {"slug": fx["slug"], "gw": fx["gameWeek"],
                                        "cutoff": min((l["cutOffDate"] for l in lbs), default=None)} if lbs else {})
