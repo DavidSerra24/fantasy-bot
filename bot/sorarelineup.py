@@ -73,6 +73,11 @@ SKIP_EXTRA = set()  # (jornada en joc) cartes ja posades a competicions tancades
 GAZZA_KEEP = 2  # Gazzaniga Limited reservats per a l'Arena manual del David (0 amb config/sorare_gw.json girona)
 
 
+def classic(l):
+    """Competició Classic de 7 jugadors; les especials European Contenders tenen com a format el nom de la raresa (24/11)."""
+    return l["format"]["title"] == "Classic" or "european-contenders" in (l.get("slug") or "")
+
+
 FORCE = []  # noms (minúscules) forçats per jornada: config/sorare_gw.json «force»
 
 
@@ -396,7 +401,7 @@ def delete_lineup(lid):
 def sync(fx, plan, rep, only=None, live=False):
     """Deixa a Sorare exactament les alineacions Classic del pla: es queden les que ja són iguals (mateixes cartes i
     capità), s'esborren les altres i es creen les que falten (primer esborrar, perquè les cartes quedin lliures)."""
-    have = [l for l in fx.get("mySo5Lineups") or [] if not l["so5Leaderboard"]["isArena"] and l["so5Leaderboard"]["format"]["title"] == "Classic"
+    have = [l for l in fx.get("mySo5Lineups") or [] if not l["so5Leaderboard"]["isArena"] and classic(l["so5Leaderboard"])
             and (only is None or l["so5Leaderboard"]["slug"] in only)]  # (jornada en joc) mai tocar les ja tancades
     def sig_have(l):
         return (l["so5Leaderboard"]["slug"], frozenset(a["anyCard"]["slug"] for a in l["so5Appearances"]),
@@ -425,7 +430,7 @@ def sync(fx, plan, rep, only=None, live=False):
         except Exception as e:
             errs.append(f"{lb['displayName']} ({', '.join(q['name'] for q in pick[:3])}…): {str(e)[:200]}")
     after = gql(FIXTURE_LIVE if live else FIXTURE, token=token())["so5"]["so5Fixture"]["mySo5Lineups"]
-    n_ok = sum(1 for l in after if not l["so5Leaderboard"]["isArena"] and l["so5Leaderboard"]["format"]["title"] == "Classic"
+    n_ok = sum(1 for l in after if not l["so5Leaderboard"]["isArena"] and classic(l["so5Leaderboard"])
                and (only is None or l["so5Leaderboard"]["slug"] in only))
     rep.append(f"{'✅' if not errs and n_ok == len(plan) else '⚠️'} Sorare: {len(keep)} sense canvis, {deleted} esborrades, {created} noves → ara n'hi ha {n_ok} de {len(plan)}"
                + ("" if not errs else " | ❗ " + " | ".join(errs)))
@@ -559,7 +564,7 @@ def live_open(save=True):
         print("::warning title=sorare jornada en joc::" + str(e)[:200])
         return None, []
     now = dt.datetime.now(dt.timezone.utc)
-    lbs = [l for l in (fx or {}).get("so5Leaderboards") or [] if not l["isArena"] and l["format"]["title"] == "Classic"
+    lbs = [l for l in (fx or {}).get("so5Leaderboards") or [] if not l["isArena"] and classic(l)
            and (l.get("canCompose") or {}).get("value") and l.get("cutOffDate")
            and dt.datetime.fromisoformat(l["cutOffDate"].replace("Z", "+00:00")) > now + dt.timedelta(minutes=2)
            and any(k in l["slug"] for _, k in COMPS)]  # només les que fa el bot (24/11: EFL/MLS avançaven el tancament)
@@ -1228,7 +1233,7 @@ def run(mode="dry", live=False):
             ins_rep = [f"⚠️ Pro / In Season: {type(e).__name__}: {str(e)[:200]}"]
         fx = gql(FIXTURE, token=token())["so5"]["so5Fixture"]
         save_json("sorare_fixture.json", {"slug": fx["slug"], "gw": fx["gameWeek"], "cutoff": fx["cutOffDate"]})
-        lbs = [l for l in fx["so5Leaderboards"] if not l["isArena"] and l["format"]["title"] == "Classic"]
+        lbs = [l for l in fx["so5Leaderboards"] if not l["isArena"] and classic(l)]
         if not dry:
             live_open()  # perquè el planificador sàpiga si hi ha competicions de la jornada en joc encara obertes
     essence = {}
