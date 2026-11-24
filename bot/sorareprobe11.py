@@ -16,5 +16,5 @@ for t in ("LIVE", "UPCOMING"):
     for l in fx["so5Leaderboards"]:
         if l["isArena"]:
             continue
-        out.append(f"{l['displayName']} [{l['mainRarityType']}] tanca {l.get('cutOffDate')} pot={(l.get('canCompose') or {}).get('value')} meves={mine.get(l['slug'], 0)}")
+        out.append(f"{l['slug']} · {l['displayName']} [{l['mainRarityType']}] tanca {l.get('cutOffDate')} pot={(l.get('canCompose') or {}).get('value')} meves={mine.get(l['slug'], 0)}")
     print("::notice title=probe11::" + " ¶ ".join(out)[:3900])
