@@ -15,5 +15,13 @@
     "arenas_max": 0,
     "girona_arenas": 2,
     "girona_arenas_rare": 1
+  },
+  "733": {
+    "limited_max": true,
+    "limited_n": 3,
+    "force": [
+      "kaminski"
+    ],
+    "_nota": "El David, 24/11: una alineació extra a All Star Limited amb Kaminski (va jugar l'últim partit, sense % a Sorare)"
   }
 }

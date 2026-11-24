@@ -72,6 +72,9 @@ SKIP_EXTRA = set()  # (jornada en joc) cartes ja posades a competicions tancades
 GAZZA_KEEP = 2  # Gazzaniga Limited reservats per a l'Arena manual del David (0 amb config/sorare_gw.json girona)
 
 
+FORCE = []  # noms (minúscules) forçats per jornada: config/sorare_gw.json «force»
+
+
 def cards(lb, floor=8000, rarities=None, skip=()):
     """Cartes de la competició (de la seva raresa) amb ≥80% (o ≥ floor), una per jugador (la de més XP), en ordre de la
     llista. Amb floor < 8000 (All Star Rare quan no n'hi ha prou; decisió del David, 3/11) cada carta porta «tier»:
@@ -86,6 +89,11 @@ def cards(lb, floor=8000, rarities=None, skip=()):
             pct.setdefault(n["anyCard"]["slug"], lo // 100)
     ok = set(tier)
     allc = bench(lb["slug"]) + bench(lb["slug"], None, ["Goalkeeper"])
+    if floor < 8000 and FORCE:  # (24/11) jugadors sense % que el David vol posar igualment (Kaminski, GW733)
+        for n in allc:
+            nm = (n["anyPlayer"]["displayName"] + " " + n["anyPlayer"]["slug"]).lower()
+            if n["anyCard"]["slug"] not in ok and any(f in nm for f in FORCE):
+                ok.add(n["anyCard"]["slug"]); tier[n["anyCard"]["slug"]] = 0
     LOG.append(f"{lb['displayName']}: {len(allc)} cartes, {len(ok)} amb ≥80%")
     seen, copies, gazza = {}, {}, []
     for i, n in enumerate(allc):
@@ -1233,6 +1241,9 @@ def run(mode="dry", live=False):
     lim_max = bool(gcfg.get("limited_max"))  # 13/11: «les màximes alineacions possibles a les dues rareses»
     gir_ok = bool(gcfg.get("girona"))  # 13/11: «es permeten jugadors del Girona, no faré cap Arena»
     floor_min = int(gcfg.get("floor", 2000))
+    global FORCE
+    FORCE = [f.lower() for f in gcfg.get("force", [])]
+    lim_n = int(gcfg.get("limited_n", 4))  # (24/11) nombre d'alineacions d'All Star Limited amb limited_max
     global GAZZA_KEEP
     GAZZA_KEEP = 0 if gir_ok else 2
     girona_rare_allstar = ((rare_ess is not None and rare_ess < 100) or rare_max) and not gcfg.get("girona_keep")
@@ -1301,7 +1312,7 @@ def run(mode="dry", live=False):
             # (11/11) jornada en joc (All Star de seleccions): si no surt amb ≥80%, també amb menys i amb rivals ("Endavant")
             maxed = (rare_max and rarity == "rare") or (lim_max and rarity == "limited")
             one = rarity == "limited" and bool(gcfg.get("limited_min"))  # 17/11: «vull completar mínim una» (All Star Limited)
-            while (n == 0 or (maxed and n < 4)) and allstar and (rarity == "rare" or live or maxed or one):
+            while (n == 0 or (maxed and n < (lim_n if rarity == "limited" else 4))) and allstar and (rarity == "rare" or live or maxed or one):
                 # All Star Rare: si no hi ha prou jugadors amb ≥80%, s'agafen els de més % (70%, 60%…), per impacte (el David, 3/11);
                 # amb rare_max (13/11), així fins a 4 alineacions
                 n0 = n
