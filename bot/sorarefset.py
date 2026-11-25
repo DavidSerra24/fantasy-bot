@@ -63,25 +63,6 @@ def bench(step_id, f):
     return out
 
 
-HELD = {}  # carta → missió (picker) on és ara i d'on s'ha de treure si el Set personal la fa servir (25/11)
-
-
-def release_mission(card):
-    """Treu una carta d'una missió diària (sense tocar els altres picks) perquè la pugui fer servir el Set personal."""
-    from bot.soraremissions import TASK, UPSERT as T_UPSERT
-    tid = HELD.get(card)
-    if not tid:
-        return None
-    t = gql(TASK, {"id": tid.split(":")[-1]}, token=token())["currentUser"]["task"] or {}
-    keep = [{"index": a["index"], "cardSlug": a["anyCard"]["slug"], "gameId": a["game"]["id"].split(":")[-1]}
-            for a in t.get("taskAppearances") or [] if a["anyCard"]["slug"] != card and a.get("status") == "READY"]
-    d = gql(T_UPSERT, {"input": {"taskId": tid, "taskAppearances": keep}}, token=token())["upsertTaskAppearances"]
-    if d.get("errors"):
-        raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
-    HELD.pop(card, None)
-    return t.get("title") or "missió"
-
-
 def candidates(step_id, now, used_cards, locked_players, squad=False):
     """Jugadors disponibles (una carta per jugador, la de més XP) amb partit no començat, ordenats per les normes."""
     from bot.sorarelineup import lineup_status, starts
@@ -98,18 +79,17 @@ def candidates(step_id, now, used_cards, locked_players, squad=False):
                and n["anyPlayer"]["slug"] in hi and n["anyPlayer"]["slug"] not in locked_players
                and any(g and g.get("anyGame") and D(g["anyGame"]["date"]) > now for g in n.get("eligiblePlayerGameScores") or [])]
         rescued = []
-        for cs in sus[:40]:
+        for cs in sus[:80]:
             try:
                 d = gql("query($s: String!) { anyCard(slug: $s) { activeTaskAppearances { __typename locked task { id } } } }", {"s": cs}, token=token())
                 ap = (d.get("anyCard") or {}).get("activeTaskAppearances") or []
                 if not ap:
                     free.add(cs); rescued.append(cs)
-                # (25/11) carta en una missió diària (picker) que encara no ha començat: el Set personal té prioritat
-                # (Lammens, l'únic porter vàlid, era en una missió i el Set personal no es va fer); es treu de la
-                # missió en el moment de posar-la a l'alineació (release_mission) i la missió en tria una altra
-                elif all("Picker" in a["__typename"] and not a.get("locked") for a in ap):
+                # (25/11) carta només en missions diàries (pickers): Sorare la dona com a «ja feta servir», però es pot
+                # posar igualment a l'alineació i es queda a la missió (el David: «les cartes es fan servir a missions
+                # i on vulguis, no hi ha restriccions»; Lammens, l'únic porter vàlid, i el Set personal no es va fer)
+                elif all("Picker" in a["__typename"] for a in ap):
                     free.add(cs); rescued.append(cs + " (missió)")
-                    HELD[cs] = ap[0]["task"]["id"]
             except Exception:
                 pass
         if rescued:
@@ -433,10 +413,6 @@ def run(dry=False, focus=None):
             for job in pend:
                 l, pick, name, txt, inp = job
                 try:
-                    for a_ in inp["appearances"]:  # (25/11) cartes que són en una missió: primer es treuen d'allà
-                        if a_["cardSlug"] in HELD:
-                            tt = release_mission(a_["cardSlug"])
-                            lines.append(f"   🎯 he tret {a_['cardSlug'].split('-20')[0].replace('-', ' ').title()} de la missió «{tt}» per fer servir la carta al Set")
                     d = gql(UPSERT, {"input": inp}, token=token())["upsertStepLineup"]
                     if d.get("errors"):
                         raise RuntimeError("; ".join(e["message"] for e in d["errors"]))
