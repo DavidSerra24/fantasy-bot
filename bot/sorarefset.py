@@ -85,7 +85,7 @@ def candidates(step_id, now, used_cards, locked_players, squad=False):
                 ap = (d.get("anyCard") or {}).get("activeTaskAppearances") or []
                 if not ap:
                     free.add(cs); rescued.append(cs)
-                # (25/11) carta només en missions diàries (pickers): Sorare la dona com a «ja feta servir», però es pot
+                # (25/11) carta només en pickers (alineació del tauler d'equip «Squad Divination Thresholds» o missions): Sorare la dona com a «ja feta servir», però es pot
                 # posar igualment a l'alineació i es queda a la missió (el David: «les cartes es fan servir a missions
                 # i on vulguis, no hi ha restriccions»; Lammens, l'únic porter vàlid, i el Set personal no es va fer)
                 elif all("Picker" in a["__typename"] for a in ap):
