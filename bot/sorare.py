@@ -137,8 +137,29 @@ def token():
     if left.total_seconds() <= 0:
         raise RuntimeError("Sorare: la clau ha caducat; cal tornar a fer l'entrada")
     if left < dt.timedelta(days=3):
-        telegram(f"🔐 Sorare: la clau caduca el {t['exp'][:10]}. Llança l'entrada de Sorare i envia'm el codi quan te'l demani.")
+        warn_expiry(t["exp"])
     return t["token"]
+
+
+_WARNED = set()
+
+
+def warn_expiry(exp):
+    """(25/11) L'avís de la clau que caduca s'enviava a cada crida (desenes per hora): ara només un cop per clau."""
+    global _WARNED
+    if exp in _WARNED:
+        return
+    _WARNED.add(exp)
+    try:
+        from bot.web import load_json, save_json, STATE_LOCK
+        with STATE_LOCK:
+            st = load_json("sorare_expwarn.json", {}) or {}
+            if st.get("exp") == exp:
+                return
+            save_json("sorare_expwarn.json", {"exp": exp})
+    except Exception:
+        pass
+    telegram(f"🔐 Sorare: la clau caduca el {exp[:10]}. Llança l'entrada de Sorare i envia'm el codi quan te'l demani.")
 
 
 def me():
