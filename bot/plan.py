@@ -382,6 +382,14 @@ def plan(now=None, done=None, fast_only=False):
             k = f"soraresetrev:{gd}:{mins}"
             if due(k, G - dt.timedelta(minutes=mins), G - dt.timedelta(seconds=45)):
                 add(k, G - dt.timedelta(minutes=mins), "soraresetrev", f"{gd}:{mins}", G - dt.timedelta(seconds=45))
+    for jid, end in ({} if fast_only else load_json("ff_specials.json", {}) or {}).items():  # (26/11) especials de partit
+        try:
+            E = dt.datetime.strptime(end, "%Y-%m-%d %H:%M:%S").replace(tzinfo=MADRID).astimezone(UTC)
+        except Exception:
+            continue
+        k = f"ffspecial:{jid}:{end}"
+        if due(k, E - dt.timedelta(minutes=50), E - dt.timedelta(minutes=5)):
+            add(k, E - dt.timedelta(minutes=50), "ffspecial", jid, E - dt.timedelta(minutes=5))
     k = f"ff-mati:{local.date()}"
     if due(k, morning_t, ff_today or now + dt.timedelta(days=1)):
         add(k, morning_t, "ff", None, ff_today or now + dt.timedelta(days=1))

@@ -634,7 +634,8 @@ def run(max_hours=20.0, only=None, dry=False, final=False, extras_hours=None):
             if not comp:
                 if re.search(r"revulsivo|antagonista|resiliencia", g["label"] + " " + g["title"], re.I):
                     continue  # els fa bot/extras.py
-                if g["empty"] and h <= (extras_hours or max_hours):
+                from bot.ffspecial import teams_of
+                if g["empty"] and h <= (extras_hours or max_hours) and not teams_of(g):  # els de partit els fa bot/ffspecial.py
                     report.append(f"✋ {g['label'] or g['title']}: pendent (joc especial, encara no automatitzat)")
                 continue
             label, slug, (country, league) = comp

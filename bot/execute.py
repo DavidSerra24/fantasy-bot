@@ -48,6 +48,7 @@ def run_action(a):
              "champions": "Champions", "europa-league": "Europa League", None: ""}
     what = {"p11": f"Predicted11 {names.get(a['comp'], a['comp'])}" + (" (última revisió)" if "final" in a.get("key", "") else " (matí)"),
             "ff": "Fantasy de FutbolFantasy (matí: omplir i revisar els jocs oberts, ítems i extres del dia)",
+            "ffspecial": "FutbolFantasy: revisió final del joc especial del partit",
             "mister": "Mister: " + ("revisió abans de les 5:00 (pujes i vendes)" if a["comp"] == "pre" else "pujes al mercat"),
             "quinrem": f"recordatori de la Quiniela {names.get(a['comp'], a['comp'])}",
             "quiniela": f"Quiniela {names.get(a['comp'], a['comp'])} (la que m'has enviat)",
@@ -64,6 +65,14 @@ def run_action(a):
             p11.run([a["comp"]], force=False, max_hours=99)
         elif a["do"] == "ff":
             ff.run(max_hours=24 * 8, extras_hours=24 * 8)
+            try:  # (26/11) jocs especials d'un partit («Puntos en el X - Y»)
+                from bot import ffspecial
+                ffspecial.run()
+            except Exception as e:
+                print(f"::error title=FF especial::{type(e).__name__}: {str(e)[:300]}")
+        elif a["do"] == "ffspecial":
+            from bot import ffspecial
+            ffspecial.run(final=True, only=a["comp"])
         elif a["do"] == "misterxi":
             from bot import misterlineup
             misterlineup.run(only={"laliga": "Fentaniños", "laliga2": "Quique"}.get(a["comp"]), final=bool(a["comp"]))
