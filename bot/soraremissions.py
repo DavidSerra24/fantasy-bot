@@ -252,8 +252,8 @@ SETQ = """query($sp: Sport!) { currentUser { setPlayTasks(first: 10, sport: $sp)
 
 CLAIMQ = """query($sp: Sport!) { currentUser { taskGroup(slug: "play") { myTasks(sport: $sp) { __typename ... on TaskInterface { id title rarity aasmState rewardConfigs { __typename } } } }
   setPlayTasks(first: 20, sport: $sp) { __typename ... on TaskInterface { id title rarity aasmState rewardConfigs { __typename } } } } }"""
-# (26/11) només es reclamen recompenses d'aquests tipus (essència, XP/pistes/monedes, crèdits). Les altres (p. ex. el sobre
-# quan un jugador del Set fa 100 punts) les obre el David: «no vull que el reclami perquè ho vull obrir jo»
+# (26/11) les recompenses que són sobres (CardPacksRewardConfig, p. ex. «The 100 Club», quan un jugador del Set fa 100
+# punts) no es reclamen: les obre el David («no vull que el reclami perquè ho vull obrir jo»). SAFE_REWARDS: informatiu
 SAFE_REWARDS = {"InGameCurrencyRewardConfig", "CardShardRewardConfig", "CardShardsRewardConfig", "CoinRewardConfig",
                 "ConversionCreditRewardConfig", "AnyConversionCreditRewardConfig"}
 CLAIM = """mutation($t: ID!) { claimTask(input: {taskId: $t}) { errors { message } task { ... on TaskInterface { aasmState } }
@@ -298,7 +298,7 @@ def claim_done(rep):
             if t.get("aasmState") != "COMPLETED" or not t.get("id"):
                 continue
             kinds = {r.get("__typename") for r in t.get("rewardConfigs") or []}
-            if not kinds or kinds - SAFE_REWARDS:  # sobre o recompensa desconeguda: per al David (26/11)
+            if any("Pack" in k for k in kinds):  # sobre («The 100 Club», CardPacksRewardConfig): l'obre el David (26/11)
                 left = load_json("sorare_left_rewards.json", []) or []
                 if t["id"] not in left:
                     rep.append(f"📦 {t.get('title')}: recompensa per obrir tu (no la reclamo) — {', '.join(sorted(kinds)) or '?'}")

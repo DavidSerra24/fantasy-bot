@@ -6,5 +6,5 @@ for sp in ("FOOTBALL", "NBA"):
     d = gql(CLAIMQ, {"sp": sp}, token=token())["currentUser"]
     for t in (d["taskGroup"]["myTasks"] or []) + (d["setPlayTasks"] or []):
         k = {r.get("__typename") for r in t.get("rewardConfigs") or []}
-        out.append(f"{sp} {t.get('title')} [{t.get('aasmState')}] {sorted(k)} {'OK' if k and not k - SAFE_REWARDS else 'NO'}")
+        out.append(f"{sp} {t.get('title')} [{t.get('aasmState')}] {sorted(k)} {'NO (sobre)' if any('Pack' in x for x in k) else 'reclama'}")
 print("::notice title=missions::" + " ¶ ".join(out)[:3900])
