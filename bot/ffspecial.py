@@ -64,7 +64,7 @@ def match_links(pg, ta, tb):
     return seen
 
 
-def ff_fallback(pg, card, ta, tb, dry, report, label):
+def ff_fallback(pg, spg, card, ta, tb, dry, report, label, deadline):
     from bot.copa import PLAYERS_JS
     links = match_links(pg, ta, tb)
     if not links:
@@ -73,9 +73,33 @@ def ff_fallback(pg, card, ta, tb, dry, report, label):
     rows = pg.evaluate(PLAYERS_JS, links[0]) or []
     oficial = bool(re.search(r"alineaci[oó]n (oficial|confirmada)", pg.inner_text("body")[:4000], re.I))
     ok = [r for r in rows if not r["suplente"] and str(r["lesion"]) in ("-1", "", "None") and (oficial or r["pct"] >= 80)]
-    ok.sort(key=lambda r: (-r["media"], -r["pct"]))
+    # (26/11) la pàgina de la Conference no té punts: per ordenar, el PS de SorareInside de la propera jornada de lliga
+    # (el Getafe sí; l'Iberia no hi és i va després); a igualtat, el %
+    ps = {}
+    for name, slug, (country, league) in [c for c in COMPS if c[2][0] != "Europe"]:
+        for add in (3, 2, 4):
+            try:
+                d = si.extract_league(spg, country, league, (deadline + dt.timedelta(days=add)).date(), use_cache=True)
+            except Exception:
+                continue
+            order = d.get("_order") or []
+            if not any(team_match(ta, t) or team_match(tb, t) for t in order):
+                break
+            for t in order:
+                if not (team_match(ta, t) or team_match(tb, t)) or not isinstance(d.get(t), list):
+                    continue
+                for row in d[t]:
+                    for p_ in row:
+                        if p_.get("ps") is not None:
+                            ps[p_["name"]] = p_["ps"]
+            break
+        if ps:
+            break
+    for r in ok:
+        r["ps"] = max((v for k, v in ps.items() if name_score(r["name"], k) >= 80), default=None)
+    ok.sort(key=lambda r: (r["ps"] is None, -(r["ps"] or 0), -r["pct"]))
     print("::notice title=FF especials::" + f"{len(rows)} jugadors, {len(ok)} titulars ≥80%{' (onze oficial)' if oficial else ''}: "
-          + ", ".join(f"{r['name']} {r['pct']}% m{r['media']}" for r in ok)[:1500])
+          + ", ".join(f"{r['name']} {r['pct']}% PS {r['ps']}" for r in ok)[:1500])
     pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
     inject(pg, "ff")
     cur = next((c for c in ff.cards(pg) if c["id"] == card["id"]), card)
@@ -89,9 +113,9 @@ def ff_fallback(pg, card, ta, tb, dry, report, label):
             break
         res = [x for x in (pg.evaluate("(s) => __ff.search(s)", r["name"]) or []) if name_score(r["name"], x["n"]) >= 80]
         if len(res) == 1 and str(res[0]["id"]) not in set(cur["ids"]) and str(res[0].get("u")) != "0":
-            pick.append({"ff": res[0]["n"], "ffid": str(res[0]["id"]), "pct": r["pct"], "media": r["media"]})
+            pick.append({"ff": res[0]["n"], "ffid": str(res[0]["id"]), "pct": r["pct"], "ps": r["ps"]})
     ff.close_modal(pg)
-    names = ", ".join(f"{c['ff']} ({c['pct']}%, mitjana {c['media']})" for c in pick)
+    names = ", ".join(f"{c['ff']} ({c['pct']}%, PS lliga {c['ps'] if c['ps'] is not None else '?'})" for c in pick)
     if dry:
         report.append(f"🧪 {label} (futbolfantasy.com, {cur['empty']} buides): posaria {names or 'ningú'}")
         return True
@@ -142,7 +166,7 @@ def run(dry=False, final=False, only=None):
                     sidata, teams, comp_slug = d, (A, B), slug
                     break
             if not sidata:  # (26/11) Conference League: SorareInside no la té → alineació probable de futbolfantasy.com
-                r = ff_fallback(pg, card, ta, tb, dry, report, label)
+                r = ff_fallback(pg, spg, card, ta, tb, dry, report, label, deadline)
                 if r is not None:
                     continue
                 report.append(f"⚠️ {label}: no trobo {ta} – {tb} ni a SorareInside ni a futbolfantasy.com")
