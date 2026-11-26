@@ -250,8 +250,12 @@ SETQ = """query($sp: Sport!) { currentUser { setPlayTasks(first: 10, sport: $sp)
     rewardConfigs { __typename ... on InGameCurrencyRewardConfig { currency amount } ... on CardShardRewardConfig { quantity rarity } } } } } }"""
 
 
-CLAIMQ = """query($sp: Sport!) { currentUser { taskGroup(slug: "play") { myTasks(sport: $sp) { __typename ... on TaskInterface { id title rarity aasmState } } }
-  setPlayTasks(first: 20, sport: $sp) { __typename ... on TaskInterface { id title rarity aasmState } } } }"""
+CLAIMQ = """query($sp: Sport!) { currentUser { taskGroup(slug: "play") { myTasks(sport: $sp) { __typename ... on TaskInterface { id title rarity aasmState rewardConfigs { __typename } } } }
+  setPlayTasks(first: 20, sport: $sp) { __typename ... on TaskInterface { id title rarity aasmState rewardConfigs { __typename } } } } }"""
+# (26/11) només es reclamen recompenses d'aquests tipus (essència, XP/pistes/monedes, crèdits). Les altres (p. ex. el sobre
+# quan un jugador del Set fa 100 punts) les obre el David: «no vull que el reclami perquè ho vull obrir jo»
+SAFE_REWARDS = {"InGameCurrencyRewardConfig", "CardShardRewardConfig", "CardShardsRewardConfig", "CoinRewardConfig",
+                "ConversionCreditRewardConfig", "AnyConversionCreditRewardConfig"}
 CLAIM = """mutation($t: ID!) { claimTask(input: {taskId: $t}) { errors { message } task { ... on TaskInterface { aasmState } }
   rewards { __typename ... on CardShardsReward { quantity rarity } ... on InGameCurrencyReward { coinAmount config { ... on InGameCurrencyRewardConfig { currency amount } } }
     ... on CoinReward { coinAmount } ... on AnyConversionCreditReward { config { ... on ConversionCreditRewardConfig { percentageDiscount } } } } } }"""
@@ -292,6 +296,13 @@ def claim_done(rep):
             continue
         for t in (d["taskGroup"]["myTasks"] or []) + (d["setPlayTasks"] or []):
             if t.get("aasmState") != "COMPLETED" or not t.get("id"):
+                continue
+            kinds = {r.get("__typename") for r in t.get("rewardConfigs") or []}
+            if not kinds or kinds - SAFE_REWARDS:  # sobre o recompensa desconeguda: per al David (26/11)
+                left = load_json("sorare_left_rewards.json", []) or []
+                if t["id"] not in left:
+                    rep.append(f"📦 {t.get('title')}: recompensa per obrir tu (no la reclamo) — {', '.join(sorted(kinds)) or '?'}")
+                    save_json("sorare_left_rewards.json", (left + [t["id"]])[-200:])
                 continue
             try:  # abans de reclamar, l'estat final dels picks per al resum del matí (12/11)
                 from bot import digest

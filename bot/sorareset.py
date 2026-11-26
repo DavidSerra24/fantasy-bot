@@ -483,7 +483,7 @@ def claim_missions():
         claim_done(rep)
     except Exception as e:
         rep.append(f"⚠️ reclamar missions: {str(e)[:150]}")
-    if any(r.startswith("🎁") for r in rep):
+    if any(r.startswith(("🎁", "📦")) for r in rep):
         telegram("Sorare · missions reclamades\n" + "\n".join(rep))
 
 
