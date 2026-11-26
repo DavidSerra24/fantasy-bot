@@ -140,7 +140,8 @@ def apply_pick(pg, card, label, ranked, dry, src="SorareInside"):
     for c in ranked:
         if len(want) >= n:
             break
-        hit = next((x for x in placed if name_score(c["name"], x["name"]) >= 60 and x not in keep), None)
+        hit = next((x for x in placed if x not in keep and (name_score(c["name"], x["name"]) >= 60
+                    or ff.plain(x["name"]).lower() in ff.plain(c["name"]).lower().split())), None)  # «Djené» = «Djené Dakonam»
         if hit:
             keep.append(hit)
         want.append((c, hit))
@@ -149,6 +150,9 @@ def apply_pick(pg, card, label, ranked, dry, src="SorareInside"):
     desc = ", ".join(f"{c['name']} ({c.get('ps') if c.get('ps') is not None else '?'} PS, {c.get('pct')}%)" for c, _ in want)
     if not new and not out:
         return f"✅ {label}: sense canvis ({desc})"
+    print("::notice title=FF especial::" + f"posats: {[x['name'] for x in placed]} · vull: {desc} · surten: {[x['name'] for x in out]}")
+    if len(new) > len(out) + (n - len(placed)):  # (26/11) no hi ha lloc: un nom no s'ha reconegut; no es toca res
+        return f"⚠️ {label}: no reconec algun dels posats ({', '.join(x['name'] for x in placed)}); no toco res · ara: {desc}"
     if dry:
         return (f"🧪 {label} ({src}): quedaria {desc} · surten {', '.join(x['name'] for x in out) or 'cap'}"
                 f" · entren {', '.join(c['name'] for c in new) or 'cap'}")
