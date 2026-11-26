@@ -127,6 +127,57 @@ def ff_fallback(pg, spg, card, ta, tb, dry, report, label, deadline):
     return True
 
 
+def apply_pick(pg, card, label, ranked, dry, src="SorareInside"):
+    """ranked: candidats ja ordenats (name, ps, pct). Deixa al joc els N primers: treu els posats que ja no hi
+    són i hi posa els que falten (també si el joc ja era ple; 26/11, Gudelj → Djené)."""
+    pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
+    inject(pg, "ff")
+    cur = next((c for c in ff.cards(pg) if c["id"] == card["id"]), card)
+    slots = [x for x in (pg.evaluate("(id) => __ff.slots(id)", card["id"]) or [])]
+    n = len(slots) or (cur["empty"] + len(cur["ids"]))
+    placed = [x for x in slots if x["name"] and x["name"] not in ("+",) and len(x["name"]) > 1][:len(cur["ids"])]
+    want, keep = [], []
+    for c in ranked:
+        if len(want) >= n:
+            break
+        hit = next((x for x in placed if name_score(c["name"], x["name"]) >= 60 and x not in keep), None)
+        if hit:
+            keep.append(hit)
+        want.append((c, hit))
+    out = [x for x in placed if x not in keep]
+    new = [c for c, hit in want if not hit]
+    desc = ", ".join(f"{c['name']} ({c.get('ps') if c.get('ps') is not None else '?'} PS, {c.get('pct')}%)" for c, _ in want)
+    if not new and not out:
+        return f"✅ {label}: sense canvis ({desc})"
+    if dry:
+        return (f"🧪 {label} ({src}): quedaria {desc} · surten {', '.join(x['name'] for x in out) or 'cap'}"
+                f" · entren {', '.join(c['name'] for c in new) or 'cap'}")
+    for x in out:
+        ff.remove_slot(pg, card["id"], x["slot"])
+    pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
+    inject(pg, "ff")
+    # nom de FutbolFantasy de cada nou (mateix cercador que la resta del bot); si un no es troba, el següent de la llista
+    ff.open_picker(pg, card["id"])
+    have = {x["name"] for x in keep}
+    rest = [c for c in ranked if not any(name_score(c["name"], h) >= 60 for h in have)]
+    pick = []
+    for c in rest:
+        if len(pick) >= n - len(keep):
+            break
+        res = [x for x in (pg.evaluate("(s) => __ff.search(s)", c["name"]) or []) if name_score(c["name"], x["n"]) >= 80]
+        if not res:
+            res = [x for x in (pg.evaluate("(s) => __ff.search(s)", ff.plain(c["name"]).split()[-1]) or []) if name_score(c["name"], x["n"]) >= 80]
+        if len(res) == 1 and str(res[0].get("u")) != "0":
+            pick.append(dict(c, ff=res[0]["n"], ffid=str(res[0]["id"])))
+    ff.close_modal(pg)
+    pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
+    inject(pg, "ff")
+    ff.fill(pg, card["id"], pick)
+    after = next((c for c in ff.cards(pg) if c["id"] == card["id"]), {"empty": "?"})
+    return (f"{'✅' if after['empty'] == 0 else '⚠️'} {label} ({src}): {', '.join(x['name'] for x in keep) + (', ' if keep and pick else '')}"
+            f"{', '.join(c['ff'] + ' (' + str(c.get('ps')) + ' PS)' for c in pick)} · surten {', '.join(x['name'] for x in out) or 'cap'} · buides: {after['empty']}")
+
+
 def run(dry=False, final=False, only=None):
     report = []
     with sync_playwright() as p:
@@ -162,6 +213,15 @@ def run(dry=False, final=False, only=None):
                 order = d.get("_order") or []
                 A = next((t for t in order if team_match(ta, t)), None)
                 B = next((t for t in order if team_match(tb, t)), None)
+                # (26/11) un equip amb un altre nom a SorareInside (Iberia 1999 = «FC Saburtalo Tbilisi»): n'hi ha prou
+                # amb un; l'altre és el seu rival (l'ordre de SorareInside va per parelles local–visitant)
+                opp = {}
+                for i in range(0, len(order) - 1, 2):
+                    opp[order[i]], opp[order[i + 1]] = order[i + 1], order[i]
+                if A and not B:
+                    B = opp.get(A)
+                elif B and not A:
+                    A = opp.get(B)
                 if A and B:
                     sidata, teams, comp_slug = d, (A, B), slug
                     break
@@ -175,27 +235,8 @@ def run(dry=False, final=False, only=None):
             if final:
                 official = ff.official_lineups(comp_slug, deadline, sidata, wait_until=deadline.astimezone(dt.timezone.utc) - dt.timedelta(minutes=20), log=olog)
             cands = [c for c in ff.candidates(sidata, official) if c["team"] in teams]
-            pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
-            inject(pg, "ff")
-            cur = next((c for c in ff.cards(pg) if c["id"] == card["id"]), card)
-            n = len(cur["slots"]) if cur.get("slots") else (cur["empty"] + len(cur["ids"]))
-            if cur["empty"] == 0:
-                report.append(f"✅ {label}: ja és ple ({n} jugadors); no el toco")
-                continue
-            found, missing = ff.lookup(pg, card["id"], cands)
-            found.sort(key=lambda c: (-c["ps"], c["idx"]))
-            have = set(cur["ids"])
-            pick = [c for c in found if c["ffid"] not in have][:cur["empty"]]
-            names = ", ".join(f"{c['ff']} ({c['team']}, {c['ps']} PS, {c['pct']}%)" for c in pick)
-            if dry:
-                report.append(f"🧪 {label} ({teams[0]} – {teams[1]}, {n} places, {cur['empty']} buides): posaria {names or 'ningú'}"
-                              + (f" · no trobats: {', '.join(missing[:5])}" if missing else ""))
-                continue
-            pg.goto(f"{FF}/fantasy/activas", wait_until="domcontentloaded"); pg.wait_for_timeout(2500)
-            inject(pg, "ff")
-            ff.fill(pg, card["id"], pick)
-            after = next((c for c in ff.cards(pg) if c["id"] == card["id"]), {"empty": "?"})
-            report.append(f"{'✅' if after['empty'] == 0 else '⚠️'} {label} ({teams[0]} – {teams[1]}): {names} · buides: {after['empty']}")
+            cands.sort(key=lambda c: (-c["ps"], c["idx"]))
+            report.append(apply_pick(pg, card, label + f" ({teams[0]} – {teams[1]})", [dict(c, name=c["si"]) for c in cands], dry))
         b.close()
     for l in report:
         print("::notice title=FF especial::" + l)
