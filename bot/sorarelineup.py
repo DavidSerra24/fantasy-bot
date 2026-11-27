@@ -1439,6 +1439,20 @@ def run(mode="dry", live=False):
                     rep.append(f"   {plan[j][0]['displayName']}: {describe(plan[j][1], plan[j][2])} · {preview(plan[j][0], plan[j][1], plan[j][2])}")
     except Exception as e:
         print(f"::warning title=sorare intercanvi entre competicions::{type(e).__name__}: {str(e)[:200]}")
+    # (27/11, el David: «quants jugadors queden de 80-90%?») cartes del ≥80% que no han entrat a cap alineació
+    try:
+        seen_ = set()
+        for lb_, _, _ in plan:
+            r_ = (lb_["mainRarityType"] or "").lower()
+            if r_ in seen_ or not lb_["displayName"].startswith("All Star"):
+                continue
+            seen_.add(r_)
+            inplan = {q["player"] for l2, p2, _ in plan if (l2["mainRarityType"] or "").lower() == r_ for q in p2}
+            left = [q for q in cards(lb_, rarities=(ARENA_RAR if r_ == "limited" else None)) if q["player"] not in inplan]
+            print(f"::notice title=sobrants {r_}::{len(left)} jugadors ≥80% sense alineació: "
+                  + ", ".join(f"{q['name']} ({q['pos'][:3]}, {q['club']}{', Girona' if q.get('girona') else ''}{', Gazzaniga' if q.get('gazza') else ''}, {q['avg']:.0f})" for q in left))
+    except Exception as e:
+        print(f"::warning title=sobrants::{type(e).__name__}: {str(e)[:200]}")
     graded = any(q["grade"] for _, pick, _ in plan for q in pick)
     cards_img, nums = [], {}
     for lb_, pick_, cap_ in plan:
