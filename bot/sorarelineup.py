@@ -1459,7 +1459,7 @@ def run(mode="dry", live=False):
                     l1 = clean_level(np_)
                     if l1 >= lv or bonus_bad(np_, CAP, "avg", False) > b0_:
                         continue
-                    key = (l1, a["imp"] - c["imp"], c["idx"])
+                    key = (l1, a["imp"] - c["imp"], -(c.get("proj") or 0), -(c.get("avg15") or c.get("avg") or 0), c["idx"])
                     if best_ is None or key < best_[0]:
                         best_ = (key, np_, a, c)
             if best_:
