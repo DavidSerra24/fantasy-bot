@@ -1363,36 +1363,6 @@ def run(mode="dry", live=False):
             if lb_["slug"] not in elig:
                 elig[lb_["slug"]] = {n["anyCard"]["slug"] for n in bench(lb_["slug"]) + bench(lb_["slug"], None, ["Goalkeeper"])}
             return card in elig[lb_["slug"]]
-        # (27/11) primer, canviar un jugador amb rivals per una carta lliure del ≥80% (queden molts jugadors de camp
-        # sense alineació: el que limita és el nombre de porters)
-        for i, (lb_, pick_, cap_) in enumerate(plan):
-            lv = clean_level(pick_)
-            if lv == 0:
-                continue
-            r_ = (lb_["mainRarityType"] or "").lower()
-            inpl = {q["player"] for l2, p2, _ in plan if (l2["mainRarityType"] or "").lower() == r_ for q in p2}
-            incard = {q["card"] for _, p2, _ in plan for q in p2}
-            free = [q for q in cards(lb_, rarities=(ARENA_RAR if r_ == "limited" else None), skip=incard)
-                    if q["player"] not in inpl and not q.get("girona") and not q.get("gazza")]
-            b0_ = bonus_bad(pick_, CAP, "avg", False)
-            best_ = None
-            for k, a in enumerate(pick_):
-                for c in free:
-                    if not fits(c, CLASSIC[k]):
-                        continue
-                    np_ = pick_[:k] + [c] + pick_[k + 1:]
-                    l1 = clean_level(np_)
-                    if l1 >= lv or bonus_bad(np_, CAP, "avg", False) > b0_:
-                        continue
-                    key = (l1, a["imp"] - c["imp"], c["idx"])
-                    if best_ is None or key < best_[0]:
-                        best_ = (key, np_, a, c)
-            if best_:
-                _, np_, a, c = best_
-                np_ = [{k_: v_ for k_, v_ in q.items() if k_ != "rivals"} for q in np_]
-                plan[i] = (lb_, np_, captain(np_))
-                rep.append(f"🔄 {lb_['displayName']}: {a['name']} → {c['name']} (lliure) per evitar rivals → "
-                           f"{describe(np_, plan[i][2])} · {preview(lb_, np_, plan[i][2])}")
         # (27/11, el David: «i si fa més d'un canvi? no cal que siguin directes») cerca en feix: fins a 3
         # intercanvis encadenats entre totes les alineacions de la mateixa raresa (qualsevol competició);
         # s'accepta si hi ha menys rivals en total i cap alineació empitjora la bonificació respecte de l'inici
@@ -1467,6 +1437,56 @@ def run(mode="dry", live=False):
             for j in idx:
                 if best_[1][j] is not base[j]:
                     rep.append(f"   {plan[j][0]['displayName']}: {describe(plan[j][1], plan[j][2])} · {preview(plan[j][0], plan[j][1], plan[j][2])}")
+        # (27/11) si els intercanvis no ho arreglen, canviar un jugador amb rivals per una carta lliure del ≥80% (queden
+        # molts jugadors de camp sense alineació: el que limita són els porters). Després dels intercanvis, perquè
+        # així no es treu un jugador bo (el David: «Lejeune és més bo que molts i ha quedat fora»)
+        for i, (lb_, pick_, cap_) in enumerate(plan):
+            lv = clean_level(pick_)
+            if lv == 0:
+                continue
+            r_ = (lb_["mainRarityType"] or "").lower()
+            inpl = {q["player"] for l2, p2, _ in plan if (l2["mainRarityType"] or "").lower() == r_ for q in p2}
+            incard = {q["card"] for _, p2, _ in plan for q in p2}
+            free = [q for q in cards(lb_, rarities=(ARENA_RAR if r_ == "limited" else None), skip=incard)
+                    if q["player"] not in inpl and not q.get("girona") and not q.get("gazza")]
+            b0_ = bonus_bad(pick_, CAP, "avg", False)
+            best_ = None
+            for k, a in enumerate(pick_):
+                for c in free:
+                    if not fits(c, CLASSIC[k]):
+                        continue
+                    np_ = pick_[:k] + [c] + pick_[k + 1:]
+                    l1 = clean_level(np_)
+                    if l1 >= lv or bonus_bad(np_, CAP, "avg", False) > b0_:
+                        continue
+                    key = (l1, a["imp"] - c["imp"], c["idx"])
+                    if best_ is None or key < best_[0]:
+                        best_ = (key, np_, a, c)
+            if best_:
+                _, np_, a, c = best_
+                np_ = [{k_: v_ for k_, v_ in q.items() if k_ != "rivals"} for q in np_]
+                plan[i] = (lb_, np_, captain(np_))
+                rep.append(f"🔄 {lb_['displayName']}: {a['name']} → {c['name']} (lliure) per evitar rivals → "
+                           f"{describe(np_, plan[i][2])} · {preview(lb_, np_, plan[i][2])}")
+                # el jugador que surt torna a entrar en una altra alineació de la mateixa raresa si hi millora algú
+                bst = None
+                for j, (lb2, p2, _) in enumerate(plan):
+                    if j == i or (lb2["mainRarityType"] or "").lower() != r_ or "23" in lb2["slug"] or not ok_in(lb2, a["card"]):
+                        continue
+                    for m, x in enumerate(p2):
+                        if x["imp"] >= a["imp"] or x.get("gazza") or not fits(a, CLASSIC[m]):
+                            continue
+                        n2 = p2[:m] + [a] + p2[m + 1:]
+                        if clean_level(n2) > clean_level(p2) or bonus_bad(n2, CAP, "avg", False) > bonus_bad(p2, CAP, "avg", False):
+                            continue
+                        if bst is None or a["imp"] - x["imp"] > bst[0]:
+                            bst = (a["imp"] - x["imp"], j, n2, x)
+                if bst:
+                    _, j, n2, x = bst
+                    n2 = [{k_: v_ for k_, v_ in q.items() if k_ != "rivals"} for q in n2]
+                    plan[j] = (plan[j][0], n2, captain(n2))
+                    rep.append(f"🔄 {plan[j][0]['displayName']}: {x['name']} → {a['name']} → "
+                               f"{describe(n2, plan[j][2])} · {preview(plan[j][0], n2, plan[j][2])}")
     except Exception as e:
         print(f"::warning title=sorare intercanvi entre competicions::{type(e).__name__}: {str(e)[:200]}")
     # (27/11, el David: «quants jugadors queden de 80-90%?») cartes del ≥80% que no han entrat a cap alineació
