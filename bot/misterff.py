@@ -23,8 +23,8 @@ def ff_list(pg):
     return pg.evaluate(LIST)
 
 
-def search(pg, q):
-    pg.evaluate("""() => [...document.querySelectorAll('a.select-option-link')].find(a => a.offsetParent !== null && /Titular/.test(a.innerText)).click()""")
+def search(pg, q, where="Titular"):
+    pg.evaluate("""(w) => [...document.querySelectorAll('a.select-option-link')].find(a => a.offsetParent !== null && a.innerText.includes(w)).click()""", where)
     pg.locator("#seleccionar-respuesta-input").wait_for(state="visible", timeout=10000)
     pg.wait_for_timeout(500)
     inp = pg.locator("#seleccionar-respuesta-input")
@@ -79,17 +79,23 @@ def sync(b, squad, dry=False):
             notfound.append(f"{q['short']} ({len(res)} resultats)")
             continue
         if not dry:
-            search(pg, used)
-            # (16/11) el primer enllaç pot ser una còpia amagada i el clic esperava 30 s: es clica el visible amb JS
-            ok = pg.evaluate("""(id) => { const a = [...document.querySelectorAll('#buscador-selector a.ls-follow[data-jugador="' + id + '"]')]
-                .find(a => a.offsetParent !== null) || document.querySelector('#buscador-selector a.ls-follow[data-jugador="' + id + '"]');
-                if (!a) return false; a.click(); return true; }""", res[0]["id"])
-            if not ok:
-                notfound.append(f"{q['short']} (no he pogut clicar «seguir»)")
+            # (27/11) com a «Titular» la web no deixa posar un segon porter (ni més titulars dels que hi caben) i no
+            # diu res: Vlachodimos sortia «afegit» cada dia. Si no hi queda, es prova com a «Suplente»; es comprova sempre
+            done = False
+            for where in ("Titular", "Suplente"):
+                search(pg, used, where)
+                # (16/11) el primer enllaç pot ser una còpia amagada i el clic esperava 30 s: es clica el visible amb JS
+                ok = pg.evaluate("""(id) => { const a = [...document.querySelectorAll('#buscador-selector a.ls-follow[data-jugador="' + id + '"]')]
+                    .find(a => a.offsetParent !== null) || document.querySelector('#buscador-selector a.ls-follow[data-jugador="' + id + '"]');
+                    if (!a) return false; a.click(); return true; }""", res[0]["id"])
+                pg.wait_for_timeout(2500)
                 close(pg)
+                if ok and res[0]["id"] in {x["id"] for x in ff_list(pg)}:
+                    done = True
+                    break
+            if not done:
+                notfound.append(f"{q['short']} (no s'ha pogut afegir ni com a titular ni com a suplent)")
                 continue
-            pg.wait_for_timeout(2500)
-            close(pg)
         added.append(res[0]["n"])
     gone = [x for x in cur if x["id"] not in have and not any(matches(q["name"], x["n"]) for q in squad)]
     doubt = [x["n"] for x in cur if x["id"] not in have and x not in gone]
