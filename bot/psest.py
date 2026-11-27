@@ -138,6 +138,20 @@ def _same_surname(name, cand):
     return hits[0] if len(hits) == 1 else None
 
 
+def _anywhere(name, every):
+    """El jugador amb aquest nom a qualsevol plantilla, només si és clar (≥85) i únic (27/11: Pyshchur, que al Mister
+    surt en un altre equip que a SorareInside i quedava sense PS)."""
+    from bot.ff import name_score
+    for lim in (85, 80):  # 80 = només el cognom («Pyshchur»): val si a totes les plantilles n'hi ha un de sol
+        hits = [q for q in every if name_score(name, q["name"]) >= lim]
+        names = {q["name"] for q in hits}
+        if len(names) == 1:
+            return hits[0]
+        if names:
+            return None
+    return None
+
+
 def fill(sidata, source="mister", comp="laliga2", log=print):
     """Posa un PS estimat (p["ps"], p["ps_est"] = True) als jugadors de SorareInside sense PS. Retorna sidata.
     source = "mister" (mitjana de punts del Mister, per al Mister) o "ff" (mitjana de Fantasy✨, per a futbolfantasy.com):
@@ -162,6 +176,8 @@ def fill(sidata, source="mister", comp="laliga2", log=print):
     except Exception as e:
         print(f"::warning title=PS estimat::sense punts ({source}): {str(e)[:200]}")
         return sidata
+    # tots els jugadors de les plantilles (per buscar per nom els que no surten al seu equip)
+    every = (list(P) if source == "ff" else [q for v in R.values() for q in v])
     items = []
     for idx, t in enumerate(sidata.get("_order", [])):
         rows = sidata.get(t)
@@ -174,6 +190,8 @@ def fill(sidata, source="mister", comp="laliga2", log=print):
                 best = max(cand, key=lambda q: name_score(p.get("name") or "", q["name"]), default=None)
                 if best and name_score(p.get("name") or "", best["name"]) < 75:
                     best = _same_surname(p.get("name") or "", cand)  # «Quique Ribes» (SorareInside) = «Kike Ribes» (Mister), 7/11
+                if not best or name_score(p.get("name") or "", best["name"]) < 75:
+                    best = _anywhere(p.get("name") or "", every)  # (27/11) Pyshchur: al Mister surt en un altre equip
                 if best and best.get("avg") is not None:
                     items.append((p, best["avg"], home, t))
     known = [(x, h, p["ps"]) for p, x, h, _ in items if p.get("ps") is not None and not p.get("ps_est")]
