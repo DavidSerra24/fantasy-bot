@@ -1363,44 +1363,80 @@ def run(mode="dry", live=False):
             if lb_["slug"] not in elig:
                 elig[lb_["slug"]] = {n["anyCard"]["slug"] for n in bench(lb_["slug"]) + bench(lb_["slug"], None, ["Goalkeeper"])}
             return card in elig[lb_["slug"]]
-        for i, (lb_, pick_, cap_) in enumerate(plan):
-            if clean_level(pick_) == 0:
+        # (27/11, el David: «i si fa més d'un canvi? no cal que siguin directes») cerca en feix: fins a 3
+        # intercanvis encadenats entre totes les alineacions de la mateixa raresa (qualsevol competició);
+        # s'accepta si hi ha menys rivals en total i cap alineació empitjora la bonificació respecte de l'inici
+        for rar_ in sorted({(o[0]["mainRarityType"] or "").lower() for o in plan}):
+            idx = [j for j, o in enumerate(plan) if (o[0]["mainRarityType"] or "").lower() == rar_
+                   and "23" not in o[0]["slug"]]
+            if not any(clean_level(plan[j][1]) for j in idx) or len(idx) < 2:
                 continue
-            rar_ = (lb_["mainRarityType"] or "").lower()
-            others = [(j, o) for j, o in enumerate(plan) if j != i and o[0]["slug"] != lb_["slug"]
-                      and (o[0]["mainRarityType"] or "").lower() == rar_]
-            best_ = None
-            for j, (lb2, pick2, _) in others:
-                ol0, ob0, pb0 = clean_level(pick2), bonus_bad(pick2, CAP, "avg", False), bonus_bad(pick_, CAP, "avg", False)
-                for k, a in enumerate(pick_):
-                    for m, b_ in enumerate(pick2):
-                        if a.get("girona") or b_.get("girona") or a.get("gazza") or b_.get("gazza"):
-                            continue
-                        if not (fits(b_, CLASSIC[k]) and fits(a, CLASSIC[m])):
-                            continue
-                        if any(x["player"] == b_["player"] for x in pick_) or any(x["player"] == a["player"] for x in pick2):
-                            continue
-                        np_ = pick_[:k] + [b_] + pick_[k + 1:]
-                        no_ = pick2[:m] + [a] + pick2[m + 1:]
-                        l1, l2 = clean_level(np_), clean_level(no_)
-                        if l1 >= clean_level(pick_) or l2 > ol0 or bonus_bad(np_, CAP, "avg", False) > pb0 or bonus_bad(no_, CAP, "avg", False) > ob0:
-                            continue
-                        if not (ok_in(lb_, b_["card"]) and ok_in(lb2, a["card"])):
-                            continue
-                        key = (l1, l2, abs(a["imp"] - b_["imp"]))
-                        if best_ is None or key < best_[0]:
-                            best_ = (key, np_, j, no_, a, b_)
+            base = {j: plan[j][1] for j in idx}
+            b0 = {j: bonus_bad(base[j], CAP, "avg", False) for j in idx}
+            imp0 = sum(q["imp"] for j in idx for q in base[j])
+
+            memo = {}
+
+            def cl(pk):
+                key_ = tuple(q["card"] for q in pk)
+                if key_ not in memo:
+                    memo[key_] = clean_level(pk)
+                return memo[key_]
+
+            def score(st):
+                return (sum(cl(st[j]) for j in idx),
+                        sum(max(0, bonus_bad(st[j], CAP, "avg", False) - b0[j]) for j in idx),
+                        imp0 - sum(q["imp"] for j in idx for q in st[j]))
+
+            def moves(st):
+                for x in range(len(idx)):
+                    for y in range(x + 1, len(idx)):
+                        i1, i2 = idx[x], idx[y]
+                        p1, p2 = st[i1], st[i2]
+                        for k, a in enumerate(p1):
+                            if a.get("girona") or a.get("gazza"):
+                                continue
+                            for m, b_ in enumerate(p2):
+                                if b_.get("girona") or b_.get("gazza") or a["player"] == b_["player"]:
+                                    continue
+                                if not (fits(b_, CLASSIC[k]) and fits(a, CLASSIC[m])):
+                                    continue
+                                if any(q["player"] == b_["player"] for q in p1) or any(q["player"] == a["player"] for q in p2):
+                                    continue
+                                if not (ok_in(plan[i1][0], b_["card"]) and ok_in(plan[i2][0], a["card"])):
+                                    continue
+                                n = dict(st)
+                                n[i1] = p1[:k] + [b_] + p1[k + 1:]
+                                n[i2] = p2[:m] + [a] + p2[m + 1:]
+                                yield n, (plan[i1][0]["displayName"], plan[i2][0]["displayName"], a["name"], b_["name"])
+            s0 = score(base)
+            beam, best_ = [(s0, base, [])], None
+            for depth in range(3):
+                nxt = []
+                for sc, st, hist in beam:
+                    for n, mv in moves(st):
+                        nsc = score(n)
+                        nxt.append((nsc, n, hist + [mv]))
+                        if nsc[0] < s0[0] and nsc[1] == 0 and (best_ is None or (nsc, len(hist)) < (best_[0], len(best_[2]) - 1)):
+                            best_ = (nsc, n, hist + [mv])
+                nxt.sort(key=lambda t: (t[0][1], t[0][0], t[0][2]))
+                beam = nxt[:25]
+                if best_ and best_[0][0] == 0:
+                    break
             if not best_:
-                print("::notice title=rivals sense intercanvi::" + f"{lb_['displayName']}: " + ", ".join(f"{q['name']} ({q['pos'][:3]}, {q['club']} vs {q['rival']}, {q['avg']:.0f})" for q in pick_)
-                      + " | altres: " + " ; ".join(f"{o[0]['displayName']}: " + ", ".join(f"{q['name']} ({q['pos'][:3]}, {q['club']}, {q['avg']:.0f})" for q in o[1]) + f" [{sum(q['avg'] for q in o[1]):.0f}]" for _, o in others))
-            if best_:
-                _, np_, j, no_, a, b_ = best_
-                strip = lambda L: [{k_: v_ for k_, v_ in q.items() if k_ != "rivals"} for q in L]
-                np_, no_ = strip(np_), strip(no_)
-                plan[i] = (lb_, np_, captain(np_))
-                plan[j] = (plan[j][0], no_, captain(no_))
-                rep.append(f"🔄 {lb_['displayName']} ↔ {plan[j][0]['displayName']}: {a['name']} ↔ {b_['name']} per evitar rivals → "
-                           f"{describe(np_, plan[i][2])} · {preview(lb_, np_, plan[i][2])}")
+                print("::notice title=rivals sense intercanvi::" + " ; ".join(
+                    f"{plan[j][0]['displayName']}: " + ", ".join(f"{q['name']} ({q['pos'][:3]}, {q['club']}, {q['avg']:.0f})" for q in plan[j][1])
+                    + f" [{sum(q['avg'] for q in plan[j][1]):.0f}]" for j in idx))
+                continue
+            strip = lambda L: [{k_: v_ for k_, v_ in q.items() if k_ != "rivals"} for q in L]
+            for j in idx:
+                if best_[1][j] is not plan[j][1]:
+                    np_ = strip(best_[1][j])
+                    plan[j] = (plan[j][0], np_, captain(np_))
+            rep.append("🔄 Intercanvis per evitar rivals: " + "; ".join(f"{a} ↔ {b} ({c1} ↔ {c2})" for c1, c2, a, b in best_[2]))
+            for j in idx:
+                if best_[1][j] is not base[j]:
+                    rep.append(f"   {plan[j][0]['displayName']}: {describe(plan[j][1], plan[j][2])} · {preview(plan[j][0], plan[j][1], plan[j][2])}")
     except Exception as e:
         print(f"::warning title=sorare intercanvi entre competicions::{type(e).__name__}: {str(e)[:200]}")
     graded = any(q["grade"] for _, pick, _ in plan for q in pick)
