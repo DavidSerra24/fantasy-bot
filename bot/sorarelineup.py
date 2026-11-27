@@ -1353,6 +1353,53 @@ def run(mode="dry", live=False):
                 rep.append(f"{lb['displayName']}: no hi ha prou jugadors amb ≥80% per a una alineació")
             elif n < 4 and not total:
                 rep.append(f"{lb['displayName']}: {n} alineacions (no queden jugadors per a més)")
+    # (27/11, el David: «és impossible fer algun canvi per evitar que juguin junts?») una alineació que encara té
+    # rivals prova d'intercanviar un jugador amb una alineació d'una ALTRA competició de la mateixa raresa (p. ex.
+    # Champion Limited ↔ All Star Limited), si les dues cartes valen a totes dues competicions i l'altra no empitjora
+    try:
+        elig = {}
+
+        def ok_in(lb_, card):
+            if lb_["slug"] not in elig:
+                elig[lb_["slug"]] = {n["anyCard"]["slug"] for n in bench(lb_["slug"]) + bench(lb_["slug"], None, ["Goalkeeper"])}
+            return card in elig[lb_["slug"]]
+        for i, (lb_, pick_, cap_) in enumerate(plan):
+            if clean_level(pick_) == 0:
+                continue
+            rar_ = (lb_["mainRarityType"] or "").lower()
+            others = [(j, o) for j, o in enumerate(plan) if j != i and o[0]["slug"] != lb_["slug"]
+                      and (o[0]["mainRarityType"] or "").lower() == rar_]
+            best_ = None
+            for j, (lb2, pick2, _) in others:
+                ol0, ob0, pb0 = clean_level(pick2), bonus_bad(pick2, CAP, "avg", False), bonus_bad(pick_, CAP, "avg", False)
+                for k, a in enumerate(pick_):
+                    for m, b_ in enumerate(pick2):
+                        if a.get("girona") or b_.get("girona") or a.get("gazza") or b_.get("gazza"):
+                            continue
+                        if not (fits(b_, CLASSIC[k]) and fits(a, CLASSIC[m])):
+                            continue
+                        if any(x["player"] == b_["player"] for x in pick_) or any(x["player"] == a["player"] for x in pick2):
+                            continue
+                        np_ = pick_[:k] + [b_] + pick_[k + 1:]
+                        no_ = pick2[:m] + [a] + pick2[m + 1:]
+                        l1, l2 = clean_level(np_), clean_level(no_)
+                        if l1 >= clean_level(pick_) or l2 > ol0 or bonus_bad(np_, CAP, "avg", False) > pb0 or bonus_bad(no_, CAP, "avg", False) > ob0:
+                            continue
+                        if not (ok_in(lb_, b_["card"]) and ok_in(lb2, a["card"])):
+                            continue
+                        key = (l1, l2, abs(a["imp"] - b_["imp"]))
+                        if best_ is None or key < best_[0]:
+                            best_ = (key, np_, j, no_, a, b_)
+            if best_:
+                _, np_, j, no_, a, b_ = best_
+                strip = lambda L: [{k_: v_ for k_, v_ in q.items() if k_ != "rivals"} for q in L]
+                np_, no_ = strip(np_), strip(no_)
+                plan[i] = (lb_, np_, captain(np_))
+                plan[j] = (plan[j][0], no_, captain(no_))
+                rep.append(f"🔄 {lb_['displayName']} ↔ {plan[j][0]['displayName']}: {a['name']} ↔ {b_['name']} per evitar rivals → "
+                           f"{describe(np_, plan[i][2])} · {preview(lb_, np_, plan[i][2])}")
+    except Exception as e:
+        print(f"::warning title=sorare intercanvi entre competicions::{type(e).__name__}: {str(e)[:200]}")
     graded = any(q["grade"] for _, pick, _ in plan for q in pick)
     cards_img, nums = [], {}
     for lb_, pick_, cap_ in plan:
