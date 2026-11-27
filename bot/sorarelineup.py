@@ -1390,6 +1390,9 @@ def run(mode="dry", live=False):
                         key = (l1, l2, abs(a["imp"] - b_["imp"]))
                         if best_ is None or key < best_[0]:
                             best_ = (key, np_, j, no_, a, b_)
+            if not best_:
+                print("::notice title=rivals sense intercanvi::" + f"{lb_['displayName']}: " + ", ".join(f"{q['name']} ({q['pos'][:3]}, {q['club']} vs {q['rival']}, {q['avg']:.0f})" for q in pick_)
+                      + " | altres: " + " ; ".join(f"{o[0]['displayName']}: " + ", ".join(f"{q['name']} ({q['pos'][:3]}, {q['club']}, {q['avg']:.0f})" for q in o[1]) + f" [{sum(q['avg'] for q in o[1]):.0f}]" for _, o in others))
             if best_:
                 _, np_, j, no_, a, b_ = best_
                 strip = lambda L: [{k_: v_ for k_, v_ in q.items() if k_ != "rivals"} for q in L]
