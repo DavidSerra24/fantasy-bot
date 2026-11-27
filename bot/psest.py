@@ -46,6 +46,7 @@ def parse_roster(html):
 
 
 def rosters(force=False):
+    """(27/11) es refà si li falta algun equip que SorareInside té (p. ex. el Girona); vegeu fill."""
     """{slug de l'equip: [jugadors]} de tots els equips de LaLiga 2 al Mister."""
     st = load_json("mister_rosters.json", {})
     if not force and st.get("at") and dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(st["at"]) < dt.timedelta(hours=TTL_H) \
@@ -61,7 +62,7 @@ def rosters(force=False):
         except Exception:
             pass
     todo += [f"teams/{k}/{v}" for k, v in load_json("mister_teams.json", {}).items()]
-    while todo and len(seen) < 40:
+    while todo and len(seen) < 90:  # (27/11) amb 40 el Girona (ara a Segona) quedava fora i el Pyshchur no tenia PS
         path = todo.pop(0)
         if path in seen:
             continue
@@ -168,6 +169,11 @@ def fill(sidata, source="mister", comp="laliga2", log=print):
             pool = lambda t: [q for q in P if team_score(q["team"], t) > 0]
         else:
             R = _MEMO.get("r") or rosters()
+            # (27/11) si a les plantilles hi falta algun equip de SorareInside (Girona, ara a Segona), es refan
+            if any(isinstance(sidata.get(t), list) and not any(team_score(s_.replace("-", " "), t) > 0 for s_ in R)
+                   for t in sidata.get("_order", [])) and not _MEMO.get("forced"):
+                _MEMO["forced"] = True
+                R = rosters(force=True)
             _MEMO["r"] = R
 
             def pool(t):
