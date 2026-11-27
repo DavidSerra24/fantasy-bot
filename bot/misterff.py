@@ -18,6 +18,18 @@ LIST = """() => { const seen = {}; return [...document.querySelectorAll('a.jugga
     .filter(x => x.id && !seen[x.id] && (seen[x.id] = 1)); }"""
 
 
+PCTS = """() => { const out = {}; document.querySelectorAll('[class*="jugador_"]').forEach(e => {
+    const m = (e.className.match(/jugador_(\\d+)/) || [])[1]; const a = e.querySelector('[data-probabilidad]');
+    if (m && a && !(m in out)) { const v = parseInt(a.getAttribute('data-probabilidad')); if (!isNaN(v)) out[m] = v; } }); return out; }"""
+
+
+def read_pcts(pg):
+    """% de titular de cada jugador de «Mis equipos» (id de FutbolFantasy → %), el mateix que les alineacions probables
+    (27/11, el David: «si el bot no sap ben bé quin % té un jugador, a Mis equipos l'hauria de veure»)."""
+    pg.goto(URL, wait_until="domcontentloaded"); pg.wait_for_timeout(4000)
+    return pg.evaluate(PCTS) or {}
+
+
 def ff_list(pg):
     pg.goto(URL, wait_until="domcontentloaded"); pg.wait_for_timeout(4000)
     return pg.evaluate(LIST)
@@ -114,6 +126,19 @@ def sync(b, squad, dry=False):
         if bad:
             removed = [n for n in removed if n not in bad]
             notfound += [f"{n} (no s'ha pogut treure)" for n in bad]
+    try:  # (27/11) relació jugador del Mister → id de FutbolFantasy, per llegir-ne el % quan la font no el té clar
+        from bot.web import load_json, save_json
+        rel = load_json("ff_misequipos.json", {}) or {}
+        for fid, q in have.items():
+            if q.get("href"):
+                rel[q["href"]] = fid
+        for q in missing:
+            hit = next((x for x in ff_list(pg) if matches(q["name"], x["n"])), None) if not dry else None
+            if hit and q.get("href"):
+                rel[q["href"]] = hit["id"]
+        save_json("ff_misequipos.json", rel)
+    except Exception as e:
+        print(f"::warning title=Mis equipos::{str(e)[:150]}")
     pg.close()
     line = "📋 Mis equipos: " + ("afegiria " if dry else "afegits ") + (", ".join(added) or "cap")
     line += " | " + ("trauria " if dry else "trets ") + (", ".join(removed) or "cap")

@@ -285,6 +285,24 @@ def league_data(b, pg, spg, cid, country, league, report, cache):
             q["pct"] = q["ff"]["pct"] if q["ff"] else None
             q["src"] = "FF"
             q["bmode"] = "ff"  # alineació: del 70 al 95% és la mateixa franja (mana el PS)
+        # (27/11) jugadors de la plantilla sense % clar (no trobats o nom dubtós): el % de «Mis equipos», on el jugador
+        # és el mateix (id de FutbolFantasy desat per bot/misterff.py), no un nom semblant
+        lost = [q for q in squad if q["pct"] is None]
+        if lost:
+            try:
+                from bot import misterff
+                rel = load_json("ff_misequipos.json", {}) or {}
+                mine = misterff.read_pcts(cache['fpage']) if any(q.get("href") in rel for q in lost) else {}
+                used = []
+                for q in lost:
+                    v = mine.get(str(rel.get(q.get("href"))))
+                    if v is not None:
+                        q["pct"], q["src"], q["doubt"] = v, "FF Mis equipos", False
+                        used.append(f"{q['short']} {v}%")
+                if used:
+                    report.append("📋 % de «Mis equipos» (no els trobava clars a les alineacions probables): " + ", ".join(used))
+            except Exception as e:
+                report.append(f"⚠️ Mis equipos (%): {type(e).__name__}: {str(e)[:120]}")
     else:  # Quique: SorareInside i, si l'equip no hi és, Jornada Perfecta (si surt a l'onze, compta com a titular)
         resolve_by_search(pg, squad + [m for m in market if not m.get("si")][:5], sources.si_entries(sidata), "si", report)
         for q in squad + market:
