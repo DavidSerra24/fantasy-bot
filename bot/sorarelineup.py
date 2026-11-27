@@ -1363,6 +1363,36 @@ def run(mode="dry", live=False):
             if lb_["slug"] not in elig:
                 elig[lb_["slug"]] = {n["anyCard"]["slug"] for n in bench(lb_["slug"]) + bench(lb_["slug"], None, ["Goalkeeper"])}
             return card in elig[lb_["slug"]]
+        # (27/11) primer, canviar un jugador amb rivals per una carta lliure del ≥80% (queden molts jugadors de camp
+        # sense alineació: el que limita és el nombre de porters)
+        for i, (lb_, pick_, cap_) in enumerate(plan):
+            lv = clean_level(pick_)
+            if lv == 0:
+                continue
+            r_ = (lb_["mainRarityType"] or "").lower()
+            inpl = {q["player"] for l2, p2, _ in plan if (l2["mainRarityType"] or "").lower() == r_ for q in p2}
+            incard = {q["card"] for _, p2, _ in plan for q in p2}
+            free = [q for q in cards(lb_, rarities=(ARENA_RAR if r_ == "limited" else None), skip=incard)
+                    if q["player"] not in inpl and not q.get("girona") and not q.get("gazza")]
+            b0_ = bonus_bad(pick_, CAP, "avg", False)
+            best_ = None
+            for k, a in enumerate(pick_):
+                for c in free:
+                    if not fits(c, CLASSIC[k]):
+                        continue
+                    np_ = pick_[:k] + [c] + pick_[k + 1:]
+                    l1 = clean_level(np_)
+                    if l1 >= lv or bonus_bad(np_, CAP, "avg", False) > b0_:
+                        continue
+                    key = (l1, a["imp"] - c["imp"], c["idx"])
+                    if best_ is None or key < best_[0]:
+                        best_ = (key, np_, a, c)
+            if best_:
+                _, np_, a, c = best_
+                np_ = [{k_: v_ for k_, v_ in q.items() if k_ != "rivals"} for q in np_]
+                plan[i] = (lb_, np_, captain(np_))
+                rep.append(f"🔄 {lb_['displayName']}: {a['name']} → {c['name']} (lliure) per evitar rivals → "
+                           f"{describe(np_, plan[i][2])} · {preview(lb_, np_, plan[i][2])}")
         # (27/11, el David: «i si fa més d'un canvi? no cal que siguin directes») cerca en feix: fins a 3
         # intercanvis encadenats entre totes les alineacions de la mateixa raresa (qualsevol competició);
         # s'accepta si hi ha menys rivals en total i cap alineació empitjora la bonificació respecte de l'inici
