@@ -101,7 +101,8 @@ def run(dry=False):
     found, lines = [], []
     leagues = set()
     for l in fx["so5Leaderboards"]:
-        if l["isArena"] or l["seasonality"] != "IN_SEASON" or l["mainRarityType"] != "limited":
+        if l["isArena"] or l["seasonality"] != "IN_SEASON" or l["mainRarityType"] != "limited" \
+                or (l.get("format") or {}).get("title") != "In Season":  # (27/11) fora «Most Wanted» (Limited +)
             continue
         try:
             ns = lb_cards(l["slug"])
@@ -294,7 +295,8 @@ def play(dry=False):
     from bot.sorarelineup import SAVE, delete_lineup
     mine = fx.get("mySo5Lineups") or []
     for lb in fx["so5Leaderboards"]:
-        if lb["isArena"] or lb["seasonality"] != "IN_SEASON" or lb["mainRarityType"] != "limited":
+        if lb["isArena"] or lb["seasonality"] != "IN_SEASON" or lb["mainRarityType"] != "limited" \
+                or (lb.get("format") or {}).get("title") != "In Season":  # (27/11) «Most Wanted» (Limited +) demana 3 cartes Most Wanted: fora
             continue
         have = [l for l in mine if l["so5Leaderboard"]["slug"] == lb["slug"]]
         try:
