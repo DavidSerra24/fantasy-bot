@@ -577,7 +577,12 @@ def review(sports=("NBA",), dry=False):
                 cur_cards = [dict(info[a["anyCard"]["slug"]], game=a["game"]) for a in l["taskAppearances"]
                              if a and a.get("game") and a["anyCard"]["slug"] in info]
                 if not no_rivals(cur_cards):
-                    r = _best_fill(pool_l, slots, cap, fx, True) or _best_fill(pool, slots, cap, fx, True)
+                    # al personal, hora a hora: primer amb els partits fins a l'hora d'ara, després afegint el següent…
+                    r = None
+                    for T in ([None] if mode != "CAREER" else sorted({c["game"]["date"] for c in pool})):
+                        r = _best_fill(pool if T is None else [c for c in pool if c["game"]["date"] <= T], slots, cap, fx, True)
+                        if r:
+                            break
                     if r:
                         v, fill = r
                         pool = [c for c in pool if c["player"] not in {c_["player"] for c_ in fill.values()}]
