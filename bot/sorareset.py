@@ -279,8 +279,14 @@ def run(dry=False, sports=("NBA",), scan=False):
                 if mode == "CAREER":
                     # personal: primer els que juguen abans, com al futbol (decisió del David, 15/11): l'alineació que acaba
                     # més aviat (hora del seu últim partit) i, dins d'aquesta hora, la de més punts previstos
-                    for T in sorted({c["game"]["date"] for c in pool if c["proj"] > 0}):
-                        r = best([c for c in pool if c["proj"] > 0 and c["game"]["date"] <= T], slots, cap)
+                    # sense rivals a qualsevol hora abans que amb rivals (28/11: a les 23:00 només hi havia Orlando–
+                    # Washington i va sortir Ayton amb 4 d'Orlando, quan amb el partit següent es podia fer sense rivals)
+                    times = sorted({c["game"]["date"] for c in pool if c["proj"] > 0})
+                    for strict in (True, False):
+                        for T in times:
+                            r = _best([c for c in pool if c["proj"] > 0 and c["game"]["date"] <= T], slots, cap, strict)
+                            if r:
+                                break
                         if r:
                             break
                 r = r or best(pool, slots, cap)
@@ -556,7 +562,7 @@ def review(sports=("NBA",), dry=False):
                         if not cur or (cand["bonus"], cand["xp"], cand["proj"]) > (cur["bonus"], cur["xp"], cur["proj"]):
                             pool[c["player"]] = cand
             pool = list(pool.values())
-            lines, plan = [], []
+            lines, plan, derival = [], [], set()
             for l in sorted(lineups, key=lambda l: -cur_val[l["id"]]):  # primer la millor (la que ha d'arribar a l'objectiu)
                 if l["id"] in locked_l:
                     plan.append((l, None, cur_val[l["id"]]))
@@ -567,6 +573,17 @@ def review(sports=("NBA",), dry=False):
                     last = max((a["game"]["date"] for a in l["taskAppearances"] if a and a.get("game")), default=None)
                     if last:
                         pool_l = [c for c in pool if c["game"]["date"] <= last]
+                # (28/11) una alineació amb rivals: primer sense rivals (també amb partits més tard), encara que prevegi menys
+                cur_cards = [dict(info[a["anyCard"]["slug"]], game=a["game"]) for a in l["taskAppearances"]
+                             if a and a.get("game") and a["anyCard"]["slug"] in info]
+                if not no_rivals(cur_cards):
+                    r = _best_fill(pool_l, slots, cap, fx, True) or _best_fill(pool, slots, cap, fx, True)
+                    if r:
+                        v, fill = r
+                        pool = [c for c in pool if c["player"] not in {c_["player"] for c_ in fill.values()}]
+                        plan.append((l, fill, v + sum(c["proj"] for c in fx.values())))
+                        derival.add(l["id"])
+                        continue
                 r = best_fill(pool_l, slots, cap, fx)
                 if not r:
                     plan.append((l, None, cur_val[l["id"]]))
@@ -576,7 +593,7 @@ def review(sports=("NBA",), dry=False):
                 plan.append((l, fill, v + sum(c["proj"] for c in fx.values())))
             old_total = sum(cur_val[l["id"]] for l in lineups)
             new_total = sum(nv if f is not None else cur_val[l["id"]] for l, f, nv in plan)
-            if new_total <= old_total + 0.5:
+            if new_total <= old_total + 0.5 and not derival:
                 continue  # el que hi ha ja és (pràcticament) el millor
             todo = []
             for l, fill, nv in plan:
